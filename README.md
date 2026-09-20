@@ -66,16 +66,32 @@ packages/web       React client: 60 screens, offline-first, installable
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) explains how those fit together
 and why the app is built the way it is.
 
-## Icons
+## Android
 
-The app icons are generated from one description of the artwork, so the SVG and
-PNG versions cannot drift apart:
+PluralNova installs from any browser as a PWA, which is the simplest way to get
+it onto a phone. There is also a native shell in [`android/`](android/) for
+people who would rather install an APK:
 
 ```sh
-npm run icons -w @pluralnova/web
+cd android && ./gradlew assembleDebug
 ```
 
-The output is committed; a clean checkout builds without running it.
+It hosts the same web client in a WebView, so offline launch, the local
+database and sync all behave identically. See
+[`android/README.md`](android/README.md) for signing, first run and the one
+thing the shell cannot do (push).
+
+## Icons
+
+The app icons — web, PWA and Android launcher alike — are generated from one
+description of the artwork, so no two versions can drift apart:
+
+```sh
+npm run icons -w @pluralnova/web          # web and PWA
+npm run icons:android -w @pluralnova/web  # Android launcher
+```
+
+The output is committed; a clean checkout builds without running either.
 
 ## Your data
 

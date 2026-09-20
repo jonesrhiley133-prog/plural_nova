@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
     "icons": "node tools/build-icons.mjs",
+    "icons:android": "node tools/build-android-icons.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:e2e": "node --test e2e/*.test.mjs"

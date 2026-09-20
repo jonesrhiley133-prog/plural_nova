@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext is permitted because the common way to run PluralNova is on your own
+  machine, reachable at http://192.168.x.x:4000 on your own network, and a rule
+  that forbade that would make the app unusable for most of the people it is
+  for. Android's config cannot express "private addresses only", so the setup
+  screen is where the distinction is drawn: it says so when the address is
+  neither https nor local.
+
+  If you expose PluralNova to the internet, put it behind https and this becomes
+  moot — the app prefers whatever scheme you give it.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <!-- So a self-signed certificate added to the device is trusted. -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The shell's few colours, taken from the web app's dark tokens so the frame
+  around the page is the same colour as the page.
+-->
+<resources>
+    <color name="app_background">#080b14</color>
+    <color name="app_surface">#121728</color>
+    <color name="app_border">#1f2942</color>
+    <color name="app_text">#e7ecf8</color>
+    <color name="app_text_muted">#94a0bd</color>
+    <color name="app_accent">#7aa2f7</color>
+    <color name="app_accent_text">#04070f</color>
+    <color name="app_critical">#ec7392</color>
+</resources>

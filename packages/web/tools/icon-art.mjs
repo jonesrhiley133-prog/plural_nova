@@ -97,20 +97,34 @@ export function appIcon() {
 export function maskableIcon() {
   return {
     viewBox: 512,
-    ops: [
-      { shape: { kind: 'rect', x: 0, y: 0, w: 512, h: 512 }, fill: FIELD },
-      ...mark({
-        orbitRx: 126,
-        orbitRy: 56,
-        orbitWidth: 9,
-        coreR: 44,
-        starlings: [
-          { shape: { kind: 'circle', cx: 354, cy: 194, r: 14 }, fill: SPARK },
-          { shape: { kind: 'circle', cx: 162, cy: 316, r: 10 }, fill: BLOOM, opacity: 0.85 },
-        ],
-      }),
-    ],
+    ops: [{ shape: { kind: 'rect', x: 0, y: 0, w: 512, h: 512 }, fill: FIELD }, ...compactMark()],
   };
+}
+
+/** The mark alone, sized for a maskable canvas. Shared by the two below. */
+function compactMark() {
+  return mark({
+    orbitRx: 126,
+    orbitRy: 56,
+    orbitWidth: 9,
+    coreR: 44,
+    starlings: [
+      { shape: { kind: 'circle', cx: 354, cy: 194, r: 14 }, fill: SPARK },
+      { shape: { kind: 'circle', cx: 162, cy: 316, r: 10 }, fill: BLOOM, opacity: 0.85 },
+    ],
+  });
+}
+
+/**
+ * The foreground layer of an Android adaptive icon.
+ *
+ * No background of its own — the launcher composites this over a solid colour
+ * and then masks the pair into whatever shape the device uses. The mark spans
+ * about 55% of the canvas, inside the middle 66% a launcher is guaranteed to
+ * keep however aggressively it crops.
+ */
+export function adaptiveForeground() {
+  return { viewBox: 512, ops: compactMark() };
 }
 
 /**
@@ -238,3 +252,6 @@ export function shortcutIcon(name) {
   if (!glyph) throw new Error(`unknown shortcut icon: ${name}`);
   return { viewBox: 96, ops: [TILE, ...glyph] };
 }
+
+/** The colour an adaptive icon's foreground is composited over. */
+export const ADAPTIVE_BACKGROUND = '#0a1024';
