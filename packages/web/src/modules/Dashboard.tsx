@@ -11,6 +11,7 @@ import {
 import { useAuth, useSystemMode } from '../core/auth.js';
 import { useCollection, useQuery } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
+import { useOptimisticSettings } from '../core/settings.js';
 import { useBadges } from '../core/badges.js';
 import { useFronting } from '../core/fronting.js';
 import { useToast } from '../core/toast.js';
@@ -30,7 +31,8 @@ import { Icon } from '../ui/Icon.js';
  * make the next tap obvious, not to be every screen at once.
  */
 export default function Dashboard(): JSX.Element {
-  const { user, settings, saveSettings } = useAuth();
+  const { user } = useAuth();
+  const { settings, update: updateSettings } = useOptimisticSettings();
   const { t, term } = useI18n();
   const systemMode = useSystemMode();
   const customiser = useDialog();
@@ -86,7 +88,7 @@ export default function Dashboard(): JSX.Element {
         <WidgetEditor
           widgets={settings.widgets}
           systemMode={systemMode}
-          onChange={(widgets) => void saveSettings({ widgets })}
+          onChange={(widgets) => updateSettings({ widgets })}
         />
       </Dialog>
 

@@ -4,6 +4,7 @@ import type { StoredRecord } from '@pluralnova/shared';
 import { useAuth, useActiveMemberId } from '../core/auth.js';
 import { useCollection } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
+import { useOptimisticSettings } from '../core/settings.js';
 import { useToast } from '../core/toast.js';
 import { api, messageFor } from '../core/api.js';
 import { Atmosphere, Logo } from '../app/Atmosphere.js';
@@ -239,7 +240,7 @@ function PinManager({
 }: {
   dialog: ReturnType<typeof useDialog<StoredRecord>>;
 }): JSX.Element {
-  const { settings, saveSettings } = useAuth();
+  const { settings, update: updateSettings } = useOptimisticSettings();
   const { term } = useI18n();
   const toast = useToast();
   const { reload } = useCollection('members');
@@ -302,7 +303,7 @@ function PinManager({
           hint="Turn this off to skip every profile PIN on this account."
           checked={settings.privacy.requireProfilePins}
           onChange={(value) =>
-            void saveSettings({ privacy: { ...settings.privacy, requireProfilePins: value } })
+            updateSettings({ privacy: { ...settings.privacy, requireProfilePins: value } })
           }
         />
       </div>

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { ACHIEVEMENTS } from '@pluralnova/shared';
-import { useAuth } from '../core/auth.js';
+import { useOptimisticSettings } from '../core/settings.js';
 import { useCollection } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -26,7 +26,7 @@ const CATEGORIES = [
 ] as const;
 
 export default function Achievements(): JSX.Element {
-  const { settings, saveSettings } = useAuth();
+  const { settings, update } = useOptimisticSettings();
   const dates = useDateFormat();
   const toast = useToast();
   const unlocked = useCollection('achievements');
@@ -136,7 +136,7 @@ export default function Achievements(): JSX.Element {
           hint="Off means nothing new unlocks. What you have earned is kept."
           checked={settings.achievementsEnabled}
           onChange={(value) => {
-            void saveSettings({ achievementsEnabled: value }).then(() => toast.success('Saved'));
+            update({ achievementsEnabled: value });
           }}
         />
         <SwitchRow
@@ -144,7 +144,7 @@ export default function Achievements(): JSX.Element {
           checked={settings.achievementToasts}
           disabled={!settings.achievementsEnabled}
           onChange={(value) => {
-            void saveSettings({ achievementToasts: value }).then(() => toast.success('Saved'));
+            update({ achievementToasts: value });
           }}
         />
       </Card>

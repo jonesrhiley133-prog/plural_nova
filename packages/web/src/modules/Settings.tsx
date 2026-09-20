@@ -12,6 +12,7 @@ import {
 } from '@pluralnova/shared';
 import { api, messageFor } from '../core/api.js';
 import { useAuth } from '../core/auth.js';
+import { useOptimisticSettings } from '../core/settings.js';
 import { useTheme } from '../core/theme.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -302,7 +303,7 @@ function Terminology(): JSX.Element {
 }
 
 function Notifications(): JSX.Element {
-  const { settings, saveSettings } = useAuth();
+  const { settings, update } = useOptimisticSettings();
   const toast = useToast();
   const [status, setStatus] = useState<{ state: string; message: string; canAsk: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -316,14 +317,12 @@ function Notifications(): JSX.Element {
     channel: 'inApp' | 'foreground' | 'push' | 'badge',
     value: boolean,
   ): void => {
-    void saveSettings({
+    update({
       notifications: {
         ...settings.notifications,
         [category]: { ...settings.notifications[category], [channel]: value },
       },
-    })
-      .then(() => toast.success('Saved'))
-      .catch((cause: unknown) => toast.fromError(cause));
+    });
   };
 
   return (
@@ -394,7 +393,7 @@ function Notifications(): JSX.Element {
           hint="Off means only the in-app notification centre. Nothing is lost either way."
           checked={settings.notificationsEnabled}
           onChange={(value) => {
-            void saveSettings({ notificationsEnabled: value }).then(() => toast.success('Saved'));
+            update({ notificationsEnabled: value });
           }}
         />
         <SwitchRow
@@ -402,9 +401,7 @@ function Notifications(): JSX.Element {
           hint="Holds push notifications overnight. They still arrive in the app."
           checked={settings.quietHours.enabled}
           onChange={(value) => {
-            void saveSettings({ quietHours: { ...settings.quietHours, enabled: value } }).then(() =>
-              toast.success('Saved'),
-            );
+            update({ quietHours: { ...settings.quietHours, enabled: value } });
           }}
         />
         {settings.quietHours.enabled ? (
@@ -414,7 +411,7 @@ function Notifications(): JSX.Element {
               type="time"
               value={settings.quietHours.from}
               onChange={(value) => {
-                void saveSettings({ quietHours: { ...settings.quietHours, from: value } });
+                update({ quietHours: { ...settings.quietHours, from: value } });
               }}
             />
             <TextField
@@ -422,7 +419,7 @@ function Notifications(): JSX.Element {
               type="time"
               value={settings.quietHours.to}
               onChange={(value) => {
-                void saveSettings({ quietHours: { ...settings.quietHours, to: value } });
+                update({ quietHours: { ...settings.quietHours, to: value } });
               }}
             />
           </div>
@@ -492,14 +489,11 @@ function Notifications(): JSX.Element {
 }
 
 function Privacy(): JSX.Element {
-  const { settings, saveSettings } = useAuth();
+  const { settings, update } = useOptimisticSettings();
   const { term } = useI18n();
-  const toast = useToast();
 
   const set = (patch: Partial<typeof settings.privacy>): void => {
-    void saveSettings({ privacy: { ...settings.privacy, ...patch } })
-      .then(() => toast.success('Saved'))
-      .catch((cause: unknown) => toast.fromError(cause));
+    update({ privacy: { ...settings.privacy, ...patch } });
   };
 
   return (
@@ -597,8 +591,8 @@ function Accessibility(): JSX.Element {
 }
 
 function Performance(): JSX.Element {
-  const { settings, saveSettings } = useAuth();
-  const { settings: theme, update } = useTheme();
+  const { settings, update } = useOptimisticSettings();
+  const { settings: theme, update: updateTheme } = useTheme();
   const toast = useToast();
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
 
@@ -617,7 +611,9 @@ function Performance(): JSX.Element {
             { value: 'balanced', label: 'Balanced — lighter blur, less motion' },
             { value: 'performance', label: 'Performance — no blur, no motion, no starfield' },
           ]}
-          onChange={(value) => void update({ effects: value as 'full' | 'balanced' | 'performance' })}
+          onChange={(value) =>
+            void updateTheme({ effects: value as 'full' | 'balanced' | 'performance' })
+          }
           placeholder="Full"
         />
 
@@ -626,7 +622,7 @@ function Performance(): JSX.Element {
           hint="Forces the lowest effect tier without discarding the one you chose."
           checked={settings.performanceMode}
           onChange={(value) => {
-            void saveSettings({ performanceMode: value }).then(() => toast.success('Saved'));
+            update({ performanceMode: value });
           }}
         />
 
@@ -635,7 +631,7 @@ function Performance(): JSX.Element {
           hint="Skips the background on the sign-in screen, for older phones."
           checked={settings.lowEndLogin}
           onChange={(value) => {
-            void saveSettings({ lowEndLogin: value });
+            update({ lowEndLogin: value });
           }}
         />
       </Card>
@@ -646,7 +642,7 @@ function Performance(): JSX.Element {
           hint="Off keeps everything on this device only. Nothing is deleted when you turn it back on."
           checked={settings.syncEnabled}
           onChange={(value) => {
-            void saveSettings({ syncEnabled: value }).then(() => toast.success('Saved'));
+            update({ syncEnabled: value });
           }}
         />
 
@@ -680,7 +676,8 @@ function Performance(): JSX.Element {
 }
 
 function Navigation(): JSX.Element {
-  const { settings, saveSettings } = useAuth();
+  const { saveSettings } = useAuth();
+  const { settings, update } = useOptimisticSettings();
   const { term } = useI18n();
   const toast = useToast();
 
@@ -692,7 +689,7 @@ function Navigation(): JSX.Element {
   const setTab = (index: number, id: string): void => {
     const next = [...tabs];
     next[index] = id;
-    void saveSettings({ mobileTabs: next }).then(() => toast.success('Saved'));
+    update({ mobileTabs: next });
   };
 
   return (
@@ -1013,8 +1010,7 @@ function About(): JSX.Element {
   const navigate = useNavigate();
   const { term } = useI18n();
   const { locale, locales } = useI18n();
-  const { saveSettings } = useAuth();
-  const toast = useToast();
+  const { update } = useOptimisticSettings();
 
   return (
     <>
@@ -1027,7 +1023,7 @@ function About(): JSX.Element {
             label: `${entry.label}${entry.coverage < 100 ? ` — ${entry.coverage}% translated` : ''}`,
           }))}
           onChange={(value) => {
-            void saveSettings({ locale: value }).then(() => toast.success('Saved'));
+            update({ locale: value });
           }}
           placeholder="English"
         />
