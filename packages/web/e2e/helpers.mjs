@@ -42,6 +42,17 @@ export async function openBrowser(viewport = PHONE) {
 export async function signUp(page, { name = 'End To End', mode = 'system' } = {}) {
   const email = `e2e+${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.test`;
 
+  // Start from a signed-out browser, so a file can register more than one
+  // account without the second one landing on the previous one's dashboard.
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    try {
+      localStorage.clear();
+    } catch {
+      /* Blocked storage means there was nothing to clear. */
+    }
+  });
+
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByLabel('What should we call you?').fill(name);
