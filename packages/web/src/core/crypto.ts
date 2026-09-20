@@ -9,7 +9,13 @@
  * When the other side has published no key there is nothing to encrypt to. The
  * message is sent in the clear and the interface says so — a padlock over
  * plaintext would be worse than no padlock at all.
+ *
+ * Which is why the key is published on sign-in rather than the first time a
+ * conversation is opened: a key that only appears once you reply means the
+ * first thing anyone ever sends you is in the clear, permanently.
  */
+
+import { api } from './api.js';
 
 const KEY_STORAGE = 'pluralnova.messageKey';
 const ALGORITHM = { name: 'ECDH', namedCurve: 'P-256' } as const;
@@ -143,5 +149,25 @@ export async function openMessage(
     throw new DecryptionFailed(
       'This message was encrypted to a key this device does not have. It cannot be read here.',
     );
+  }
+}
+
+/**
+ * Publishes this device's public key so other systems can encrypt to it.
+ *
+ * Called once per session, from the point the account is known. It is safe to
+ * repeat — the server keys the registry on the device, not the call.
+ */
+export async function publishMessageKey(): Promise<void> {
+  const pair = await loadOrCreateKeyPair();
+  if (!pair) return;
+  try {
+    await api.post('/api/messages/keys', {
+      publicKey: JSON.stringify(pair.publicKeyJwk),
+      deviceLabel: 'browser',
+    });
+  } catch {
+    // Without this, messages to this device are sent in the clear and labelled
+    // as such. That is a worse conversation, not a broken one.
   }
 }

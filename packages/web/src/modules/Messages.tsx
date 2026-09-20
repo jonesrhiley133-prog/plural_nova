@@ -302,41 +302,50 @@ function Thread({
   useEffect(
     () =>
       realtime.on((event) => {
-        if (event.type === 'message.new' && event.threadId === threadId) void load();
+        if (event.type !== 'message.new' || event.threadId !== threadId) return;
+        void load();
+        if (!theirKey) setKeyAttempt((attempt) => attempt + 1);
       }),
-    [threadId, load],
+    [threadId, load, theirKey],
   );
 
-  // Key exchange: our own pair is published once, theirs is fetched to encrypt to.
+  /*
+   * Key exchange. This account's key is published at sign-in, so all that is
+   * needed here is the other side's.
+   *
+   * It is looked up again whenever a message arrives while there is still no
+   * key: the other system may only just have signed in and published one, and
+   * a conversation that stayed in the clear for the rest of the session because
+   * of a few seconds' timing would be a bad reason to send plaintext.
+   */
+  const [keyAttempt, setKeyAttempt] = useState(0);
+  const otherUserId = conversation?.otherUserId ?? null;
+
   useEffect(() => {
-    if (!cryptoAvailable() || !conversation) return;
+    if (!cryptoAvailable() || !otherUserId) return;
     let cancelled = false;
 
     void (async () => {
       const pair = await loadOrCreateKeyPair();
       if (!pair || cancelled) return;
       setKeyPair(pair);
-      await api.post('/api/messages/keys', {
-        publicKey: JSON.stringify(pair.publicKeyJwk),
-        deviceLabel: 'browser',
-      }).catch(() => undefined);
 
       const result = await api
-        .get<{ keys: { publicKey: string }[] }>(`/api/messages/keys/${conversation.otherUserId}`)
+        .get<{ keys: { publicKey: string }[] }>(`/api/messages/keys/${otherUserId}`)
         .catch(() => null);
       const raw = result?.keys[0]?.publicKey;
       if (!raw || cancelled) return;
       try {
         setTheirKey(JSON.parse(raw) as JsonWebKey);
       } catch {
-        // A key we cannot parse means no encryption, which the banner says.
+        // A key that will not parse is the same as no key, which the header says.
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [conversation?.otherUserId, conversation]);
+  }, [otherUserId, keyAttempt]);
 
   // Decrypting happens after render so a long thread does not block paint.
   const [decrypted, setDecrypted] = useState<Record<string, string>>({});
@@ -468,13 +477,23 @@ function Thread({
               {conversation?.counterpart.displayName}
             </div>
             <div className="tiny faint">
-              {encryptionReady ? (
+              {/*
+                Three states, not two. A thread whose keys only lined up part
+                way through holds messages the server can read, and calling the
+                whole thing encrypted would be a padlock over those — which is
+                exactly what this feature is built not to do.
+              */}
+              {!encryptionReady ? (
                 <>
-                  <Icon name="lock" size={10} /> {t('social.encrypted')}
+                  <Icon name="unlock" size={10} /> {t('social.notEncrypted')}
+                </>
+              ) : messages.some((message) => !message.encrypted) ? (
+                <>
+                  <Icon name="lock" size={10} /> {t('social.encryptedFromHere')}
                 </>
               ) : (
                 <>
-                  <Icon name="unlock" size={10} /> {t('social.notEncrypted')}
+                  <Icon name="lock" size={10} /> {t('social.encrypted')}
                 </>
               )}
             </div>
@@ -665,7 +684,11 @@ function MessageBubble({
           ) : (
             <>
               {message.pending ? 'Sending…' : time}
-              {message.encrypted ? <Icon name="lock" size={9} label="Encrypted" /> : null}
+              {message.encrypted ? (
+                <Icon name="lock" size={9} label="Encrypted" />
+              ) : (
+                <Icon name="unlock" size={9} label="Not encrypted" />
+              )}
             </>
           )}
         </div>

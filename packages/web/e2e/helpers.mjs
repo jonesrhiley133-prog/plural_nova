@@ -9,7 +9,7 @@
 
 import { chromium } from 'playwright';
 
-export const BASE = process.env['PLURALNOVA_E2E_URL'] ?? 'http://localhost:4100';
+export const BASE = process.env['PLURALNOVA_E2E_URL'] ?? 'http://localhost:4000';
 
 /** The phone width worth holding the line at: a small Android in portrait. */
 export const PHONE = { width: 360, height: 780 };
@@ -44,7 +44,9 @@ export async function signUp(page, { name = 'End To End', mode = 'system' } = {}
 
   // Start from a signed-out browser, so a file can register more than one
   // account without the second one landing on the previous one's dashboard.
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  // A reload rather than a second goto: two navigations in flight at once
+  // cancel each other, and the cancelled one surfaces as ERR_ABORTED.
+  await page.goto(BASE, { waitUntil: 'load' });
   await page.evaluate(() => {
     try {
       localStorage.clear();
@@ -53,7 +55,7 @@ export async function signUp(page, { name = 'End To End', mode = 'system' } = {}
     }
   });
 
-  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByLabel('What should we call you?').fill(name);
   await page.getByLabel('Email').fill(email);
@@ -70,6 +72,28 @@ export async function signUp(page, { name = 'End To End', mode = 'system' } = {}
   await page.waitForTimeout(1200);
 
   return { email };
+}
+
+/**
+ * Claims a public handle, which is how one system finds another. Systems are
+ * not discoverable until they have one.
+ */
+export async function claimHandle(page, handle, displayName) {
+  await page.goto(`${BASE}/constellations`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1000);
+
+  const edit = page.getByRole('button', { name: /edit|set up|create.*profile|publish/i }).first();
+  if (await edit.count()) {
+    await edit.click();
+    await page.waitForTimeout(500);
+  }
+
+  await page.getByLabel('Handle').first().fill(handle);
+  await page.getByLabel('Display name').first().fill(displayName);
+  const discoverable = page.getByLabel(/discoverable/i).first();
+  if ((await discoverable.count()) && !(await discoverable.isChecked())) await discoverable.check();
+  await page.getByRole('button', { name: /^(Save|Publish)/i }).first().click();
+  await page.waitForTimeout(1500);
 }
 
 /** Every route the shell can reach without an id, which is what a smoke test wants. */

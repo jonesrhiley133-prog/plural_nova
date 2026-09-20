@@ -255,6 +255,7 @@ export const EN = {
   'social.messagePlaceholder': 'Write a message…',
   'social.encrypted': 'Encrypted end to end',
   'social.notEncrypted': 'Not encrypted',
+  'social.encryptedFromHere': 'Encrypted from here on',
   'social.messageFailed': 'Not sent',
   'social.messageFailedBody': 'Tap to try again. Nothing was lost.',
 

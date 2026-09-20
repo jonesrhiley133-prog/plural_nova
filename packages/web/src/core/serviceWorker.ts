@@ -14,6 +14,7 @@ import { syncEngine } from './sync.js';
 const OUTBOX_SYNC_TAG = 'pluralnova-outbox';
 
 let waiting: ServiceWorker | null = null;
+let updateAccepted = false;
 let registration: ServiceWorkerRegistration | null = null;
 const updateListeners = new Set<() => void>();
 
@@ -65,10 +66,15 @@ export function registerServiceWorker(): void {
     if (data?.type === 'NAVIGATE' && data.to) deepLink(data.to);
   });
 
-  // The controller changing means the update was accepted and is now in charge.
+  /*
+   * The controller also changes the first time a worker installs, because it
+   * calls `clients.claim()` — so reloading on every controller change bounces
+   * every first-time visitor for no reason, mid-whatever they were doing. Only
+   * an update this page asked for is worth a reload.
+   */
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading) return;
+    if (reloading || !updateAccepted) return;
     reloading = true;
     window.location.reload();
   });
@@ -109,8 +115,10 @@ export function useAppUpdate(): AppUpdate {
   return {
     ready,
     apply: () => {
+      if (!waiting) return;
       // `controllerchange` above does the reload, once the new worker answers.
-      waiting?.postMessage({ type: 'SKIP_WAITING' });
+      updateAccepted = true;
+      waiting.postMessage({ type: 'SKIP_WAITING' });
     },
   };
 }

@@ -8,11 +8,11 @@ They are not part of `npm test`, because they need a running server.
 
 ```sh
 npm run build                 # from the repository root
-PLURALNOVA_DATA_DIR=/tmp/pluralnova-e2e PORT=4100 npm start &
+PLURALNOVA_DATA_DIR=/tmp/pluralnova-e2e npm start &
 npm run test:e2e -w @pluralnova/web
 ```
 
-`PLURALNOVA_E2E_URL` points them somewhere other than `http://localhost:4100`.
+`PLURALNOVA_E2E_URL` points them somewhere other than `http://localhost:4000`.
 `PLAYWRIGHT_CHROMIUM` points at a Chromium that is already on the machine,
 instead of the one Playwright downloads.
 
