@@ -7,6 +7,7 @@ import {
   EN,
   EMOTIONS,
   EMOTION_FAMILIES,
+  LOCALES,
   NAVIGATION,
   TERMS,
   applyTerminology,
@@ -123,9 +124,11 @@ describe('terminology', () => {
 });
 
 describe('localisation', () => {
-  it('falls back to English for a key a locale is missing', () => {
+  it('uses a locale it has, and English for one it does not', () => {
     expect(translate('action.save', { locale: 'es' })).toBe('Guardar');
-    expect(translate('backup.title', { locale: 'es' })).toBe('Backup & restore');
+    // Every shipped locale is complete, so the fallback is reached by asking
+    // for a language the app does not carry rather than by a missing key.
+    expect(translate('backup.title', { locale: 'pt' })).toBe('Backup & restore');
   });
 
   it('returns the key rather than undefined when nothing matches', () => {
@@ -365,4 +368,60 @@ describe('achievements and navigation', () => {
     expect(new Set(items.map((i) => i.id)).size).toBe(items.length);
     expect(new Set(items.map((i) => i.path)).size).toBe(items.length);
   });
+});
+
+describe('translations', () => {
+  /*
+   * A mistranslated token is silent. `{{member}}` resolves to whatever word a
+   * system chose for itself; swapping it for `{{front}}`, or for a fixed noun,
+   * produces a sentence that still reads fine and quietly undoes the whole
+   * terminology system. Eight of these were written by hand and every one was
+   * caught by a check like this rather than by reading.
+   */
+  const TOKEN = /\{\{[^}]+\}\}/g;
+  const PLACEHOLDER = /(?<!\{)\{[a-zA-Z]+\}(?!\})/g;
+
+  for (const locale of LOCALES.filter((entry) => entry.code !== 'en')) {
+    describe(locale.label, () => {
+      it('uses exactly the tokens and placeholders the English does', () => {
+        const wrong: string[] = [];
+        for (const [key, english] of Object.entries(EN)) {
+          const translated = locale.table[key];
+          if (translated === undefined) continue;
+
+          const expectedTokens = (english.match(TOKEN) ?? []).sort();
+          const actualTokens = (translated.match(TOKEN) ?? []).sort();
+          if (expectedTokens.join() !== actualTokens.join()) {
+            wrong.push(`${key}: tokens ${expectedTokens.join()} became ${actualTokens.join()}`);
+          }
+
+          const expectedSlots = (english.match(PLACEHOLDER) ?? []).sort();
+          const actualSlots = (translated.match(PLACEHOLDER) ?? []).sort();
+          if (expectedSlots.join() !== actualSlots.join()) {
+            wrong.push(`${key}: placeholders ${expectedSlots.join()} became ${actualSlots.join()}`);
+          }
+
+          if (english.includes('(s)') !== translated.includes('(s)')) {
+            wrong.push(`${key}: the counted-plural marker was dropped`);
+          }
+        }
+        expect(wrong).toEqual([]);
+      });
+
+      it('translates no key that English does not have', () => {
+        const stray = Object.keys(locale.table).filter((key) => !(key in EN));
+        expect(stray).toEqual([]);
+      });
+
+      it('reports its coverage honestly', () => {
+        const covered = Object.keys(EN).filter((key) => locale.table[key]).length;
+        expect(locale.coverage).toBe(Math.round((covered / Object.keys(EN).length) * 100));
+      });
+
+      it('leaves no string untranslated, because the picker offers it as a language', () => {
+        const missing = Object.keys(EN).filter((key) => !locale.table[key]);
+        expect(missing).toEqual([]);
+      });
+    });
+  }
 });
