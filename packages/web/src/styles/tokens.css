@@ -12,16 +12,16 @@
 
 :root {
   /* Colours — overwritten by the theming engine at runtime. */
-  --bg: #080b14;
-  --bg-subtle: #0c1020;
-  --surface: #121728b8;
-  --surface-raised: #182034cc;
+  --bg: #060912;
+  --bg-subtle: #0d1428;
+  --surface: #1b2340a6;
+  --surface-raised: #232d50c4;
   --surface-sunken: #0a0e1c;
-  --border: #1f2942;
-  --border-strong: #2c3a5c;
+  --border: #2b3760;
+  --border-strong: #3f4f80;
   --text: #e7ecf8;
-  --text-muted: #94a0bd;
-  --text-faint: #6b7794;
+  --text-muted: #c3cee6;
+  --text-faint: #b2bed7;
   --accent: #7aa2f7;
   --accent-text: #04070f;
   --accent-soft: #7aa2f726;
@@ -29,8 +29,17 @@
   --caution: #f0a85a;
   --critical: #ec7392;
   --info: #8bd5ff;
-  --atmosphere: #0a1330;
+  --atmosphere: #132250;
   --shadow: 0 18px 40px -24px rgb(0 0 0 / 0.9);
+
+  /* Glass, and the colour fields it refracts. Also written at runtime. */
+  --glass-edge: rgb(200 220 255 / 0.22);
+  --glass-sheen: rgb(160 190 255 / 0.1);
+  --shadow-lift: 0 2px 6px -2px rgb(0 0 0 / 0.6), 0 24px 56px -28px rgb(4 10 30 / 0.95);
+  --glow: rgb(122 162 247 / 0.34);
+  --nebula-core: #3757c9;
+  --nebula-drift: #9a5fe0;
+  --nebula-deep: #1666a8;
 
   /* Typography. The scale is deliberately short; more sizes means less rhythm. */
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
@@ -67,12 +76,13 @@
   --space-16: 4rem;
 
   /*
-   * Radii. Kept small on purpose: a 10px card reads as a surface in a tool,
-   * a 24px one reads as a tile in a game.
+   * Radii. Generous enough that a panel reads as a pane of glass rather than a
+   * boxed-off region, and stopping well short of the rounding that would make
+   * it a tile in a game.
    */
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius: 16px;
+  --radius-lg: 22px;
   --radius-pill: 999px;
 
   --border-width: 1px;
@@ -86,14 +96,20 @@
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 
   /* Effects, switched off by the performance tier rather than removed. */
-  --blur-surface: 18px;
+  --blur-surface: 26px;
+  /* Blurring desaturates whatever is behind it; this puts the colour back. */
+  --glass-saturate: 1.5;
   --glow-opacity: 1;
-  --starfield-opacity: 0.55;
+  --starfield-opacity: 0.75;
 
   /* Layout. */
   --nav-rail-width: 264px;
   --nav-rail-collapsed: 68px;
   --bottom-nav-height: 58px;
+  /* The floating action button, and the gap it keeps from the bar below it.
+     Content reserves room for both, so nothing ever ends underneath it. */
+  --fab-size: 56px;
+  --fab-gap: var(--space-4);
   --header-height: 56px;
   --content-max: 1180px;
   --content-narrow: 720px;
@@ -112,9 +128,16 @@
   --z-toast: 90;
 }
 
-/* Solid surfaces drop the translucency entirely rather than faking it. */
+/*
+ * Solid surfaces drop the translucency entirely rather than faking it — and
+ * with nothing showing through, the sheen and the rim light would be painted-on
+ * highlights rather than light, so they go too.
+ */
 :root[data-surface='solid'] {
   --blur-surface: 0px;
+  --glass-saturate: 1;
+  --glass-sheen: transparent;
+  --glass-edge: transparent;
 }
 
 /*
@@ -125,14 +148,18 @@
  * how much the device has to draw.
  */
 :root[data-effects='balanced'] {
-  --blur-surface: 8px;
+  --blur-surface: 12px;
+  --glass-saturate: 1.2;
   --glow-opacity: 0.6;
-  --starfield-opacity: 0.3;
+  --starfield-opacity: 0.45;
   --motion: 0.75;
 }
 
 :root[data-effects='performance'] {
   --blur-surface: 0px;
+  --glass-saturate: 1;
+  --glass-sheen: transparent;
+  --glass-edge: transparent;
   --glow-opacity: 0;
   --starfield-opacity: 0;
   --motion: 0;

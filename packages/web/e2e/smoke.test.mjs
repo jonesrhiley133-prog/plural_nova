@@ -64,21 +64,32 @@ describe('every screen', () => {
     assert.deepEqual(overflowing, []);
   });
 
-  it('never leaves the end of a page under the bottom bar', async () => {
+  it('never leaves the end of a page under the bar or the action button', async () => {
     const { page } = session;
     const trapped = [];
 
-    for (const route of ['settings', 'help', 'features', 'more', 'dictionary']) {
+    for (const route of ['settings', 'help', 'features', 'more', 'dictionary', 'stats', 'wellbeing']) {
       await page.goto(`${BASE}/${route}`, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(500);
-      const overlap = await page.evaluate(() => {
+      await page.waitForTimeout(600);
+
+      // Both float over the page, so both have to be cleared — the action
+      // button is the taller of the two and used to cover the last row.
+      const overlaps = await page.evaluate(() => {
         window.scrollTo(0, document.body.scrollHeight);
-        const bar = document.querySelector('.app-bottom-nav');
         const last = document.querySelector('.app-main')?.lastElementChild;
-        if (!bar || !last) return 0;
-        return Math.round(last.getBoundingClientRect().bottom - bar.getBoundingClientRect().top);
+        if (!last) return [];
+        const bottom = last.getBoundingClientRect().bottom;
+        return ['.app-bottom-nav', '.quick-action-button']
+          .map((selector) => {
+            const floating = document.querySelector(selector);
+            if (!floating) return null;
+            const over = Math.round(bottom - floating.getBoundingClientRect().top);
+            return over > 0 ? `${selector} by ${over}px` : null;
+          })
+          .filter(Boolean);
       });
-      if (overlap > 0) trapped.push(`/${route} ends ${overlap}px under the bar`);
+
+      for (const overlap of overlaps) trapped.push(`/${route} is covered: ${overlap}`);
     }
 
     assert.deepEqual(trapped, []);

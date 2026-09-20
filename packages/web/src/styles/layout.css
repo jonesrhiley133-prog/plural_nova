@@ -25,9 +25,13 @@
   gap: var(--space-2);
   height: calc(var(--header-height) + var(--safe-top));
   padding: var(--safe-top) var(--space-4) 0;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: blur(var(--blur-surface));
-  -webkit-backdrop-filter: blur(var(--blur-surface));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 78%, transparent),
+    color-mix(in srgb, var(--bg) 40%, transparent)
+  );
+  backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));
   /*
    * A hairline, not a bar. A solid top border here is the thing that makes a
    * desktop web app look like a page rather than an application.
@@ -66,10 +70,14 @@
   padding: var(--space-4) var(--space-4);
   /*
    * The reserved strip at the bottom is what keeps the last row of a list from
-   * sitting underneath the floating bar, on every screen, without each page
-   * remembering to add it.
+   * sitting underneath the floating bar or the action button, on every screen,
+   * without each page remembering to add it. Both heights come from the same
+   * tokens the two controls are positioned with, so they cannot drift apart.
    */
-  padding-bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + var(--space-8));
+  padding-bottom: calc(
+    var(--bottom-nav-height) + var(--safe-bottom) + var(--fab-gap) + var(--fab-size) +
+      var(--space-6)
+  );
   padding-left: max(var(--space-4), var(--safe-left));
   padding-right: max(var(--space-4), var(--safe-right));
 }
@@ -97,12 +105,16 @@
   padding: 4px;
   width: min(520px, calc(100vw - var(--space-6)));
   height: var(--bottom-nav-height);
-  background: color-mix(in srgb, var(--bg-subtle) 92%, transparent);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 65%),
+    color-mix(in srgb, var(--bg-subtle) 66%, transparent);
   border: var(--border-width) solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(var(--blur-surface));
-  -webkit-backdrop-filter: blur(var(--blur-surface));
+  border-radius: var(--radius-pill);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    var(--shadow-lift);
+  backdrop-filter: blur(calc(var(--blur-surface) * 1.4)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(calc(var(--blur-surface) * 1.4)) saturate(var(--glass-saturate));
 }
 
 /*
@@ -142,6 +154,11 @@
 .app-bottom-nav__item[aria-current='page'] {
   color: var(--accent);
   background: var(--accent-soft);
+  border-radius: var(--radius-pill);
+  /* Lit from within, so where you are is obvious at a glance. */
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 18px -6px var(--glow);
 }
 
 .app-bottom-nav__label {
@@ -294,13 +311,17 @@
 .quick-action-button {
   position: fixed;
   right: max(var(--space-4), var(--safe-right));
-  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + var(--space-4));
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + var(--fab-gap));
   z-index: var(--z-nav);
-  width: 52px;
-  height: 52px;
+  width: var(--fab-size);
+  height: var(--fab-size);
   border-radius: 50%;
   border: var(--border-width) solid color-mix(in srgb, var(--accent) 55%, transparent);
-  background: var(--accent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 88%, #ffffff),
+    var(--accent)
+  );
   color: var(--accent-text);
   font-size: 22px;
   line-height: 1;
@@ -308,7 +329,10 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: var(--shadow);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.3),
+    0 10px 30px -10px var(--glow),
+    var(--shadow-lift);
   transition: transform var(--duration-fast) var(--ease);
 }
 

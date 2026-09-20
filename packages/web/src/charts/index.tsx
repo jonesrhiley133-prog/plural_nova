@@ -139,9 +139,19 @@ export function ColumnChart({
           })}
         </svg>
 
+        {/*
+          One slot per point keeps every label under the value it belongs to,
+          and only every nth is shown. The row must not wrap: a slot is narrower
+          than the label it holds, and wrapping stacks them on top of each other.
+        */}
         <div
           className="row"
-          style={{ justifyContent: 'space-between', marginTop: 4, gap: 0 }}
+          style={{
+            justifyContent: 'space-between',
+            flexWrap: 'nowrap',
+            marginTop: 6,
+            gap: 0,
+          }}
           aria-hidden="true"
         >
           {points.map((point, index) => (
@@ -150,7 +160,9 @@ export function ColumnChart({
               className="tiny faint"
               style={{
                 flex: 1,
+                minWidth: 0,
                 textAlign: 'center',
+                whiteSpace: 'nowrap',
                 fontSize: AXIS_FONT,
                 visibility: index % labelEvery === 0 ? 'visible' : 'hidden',
               }}

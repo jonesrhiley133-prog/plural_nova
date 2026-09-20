@@ -185,10 +185,8 @@ export default function Members(): JSX.Element {
           >
             {(records) => (
               <div
-                className="grid"
-                style={{
-                  ['--grid-min' as never]: `${Math.max(120, 560 / columns)}px`,
-                }}
+                className="grid grid--columns"
+                style={{ ['--grid-columns' as never]: columns }}
               >
                 {records.map((member) => (
                   <MemberCard

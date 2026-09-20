@@ -37,6 +37,29 @@ export interface ThemeTokens {
   /** Backdrop of the starfield / atmosphere layer. */
   atmosphere: string;
   shadow: string;
+
+  /*
+   * The glass. A translucent panel only reads as glass when three things are
+   * true: something varied sits behind it, its own fill is a gradient rather
+   * than a flat wash, and light catches its top edge. These are those.
+   */
+  /** Inner highlight along a panel's top edge, where light would land. */
+  glassEdge: string;
+  /** Gradient wash over a panel's own fill, brighter at the top. */
+  glassSheen: string;
+  /** A deeper, two-stage shadow, so panels lift off the background. */
+  shadowLift: string;
+  /** Accent-coloured bloom, for the controls that should glow. */
+  glow: string;
+
+  /*
+   * The three colour fields behind the glass. Without something to refract, a
+   * blurred panel over a near-black page is just a darker rectangle — these are
+   * what make the blur visible at all.
+   */
+  nebulaCore: string;
+  nebulaDrift: string;
+  nebulaDeep: string;
 }
 
 export interface ThemeSettings {
@@ -64,7 +87,7 @@ export const DEFAULT_THEME: ThemeSettings = {
   accent: DEFAULT_ACCENT,
   surfaceStyle: 'glass',
   effects: 'full',
-  surfaceOpacity: 72,
+  surfaceOpacity: 46,
   highContrast: false,
   reducedMotion: false,
   largeText: false,
@@ -75,16 +98,16 @@ export const DEFAULT_THEME: ThemeSettings = {
 };
 
 const DARK: ThemeTokens = {
-  bg: '#080b14',
-  bgSubtle: '#0c1020',
-  surface: '#121728',
-  surfaceRaised: '#18203440',
+  bg: '#060912',
+  bgSubtle: '#0d1428',
+  surface: '#1b2340',
+  surfaceRaised: '#232d50',
   surfaceSunken: '#0a0e1c',
-  border: '#1f2942',
-  borderStrong: '#2c3a5c',
+  border: '#2b3760',
+  borderStrong: '#3f4f80',
   text: '#e7ecf8',
-  textMuted: '#94a0bd',
-  textFaint: '#6b7794',
+  textMuted: '#c3cee6',
+  textFaint: '#b2bed7',
   accent: DEFAULT_ACCENT,
   accentText: '#04070f',
   accentSoft: '#7aa2f726',
@@ -92,8 +115,15 @@ const DARK: ThemeTokens = {
   caution: '#f0a85a',
   critical: '#ec7392',
   info: '#8bd5ff',
-  atmosphere: '#0a1330',
+  atmosphere: '#132250',
   shadow: '0 18px 40px -24px rgba(0, 0, 0, 0.9)',
+  glassEdge: 'rgba(200, 220, 255, 0.22)',
+  glassSheen: 'rgba(160, 190, 255, 0.10)',
+  shadowLift: '0 2px 6px -2px rgba(0, 0, 0, 0.6), 0 24px 56px -28px rgba(4, 10, 30, 0.95)',
+  glow: 'rgba(122, 162, 247, 0.34)',
+  nebulaCore: '#3757c9',
+  nebulaDrift: '#9a5fe0',
+  nebulaDeep: '#1666a8',
 };
 
 const AMOLED: ThemeTokens = {
@@ -107,6 +137,14 @@ const AMOLED: ThemeTokens = {
   borderStrong: '#242a38',
   atmosphere: '#04060d',
   shadow: '0 18px 40px -26px rgba(0, 0, 0, 1)',
+  glassEdge: 'rgba(170, 196, 255, 0.12)',
+  glassSheen: 'rgba(130, 160, 240, 0.05)',
+  shadowLift: '0 2px 6px -2px rgba(0, 0, 0, 0.85), 0 24px 56px -30px rgba(0, 0, 0, 1)',
+  glow: 'rgba(122, 162, 247, 0.28)',
+  // Dimmer on AMOLED: the point of a true-black theme is the black.
+  nebulaCore: '#182453',
+  nebulaDrift: '#432a6f',
+  nebulaDeep: '#0a2244',
 };
 
 const LIGHT: ThemeTokens = {
@@ -129,6 +167,15 @@ const LIGHT: ThemeTokens = {
   info: '#1d6f9c',
   atmosphere: '#dbe4f7',
   shadow: '0 16px 36px -26px rgba(22, 34, 63, 0.4)',
+  // On a light page the highlight is white and the sheen is almost nothing;
+  // glass reads through shadow and translucency here, not through glow.
+  glassEdge: 'rgba(255, 255, 255, 0.85)',
+  glassSheen: 'rgba(255, 255, 255, 0.5)',
+  shadowLift: '0 1px 3px -1px rgba(22, 34, 63, 0.14), 0 20px 44px -28px rgba(22, 34, 63, 0.4)',
+  glow: 'rgba(61, 111, 212, 0.2)',
+  nebulaCore: '#b9cdf5',
+  nebulaDrift: '#d6c6f0',
+  nebulaDeep: '#c6dcf2',
 };
 
 export const BASE_TOKENS: Record<ThemeBase, ThemeTokens> = {
@@ -301,6 +348,15 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
   tokens.accentText = readableTextOn(accent);
   tokens.accentSoft = withAlpha(accent, isLight ? 0.12 : 0.16);
 
+  /*
+   * The glow and the nearest colour field follow the accent, so choosing a
+   * different accent moves the whole background with it rather than leaving a
+   * blue galaxy behind a green app. The two further fields keep their own hues
+   * — a single-hue background is a wash, not a sky.
+   */
+  tokens.glow = withAlpha(accent, isLight ? 0.2 : 0.34);
+  tokens.nebulaCore = isLight ? mix(accent, '#ffffff', 0.62) : mix(accent, base.nebulaCore, 0.45);
+
   if (settings.highContrast) {
     tokens.text = isLight ? '#000000' : '#ffffff';
     tokens.textMuted = isLight ? '#2b3348' : '#cfd8ec';
@@ -309,6 +365,8 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
     tokens.borderStrong = isLight ? '#1d2438' : '#b6c1d8';
     tokens.surface = isLight ? '#ffffff' : '#0d1120';
     tokens.surfaceRaised = isLight ? '#ffffff' : '#141a2c';
+    tokens.glassSheen = 'transparent';
+    tokens.glassEdge = isLight ? '#5a6784' : '#b6c1d8';
   }
 
   if (settings.surfaceStyle === 'clear') {
@@ -316,11 +374,20 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
     tokens.surfaceRaised = withAlpha(base.surfaceRaised || base.surface, isLight ? 0.6 : 0.45);
   } else if (settings.surfaceStyle === 'glass') {
     const opacity = Math.min(100, Math.max(20, settings.surfaceOpacity)) / 100;
-    tokens.surface = withAlpha(base.surface, opacity);
-    tokens.surfaceRaised = withAlpha(base.surface, Math.min(1, opacity + 0.1));
+    /*
+     * Frosted glass is a pale film over whatever is behind it. A dark fill with
+     * some transparency in it is just a dark box that lets a little through —
+     * which is what this used to be, and why the panels read as flat. Lifting
+     * the fill toward the text colour first is the whole difference.
+     */
+    const film = mix(base.surface, tokens.text, isLight ? 0.0 : 0.2);
+    tokens.surface = withAlpha(film, opacity * 0.62);
+    tokens.surfaceRaised = withAlpha(film, Math.min(1, opacity * 0.62 + 0.09));
   } else {
     tokens.surface = base.surface;
     tokens.surfaceRaised = isLight ? '#ffffff' : mix(base.surface, '#ffffff', 0.05);
+    // An opaque panel with a rim light on it looks like a mistake, not glass.
+    tokens.glassSheen = 'transparent';
   }
 
   if (settings.custom) Object.assign(tokens, settings.custom);

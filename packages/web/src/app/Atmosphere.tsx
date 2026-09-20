@@ -4,10 +4,15 @@ import { useTheme } from '../core/theme.js';
 /**
  * The background.
  *
- * A static starfield painted once to a canvas, plus two faint orbital rings.
- * It is drawn once per size change rather than animated, so it costs nothing to
- * keep on screen, and it is skipped entirely when the effect tier or the user's
- * settings say to leave it out.
+ * Three drifting colour fields, a starfield, and two faint orbital rings. Most
+ * of it is CSS; only the stars need a canvas, and those are painted once per
+ * size change rather than animated, so the whole thing costs one paint and a
+ * compositor transform.
+ *
+ * It is not only decoration. Every translucent panel in the interface is
+ * blurring whatever sits behind it, and over a flat near-black page that
+ * produces a slightly darker rectangle rather than glass. This is what those
+ * panels refract.
  */
 
 interface Star {
@@ -15,11 +20,13 @@ interface Star {
   y: number;
   radius: number;
   alpha: number;
+  /** The few bright enough to carry a halo. A sky of equals reads as noise. */
+  bloom: boolean;
 }
 
 function generateStars(width: number, height: number, seed: number): Star[] {
   // Density scaled to area so a desktop is not sparse and a phone is not noisy.
-  const count = Math.min(220, Math.round((width * height) / 9000));
+  const count = Math.min(340, Math.round((width * height) / 5200));
   const stars: Star[] = [];
   let state = seed;
   const random = (): number => {
@@ -28,11 +35,15 @@ function generateStars(width: number, height: number, seed: number): Star[] {
   };
 
   for (let index = 0; index < count; index += 1) {
+    // Cubed, so most stars are faint and a handful are not — an even spread of
+    // brightness looks like static rather than like a sky.
+    const magnitude = random() ** 3;
     stars.push({
       x: random() * width,
       y: random() * height,
-      radius: random() * 1.1 + 0.25,
-      alpha: random() * 0.55 + 0.12,
+      radius: 0.3 + magnitude * 1.7,
+      alpha: 0.18 + magnitude * 0.72,
+      bloom: magnitude > 0.72,
     });
   }
   return stars;
@@ -64,9 +75,22 @@ export function Atmosphere(): JSX.Element | null {
       context.clearRect(0, 0, width, height);
 
       for (const star of generateStars(width, height, 20240137)) {
+        if (star.bloom) {
+          const halo = context.createRadialGradient(star.x, star.y, 0, star.x, star.y, star.radius * 7);
+          halo.addColorStop(0, `rgba(197, 217, 255, ${star.alpha * 0.5})`);
+          halo.addColorStop(1, 'rgba(197, 217, 255, 0)');
+          context.fillStyle = halo;
+          context.fillRect(
+            star.x - star.radius * 7,
+            star.y - star.radius * 7,
+            star.radius * 14,
+            star.radius * 14,
+          );
+        }
+
         context.beginPath();
         context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-        context.fillStyle = `rgba(233, 240, 255, ${star.alpha})`;
+        context.fillStyle = `rgba(236, 242, 255, ${star.alpha})`;
         context.fill();
       }
     };
@@ -92,9 +116,22 @@ export function Atmosphere(): JSX.Element | null {
     [],
   );
 
+  // The fields are the expensive layer, so they follow the effect tier rather
+  // than the starfield switch — someone can turn the stars off and keep the sky.
+  const fields = settings.effects !== 'performance';
+
   return (
     <div className="atmosphere" aria-hidden="true">
+      {fields ? (
+        <>
+          <span className="atmosphere__field atmosphere__field--core" />
+          <span className="atmosphere__field atmosphere__field--drift" />
+          <span className="atmosphere__field atmosphere__field--deep" />
+        </>
+      ) : null}
+
       {show ? <canvas ref={canvas} className="atmosphere__stars" /> : null}
+
       {settings.effects === 'full'
         ? rings.map((ring, index) => (
             <span

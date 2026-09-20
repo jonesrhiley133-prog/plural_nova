@@ -8,27 +8,88 @@
 /* ── Atmosphere ─────────────────────────────────────────────────────────── */
 
 /*
- * The background: a deep gradient with two soft light sources and an optional
- * starfield. It sits behind everything, never intercepts a pointer, and drops
- * out entirely in performance mode.
+ * The background.
+ *
+ * Three soft colour fields over a deep gradient, plus a starfield. This is not
+ * decoration for its own sake: a translucent panel over a flat near-black page
+ * is just a darker rectangle, and every piece of glass in the interface depends
+ * on there being something varied behind it to refract.
+ *
+ * It costs one paint. The drift is a slow transform on three elements, which
+ * the compositor handles without touching layout, and it stops entirely for
+ * reduced motion or the performance tier.
  */
 .atmosphere {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  overflow: hidden;
   background:
-    radial-gradient(
-      120% 80% at 15% -10%,
-      color-mix(in srgb, var(--atmosphere) 85%, transparent),
-      transparent 60%
-    ),
-    radial-gradient(
-      90% 70% at 100% 0%,
-      color-mix(in srgb, var(--accent) 12%, transparent),
-      transparent 55%
-    ),
-    var(--bg);
+    radial-gradient(140% 100% at 50% -20%, var(--atmosphere), transparent 55%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-subtle) 55%, var(--bg) 100%);
+}
+
+.atmosphere__field {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: var(--glow-opacity);
+  will-change: transform;
+}
+
+.atmosphere__field--core {
+  width: 78vmax;
+  height: 62vmax;
+  top: -28vmax;
+  left: -14vmax;
+  background: radial-gradient(circle, color-mix(in srgb, var(--nebula-core) 72%, transparent), transparent 68%);
+  animation: nebula-core calc(46s / var(--motion, 1)) var(--ease) infinite alternate;
+}
+
+.atmosphere__field--drift {
+  width: 62vmax;
+  height: 54vmax;
+  bottom: -24vmax;
+  right: -18vmax;
+  background: radial-gradient(circle, color-mix(in srgb, var(--nebula-drift) 58%, transparent), transparent 66%);
+  animation: nebula-drift calc(62s / var(--motion, 1)) var(--ease) infinite alternate;
+}
+
+.atmosphere__field--deep {
+  width: 64vmax;
+  height: 50vmax;
+  top: 24vmax;
+  left: 8vmax;
+  background: radial-gradient(circle, color-mix(in srgb, var(--nebula-deep) 52%, transparent), transparent 70%);
+  animation: nebula-deep calc(54s / var(--motion, 1)) var(--ease) infinite alternate;
+}
+
+@keyframes nebula-core {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(6vmax, 4vmax, 0) scale(1.12); }
+}
+
+@keyframes nebula-drift {
+  from { transform: translate3d(0, 0, 0) scale(1.06); }
+  to { transform: translate3d(-7vmax, -5vmax, 0) scale(1); }
+}
+
+@keyframes nebula-deep {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-5vmax, 6vmax, 0) scale(1.1); }
+}
+
+/* The drift is ambience, not information. It is the first thing to go. */
+@media (prefers-reduced-motion: reduce) {
+  .atmosphere__field {
+    animation: none;
+  }
+}
+
+:root[data-reduced-motion='true'] .atmosphere__field,
+:root[data-effects='performance'] .atmosphere__field {
+  animation: none;
 }
 
 .atmosphere__stars {
@@ -38,31 +99,47 @@
   transition: opacity var(--duration-slow) var(--ease);
 }
 
+/*
+ * Two faint rings, the same orbital figure as the app's own mark. They read as
+ * structure behind the glass rather than as a picture of anything.
+ */
 .atmosphere__orbit {
   position: absolute;
-  border: 1px solid color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 50%;
   opacity: var(--glow-opacity);
 }
 
 /* ── Surfaces ───────────────────────────────────────────────────────────── */
 
-.surface {
-  background: var(--surface);
+/*
+ * Glass.
+ *
+ * Four things together, and it stops reading as glass if any one is missing:
+ * the blur, a saturation lift so the colour behind keeps its life instead of
+ * going grey, a sheen over the panel's own fill so it is not a flat wash, and
+ * a highlight along the top edge where light would actually land.
+ *
+ * `--glass-sheen` and `--glass-edge` both go transparent for solid surfaces and
+ * high contrast, which is what turns all of this off without a second ruleset.
+ */
+.surface,
+.card {
+  position: relative;
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 58%),
+    var(--surface);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius);
-  backdrop-filter: blur(var(--blur-surface));
-  -webkit-backdrop-filter: blur(var(--blur-surface));
+  backdrop-filter: blur(var(--blur-surface)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-surface)) saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    var(--shadow);
 }
 
 .card {
-  background: var(--surface);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius);
-  backdrop-filter: blur(var(--blur-surface));
-  -webkit-backdrop-filter: blur(var(--blur-surface));
-  padding: var(--space-4);
-  position: relative;
+  padding: var(--space-5);
 }
 
 .card--flush {
@@ -71,8 +148,12 @@
 }
 
 .card--raised {
-  background: var(--surface-raised);
-  box-shadow: var(--shadow);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 58%),
+    var(--surface-raised);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    var(--shadow-lift);
 }
 
 .card--interactive {
@@ -80,16 +161,23 @@
   transition:
     border-color var(--duration-fast) var(--ease),
     transform var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease),
     background var(--duration-fast) var(--ease);
 }
 
 .card--interactive:hover {
   border-color: var(--border-strong);
-  background: var(--surface-raised);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 58%),
+    var(--surface-raised);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    var(--shadow-lift);
+  transform: translateY(-1px);
 }
 
 .card--interactive:active {
-  transform: scale(0.995);
+  transform: translateY(0) scale(0.995);
 }
 
 .card__header {
@@ -162,19 +250,43 @@
   cursor: not-allowed;
 }
 
+/*
+ * The primary action carries a bloom of its own colour. It is the one control
+ * on a screen that should look lit rather than lit-upon, and against a sky this
+ * dark a flat fill reads as a sticker.
+ */
 .button--primary {
-  background: var(--accent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 92%, #ffffff),
+    var(--accent)
+  );
   color: var(--accent-text);
   font-weight: var(--weight-semibold);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.28),
+    0 6px 20px -8px var(--glow);
 }
 
 .button--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 88%, var(--text));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 80%, #ffffff),
+    color-mix(in srgb, var(--accent) 94%, #ffffff)
+  );
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.32),
+    0 10px 28px -8px var(--glow);
 }
 
 .button--secondary {
-  background: var(--surface-raised);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 60%),
+    var(--surface-raised);
   border-color: var(--border);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+  box-shadow: inset 0 1px 0 0 var(--glass-edge);
 }
 
 .button--secondary:hover:not(:disabled) {
@@ -279,7 +391,15 @@
 .select {
   width: 100%;
   padding: var(--space-3);
-  background: var(--surface-sunken);
+  /*
+   * A field is a recess rather than a raised panel, so the light sits along
+   * the bottom edge instead of the top — the same trick as the cards, inverted.
+   */
+  background: linear-gradient(180deg, transparent 45%, var(--glass-sheen));
+  background-color: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+  box-shadow: inset 0 -1px 0 0 var(--glass-edge);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
@@ -431,10 +551,15 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: 3px var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-pill);
+  /* Glass, like everything else on the page — a sunken well would read as a
+     hole punched in the panel it is sitting on. */
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 70%),
+    color-mix(in srgb, var(--surface-raised) 70%, transparent);
   border: var(--border-width) solid var(--border);
+  box-shadow: inset 0 1px 0 0 var(--glass-edge);
   font-size: var(--size-xs);
   color: var(--text-muted);
   white-space: nowrap;
@@ -689,6 +814,30 @@
   gap: var(--space-2);
 }
 
+/*
+ * A column count, honoured as one.
+ *
+ * Expressing "three columns" as a minimum width guessed from a reference
+ * viewport collapses to a single column on a phone — and one column of square
+ * cards is a screen with one enormous tile on it. Dividing the container's own
+ * width cannot do that, and the floor stops a large count from producing
+ * cards too small to read.
+ */
+.grid--columns {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(
+      max(
+        92px,
+        calc(
+          (100% - (var(--grid-columns, 3) - 1) * var(--space-3)) / var(--grid-columns, 3) - 1px
+        )
+      ),
+      1fr
+    )
+  );
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -841,12 +990,19 @@
 }
 
 .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
   display: inline-flex;
   padding: 3px;
   gap: 2px;
   background: var(--surface-sunken);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius);
+}
+
+.segmented::-webkit-scrollbar {
+  display: none;
 }
 
 .segmented__option {
@@ -1081,10 +1237,14 @@
 }
 
 .stat {
-  padding: var(--space-3);
-  background: var(--surface-sunken);
+  padding: var(--space-4);
+  /* A tile is a small panel, not a hole: same glass as everything else. */
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 62%),
+    color-mix(in srgb, var(--surface-raised) 78%, transparent);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 0 var(--glass-edge);
 }
 
 .stat__label {

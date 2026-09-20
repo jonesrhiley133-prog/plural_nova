@@ -165,10 +165,16 @@ export function Chip({
     .filter(Boolean)
     .join(' ');
 
+  /*
+   * The hue identifies; the label has to be readable. Raw palette colours are
+   * chosen to be told apart from each other, not to sit at 4.5:1 on frosted
+   * glass, so the border carries the identity at full strength and the text
+   * uses a version lifted toward the body colour.
+   */
   const style = color
     ? ({
-        borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
-        color,
+        borderColor: `color-mix(in srgb, ${color} 55%, transparent)`,
+        color: `color-mix(in srgb, ${color} 55%, var(--text))`,
       } as const)
     : undefined;
 
