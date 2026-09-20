@@ -1,0 +1,103 @@
+import { f, OPTIONS, type CollectionDef } from './schema.js';
+
+export const workplaces: CollectionDef = {
+  name: 'workplaces',
+  label: 'Workplaces',
+  singular: 'Workplace',
+  icon: 'work',
+  area: 'work',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'name',
+  sortField: 'name',
+  sortDir: 'asc',
+  neverPublic: true,
+  fields: [
+    f.text('name', 'Employer', { required: true, inList: true, searchable: true }),
+    f.text('position', 'Position', { inList: true, searchable: true }),
+    f.text('department', 'Department'),
+    f.date('startedOn', 'Started'),
+    f.date('endedOn', 'Ended'),
+    f.money('hourlyRate', 'Hourly rate', { sensitive: true }),
+    f.text('currency', 'Currency', { defaultValue: 'USD', maxLength: 8 }),
+    f.text('location', 'Location'),
+    f.long('notes', 'Notes', { searchable: true }),
+    f.color('color', 'Colour'),
+    f.bool('current', 'Current job', { defaultValue: true, inList: true }),
+  ],
+};
+
+export const workShifts: CollectionDef = {
+  name: 'workShifts',
+  label: 'Work schedule',
+  singular: 'Shift',
+  icon: 'work',
+  area: 'work',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'startsAt',
+  sortField: 'startsAt',
+  sortDir: 'asc',
+  indexes: [['systemId', 'startsAt']],
+  neverPublic: true,
+  fields: [
+    f.ref('workplaceId', 'Workplace', 'workplaces', { inList: true }),
+    f.datetime('startsAt', 'Starts', { required: true, inList: true }),
+    f.datetime('endsAt', 'Ends', { inList: true }),
+    f.int('breakMinutes', 'Break', { defaultValue: 0 }),
+    f.text('location', 'Location'),
+    f.text('role', 'Role on shift'),
+    f.text('recurrence', 'Repeats'),
+    f.datetime('remindAt', 'Reminder'),
+    f.bool('remindSent', 'Reminder sent'),
+    f.bool('completed', 'Worked', { inList: true }),
+    f.long('notes', 'Notes', { searchable: true }),
+  ],
+};
+
+export const workTasks: CollectionDef = {
+  name: 'workTasks',
+  label: 'Work tasks',
+  singular: 'Work task',
+  icon: 'work',
+  area: 'work',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'title',
+  sortField: 'dueAt',
+  sortDir: 'asc',
+  neverPublic: true,
+  fields: [
+    f.ref('workplaceId', 'Workplace', 'workplaces'),
+    f.text('title', 'Task', { required: true, inList: true, searchable: true }),
+    f.text('project', 'Project', { inList: true, searchable: true }),
+    f.long('notes', 'Notes', { searchable: true }),
+    f.datetime('dueAt', 'Due', { inList: true }),
+    f.enumOf('priority', 'Priority', OPTIONS.priority, { defaultValue: 'normal', inList: true }),
+    f.bool('completed', 'Completed', { inList: true }),
+    f.datetime('completedAt', 'Completed at'),
+    f.int('estimateMinutes', 'Estimate'),
+  ],
+};
+
+export const coworkers: CollectionDef = {
+  name: 'coworkers',
+  label: 'Coworkers',
+  singular: 'Coworker',
+  icon: 'work',
+  area: 'work',
+  scope: 'system',
+  titleField: 'name',
+  sortField: 'name',
+  sortDir: 'asc',
+  neverPublic: true,
+  fields: [
+    f.ref('workplaceId', 'Workplace', 'workplaces'),
+    f.text('name', 'Name', { required: true, inList: true, searchable: true }),
+    f.text('role', 'Role', { inList: true }),
+    f.enumOf('safety', 'Comfort', OPTIONS.safety, { defaultValue: 'unset', inList: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
+  ],
+};
+
+export const WORK_COLLECTIONS = [workplaces, workShifts, workTasks, coworkers] as const;
