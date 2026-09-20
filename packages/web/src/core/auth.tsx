@@ -61,6 +61,40 @@ export interface AuthActions {
 
 const AuthContext = createContext<(AuthState & AuthActions) | null>(null);
 
+const SESSION_KEY = 'pluralnova.session';
+
+interface CachedSession {
+  user: PublicUser;
+  settings: AppSettings;
+  systems: StoredRecord[];
+}
+
+/**
+ * The last session the server confirmed, kept beside the token it belongs to.
+ *
+ * Without it, opening an installed PluralNova with no connection would show the
+ * sign-in screen: the token is still there, but `/api/auth/me` cannot answer,
+ * and an app that logs you out when you go through a tunnel is a bookmark with
+ * extra steps. Reading it also removes the sign-in flash on a slow connection.
+ */
+function readCachedSession(): CachedSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as CachedSession) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedSession(session: CachedSession | null): void {
+  try {
+    if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    else localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // Storage can be blocked. The session then lasts only while the tab is open.
+  }
+}
+
 interface SessionResponse {
   token: string;
   expiresAt: string;
@@ -71,13 +105,30 @@ interface SessionResponse {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, setState] = useState<AuthState>({
-    status: getToken() ? 'loading' : 'anonymous',
-    user: null,
-    settings: mergeSettings(null),
-    systems: [],
-    activeSystem: null,
-    error: null,
+  const [state, setState] = useState<AuthState>(() => {
+    const cached = getToken() ? readCachedSession() : null;
+    if (!cached) {
+      return {
+        status: getToken() ? 'loading' : 'anonymous',
+        user: null,
+        settings: mergeSettings(null),
+        systems: [],
+        activeSystem: null,
+        error: null,
+      };
+    }
+    // Shown straight away and corrected by the refresh below — which signs the
+    // user out if the server rejects the token, and leaves this in place if it
+    // simply cannot be reached.
+    return {
+      status: 'authenticated',
+      user: cached.user,
+      settings: mergeSettings(cached.settings),
+      systems: cached.systems ?? [],
+      activeSystem:
+        (cached.systems ?? []).find((system) => system.id === cached.user.activeSystemId) ?? null,
+      error: null,
+    };
   });
 
   const applySession = useCallback((session: SessionResponse) => {
@@ -119,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       // the session in place so a flaky connection does not log anyone out.
       if (error instanceof ApiRequestError && error.status === 401) {
         setToken(null);
+        writeCachedSession(null);
         setState({
           status: 'anonymous',
           user: null,
@@ -129,6 +181,8 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
         });
         return;
       }
+      // Unreachable is not rejected. The confirmed session stays in force and
+      // the app runs against its local copy until the connection returns.
       setState((current) => ({
         ...current,
         status: current.user ? 'authenticated' : 'anonymous',
@@ -140,6 +194,16 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  /*
+   * The snapshot follows the state rather than being written by each action, so
+   * a setting saved, a system switched or a profile selected is all reflected
+   * without anywhere new having to remember to do it.
+   */
+  useEffect(() => {
+    if (state.status !== 'authenticated' || !state.user) return;
+    writeCachedSession({ user: state.user, settings: state.settings, systems: state.systems });
+  }, [state.status, state.user, state.settings, state.systems]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
@@ -182,6 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       // Signing out locally still has to work when the server is unreachable.
     }
     setToken(null);
+    writeCachedSession(null);
     await recordStore.clear();
     await clearAll();
     await syncEngine.reset();

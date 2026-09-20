@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Configuration comes from the environment with usable defaults, so a fresh
@@ -20,6 +21,13 @@ function envInt(name: string, fallback: number): number {
 
 const dataDir = resolve(env('PLURALNOVA_DATA_DIR', './data'));
 
+/**
+ * The built client sits beside the server inside the monorepo, so its default
+ * location is found relative to this file rather than to the working directory
+ * — `npm start` is run from the repository root, not from `packages/server`.
+ */
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
 export const config = {
   port: envInt('PORT', 4000),
   host: env('HOST', '0.0.0.0'),
@@ -28,7 +36,7 @@ export const config = {
   uploadsDir: resolve(dataDir, 'uploads'),
   keyFile: resolve(dataDir, 'keys.json'),
   /** Where the built web client lives, when the server is also serving it. */
-  webDist: resolve(env('PLURALNOVA_WEB_DIST', '../web/dist')),
+  webDist: resolve(packageRoot, env('PLURALNOVA_WEB_DIST', '../web/dist')),
   serveWeb: env('PLURALNOVA_SERVE_WEB', 'true') === 'true',
   sessionDays: envInt('PLURALNOVA_SESSION_DAYS', 60),
   /** Upload ceiling per file. Media is stored on disk, not in the database. */

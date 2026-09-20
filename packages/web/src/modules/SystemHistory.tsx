@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { addDays, startOfDay } from '@pluralnova/shared';
 import { useQuery, useRecordMap } from '../core/data.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { PageHeader } from '../app/PageHeader.js';
@@ -40,6 +41,18 @@ export default function SystemHistory(): JSX.Element {
   const [eventType, setEventType] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
 
+  /*
+   * The window starts at the beginning of a day rather than at "now minus N
+   * days". That is what "last week" means to a reader, and it also gives
+   * `useQuery` a value that is identical across renders — a start time that
+   * moved by a millisecond each time would change the query and refetch
+   * forever.
+   */
+  const from = useMemo(
+    () => (days > 0 ? startOfDay(addDays(new Date(), -days)).toISOString() : null),
+    [days],
+  );
+
   const history = useQuery<{
     items: HistoryItem[];
     total: number;
@@ -48,7 +61,7 @@ export default function SystemHistory(): JSX.Element {
     limit: 150,
     ...(eventType ? { eventType } : {}),
     ...(memberId ? { memberId } : {}),
-    ...(days > 0 ? { from: new Date(Date.now() - days * 86_400_000).toISOString() } : {}),
+    ...(from ? { from } : {}),
   });
 
   const grouped = (history.data?.items ?? []).reduce<Map<string, HistoryItem[]>>((map, item) => {

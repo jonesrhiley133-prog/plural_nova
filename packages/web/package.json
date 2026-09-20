@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "icons": "node tools/build-icons.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "node --test e2e/*.test.mjs"
   },
   "dependencies": {
     "@pluralnova/shared": "*",
@@ -25,6 +26,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "jsdom": "^25.0.1",
+    "playwright": "^1.63.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vitest": "^2.1.5"
