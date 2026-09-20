@@ -154,6 +154,13 @@ export type Terminology = Record<string, { one: string; other: string }>;
 
 const TERMS_BY_KEY = new Map(TERMS.map((t) => [t.key, t]));
 
+/**
+ * Tokens are authored against a term's default English forms, so `{{switches}}`
+ * has to resolve to the `switch` term even though its plural is not the key
+ * plus an "s". This maps every default plural back to its key.
+ */
+const KEY_BY_DEFAULT_PLURAL = new Map(TERMS.map((t) => [t.other.toLowerCase(), t.key]));
+
 export function defaultTerminology(): Terminology {
   const out: Terminology = {};
   for (const term of TERMS) out[term.key] = { one: term.one, other: term.other };
@@ -199,12 +206,23 @@ function resolveToken(raw: string, terms: Terminology): string | null {
   const exact = terms[lower];
   if (exact) return capitalised ? capitalise(exact.one) : exact.one;
 
-  // Plural form: strip a trailing "s" and look the singular key up.
-  if (lower.endsWith('s')) {
-    const singular = terms[lower.slice(0, -1)];
-    if (singular) return capitalised ? capitalise(singular.other) : singular.other;
-  }
+  // Plural form, by the term's own default plural first, then by dropping an "s".
+  const byPlural = KEY_BY_DEFAULT_PLURAL.get(lower);
+  const singular = (byPlural && terms[byPlural]) ?? (lower.endsWith('s') ? terms[lower.slice(0, -1)] : undefined);
+  if (singular) return capitalised ? capitalise(singular.other) : singular.other;
+
   return null;
+}
+
+/** Every token form the catalogue and the UI may legally use. */
+export function knownTokens(): Set<string> {
+  const tokens = new Set<string>();
+  for (const term of TERMS) {
+    tokens.add(term.key.toLowerCase());
+    tokens.add(term.other.toLowerCase());
+    tokens.add(`${term.key.toLowerCase()}s`);
+  }
+  return tokens;
 }
 
 /** Every token a string uses — lets tests assert that nothing references a dead term. */

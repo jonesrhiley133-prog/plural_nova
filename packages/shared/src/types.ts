@@ -40,6 +40,8 @@ export interface PublicUser {
   createdAt: Timestamp;
   mode: AppMode;
   activeSystemId: string | null;
+  /** The member new records are attributed to, when Profile Select is in use. */
+  activeMemberId: string | null;
   onboardedAt: Timestamp | null;
   isGuest: boolean;
 }

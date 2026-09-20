@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5"
+    />
+    <title>PluralNova</title>
+    <meta name="description" content="A private constellation for your system." />
+    <meta name="theme-color" content="#080b14" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f3f5fb" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PluralNova" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <script>
+      // The saved theme is applied before the first paint so the app never
+      // flashes the wrong background on launch.
+      (function () {
+        try {
+          var saved = localStorage.getItem('pluralnova.theme');
+          if (saved) {
+            var theme = JSON.parse(saved);
+            var root = document.documentElement;
+            root.dataset.base = theme.base || 'dark';
+            root.dataset.effects = theme.effects || 'full';
+            root.dataset.surface = theme.surfaceStyle || 'glass';
+            if (theme.tokens) {
+              for (var key in theme.tokens) {
+                root.style.setProperty('--' + key, theme.tokens[key]);
+              }
+            }
+          }
+        } catch (error) {
+          /* A blocked or empty localStorage just means the defaults apply. */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <div style="padding: 2rem; font-family: system-ui; color: #e7ecf8; background: #080b14">
+        <h1>PluralNova needs JavaScript</h1>
+        <p>Your data is still safe. Turn JavaScript on for this site and reload.</p>
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,149 @@
+/*
+ * Design tokens.
+ *
+ * Every colour, space, radius and duration in PluralNova comes from here.
+ * The theming engine rewrites the colour custom properties at runtime, so a
+ * component that uses `var(--surface)` works in dark, AMOLED, light, high
+ * contrast and a user's own palette without knowing which is active.
+ *
+ * `data-base`, `data-surface` and `data-effects` on the root element carry the
+ * parts of the theme that change behaviour rather than colour.
+ */
+
+:root {
+  /* Colours — overwritten by the theming engine at runtime. */
+  --bg: #080b14;
+  --bg-subtle: #0c1020;
+  --surface: #121728b8;
+  --surface-raised: #182034cc;
+  --surface-sunken: #0a0e1c;
+  --border: #1f2942;
+  --border-strong: #2c3a5c;
+  --text: #e7ecf8;
+  --text-muted: #94a0bd;
+  --text-faint: #6b7794;
+  --accent: #7aa2f7;
+  --accent-text: #04070f;
+  --accent-soft: #7aa2f726;
+  --positive: #5ec6a8;
+  --caution: #f0a85a;
+  --critical: #ec7392;
+  --info: #8bd5ff;
+  --atmosphere: #0a1330;
+  --shadow: 0 18px 40px -24px rgb(0 0 0 / 0.9);
+
+  /* Typography. The scale is deliberately short; more sizes means less rhythm. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Noto Sans', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --text-scale: 1;
+
+  --size-xs: calc(0.75rem * var(--text-scale));
+  --size-sm: calc(0.8125rem * var(--text-scale));
+  --size-base: calc(0.9375rem * var(--text-scale));
+  --size-md: calc(1.0625rem * var(--text-scale));
+  --size-lg: calc(1.25rem * var(--text-scale));
+  --size-xl: calc(1.5rem * var(--text-scale));
+  --size-2xl: calc(1.9rem * var(--text-scale));
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* Spacing — a 4px base, used for every gap and pad. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /*
+   * Radii. Kept small on purpose: a 10px card reads as a surface in a tool,
+   * a 24px one reads as a tile in a game.
+   */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  --border-width: 1px;
+
+  /* Motion. Every duration is multiplied by --motion, which drops to 0 for
+     reduced motion and performance mode. */
+  --motion: 1;
+  --duration-fast: calc(120ms * var(--motion));
+  --duration: calc(200ms * var(--motion));
+  --duration-slow: calc(320ms * var(--motion));
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* Effects, switched off by the performance tier rather than removed. */
+  --blur-surface: 18px;
+  --glow-opacity: 1;
+  --starfield-opacity: 0.55;
+
+  /* Layout. */
+  --nav-rail-width: 264px;
+  --nav-rail-collapsed: 68px;
+  --bottom-nav-height: 58px;
+  --header-height: 56px;
+  --content-max: 1180px;
+  --content-narrow: 720px;
+
+  /* Safe areas, so the floating nav never sits under a home indicator. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  --z-base: 1;
+  --z-sticky: 20;
+  --z-nav: 40;
+  --z-overlay: 60;
+  --z-modal: 70;
+  --z-toast: 90;
+}
+
+/* Solid surfaces drop the translucency entirely rather than faking it. */
+:root[data-surface='solid'] {
+  --blur-surface: 0px;
+}
+
+/*
+ * Effect tiers.
+ *
+ * "Balanced" halves the expensive work; "performance" removes blur, glow,
+ * the starfield and all motion. None of them change what the app can do — only
+ * how much the device has to draw.
+ */
+:root[data-effects='balanced'] {
+  --blur-surface: 8px;
+  --glow-opacity: 0.6;
+  --starfield-opacity: 0.3;
+  --motion: 0.75;
+}
+
+:root[data-effects='performance'] {
+  --blur-surface: 0px;
+  --glow-opacity: 0;
+  --starfield-opacity: 0;
+  --motion: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion: 0;
+  }
+}
+
+:root[data-reduced-motion='true'] {
+  --motion: 0;
+}

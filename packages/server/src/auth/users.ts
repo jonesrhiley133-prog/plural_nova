@@ -123,6 +123,7 @@ export function toPublicUser(user: UserRow): PublicUser {
     createdAt: user.createdAt,
     mode: user.mode,
     activeSystemId: user.activeSystemId,
+    activeMemberId: user.activeMemberId,
     onboardedAt: user.onboardedAt,
     isGuest: user.isGuest === 1,
   };
