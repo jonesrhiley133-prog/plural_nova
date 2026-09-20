@@ -11,6 +11,7 @@ import {
   type TermOverrides,
 } from '@pluralnova/shared';
 import { api, messageFor } from '../core/api.js';
+import { useQuery } from '../core/data.js';
 import { useAuth } from '../core/auth.js';
 import { useOptimisticSettings } from '../core/settings.js';
 import { useTheme } from '../core/theme.js';
@@ -1048,6 +1049,53 @@ function About(): JSX.Element {
           </Button>
         </div>
       </Card>
+
+      <AndroidDownload />
     </>
+  );
+}
+
+/**
+ * The Android build, when this server has one.
+ *
+ * Hidden entirely otherwise — most people will install PluralNova from their
+ * browser, and an empty "download the app" card on a server that publishes no
+ * app would be a dead end rather than an option.
+ */
+function AndroidDownload(): JSX.Element | null {
+  const release = useQuery<{
+    release: { versionName: string; size: number; sha256: string; url: string; notes?: string } | null;
+  }>('/api/app/android');
+
+  const build = release.data?.release;
+  if (!build) return null;
+
+  return (
+    <Card
+      title="Android app"
+      subtitle={`Version ${build.versionName} · ${Math.round(build.size / 1024 / 1024)} MB`}
+    >
+      <p className="prose small muted">
+        The same PluralNova, installed from this server rather than from a store. It updates itself
+        from here too. You can also install the web version from your browser's menu, which works on
+        every platform and is the simpler option if you are not sure.
+      </p>
+
+      {build.notes ? (
+        <p className="small" style={{ marginTop: 'var(--space-3)' }}>
+          {build.notes}
+        </p>
+      ) : null}
+
+      <div className="row" style={{ marginTop: 'var(--space-4)' }}>
+        <Button variant="secondary" icon="download" onClick={() => window.open(build.url, '_blank')}>
+          Download the APK
+        </Button>
+      </div>
+
+      <p className="tiny faint" style={{ marginTop: 'var(--space-3)', wordBreak: 'break-all' }}>
+        SHA-256 {build.sha256}
+      </p>
+    </Card>
   );
 }

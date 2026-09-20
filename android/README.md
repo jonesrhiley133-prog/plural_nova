@@ -13,50 +13,66 @@ screen that names the address instead of showing `ERR_CONNECTION_REFUSED`.
 ## Building it
 
 You need a JDK 17 or newer and the Android SDK. Nothing else — the Gradle
-wrapper fetches its own Gradle.
+wrapper fetches its own Gradle. If Gradle cannot find the SDK, point it at
+yours with `echo "sdk.dir=$HOME/Android/Sdk" > local.properties`.
+
+**Make the signing key first.** Do this before building anything, even to try
+it out:
 
 ```sh
-cd android
-./gradlew assembleDebug
+./tools/make-keystore.sh
 ```
 
-The APK lands at `app/build/outputs/apk/debug/app-debug.apk`. It is signed with
-the standard debug key, which is fine for installing on your own devices:
+Android accepts an update only when it is signed with the same key as the
+installed app, and there is no way back from losing that key: the only route to
+a new version would be uninstalling, which deletes the app's local copy of your
+records. The script writes `pluralnova.jks` and `keystore.properties`, both
+gitignored. Back them up somewhere you will still have in five years.
+
+Then:
 
 ```sh
-adb install app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease    # app/build/outputs/apk/release/app-release.apk
 ```
 
-If Gradle cannot find the SDK, point it at yours:
+`assembleDebug` also works and is signed with the same key, so a debug install
+can later be updated by a release build rather than having to be removed first.
+`assembleRelease` stops with an explanation if no key exists, rather than
+producing an APK that cannot be installed.
+
+Install it over a cable with `adb install -r <apk>`, or just open the server's
+Settings → About page on the phone and download it.
+
+## Version numbers
+
+The version comes from the repository's `package.json` — the same place the web
+app and the server read it. The versionCode is derived from it (`1.2.3` becomes
+`10203`), because Android refuses any APK whose versionCode is not higher than
+the installed one. Bumping the npm version is the only thing to remember.
+
+## Publishing an update
+
+The server that runs PluralNova also hands out the app:
 
 ```sh
-echo "sdk.dir=$HOME/Android/Sdk" > local.properties
+./tools/publish.sh                  # into ../data, the server's default
+./tools/publish.sh /srv/pluralnova  # or wherever PLURALNOVA_DATA_DIR points
 ```
 
-### A signed release build
+That builds a signed release and copies it, with a small manifest, into
+`<data>/releases/`. From then on:
 
-Create a key once:
+- a phone with the app installed is offered the update next time it opens,
+  downloads it, checks it against the checksum the server published, and hands
+  it to the system installer;
+- a phone without it can download from `/app/pluralnova.apk`, which the web
+  app links to under Settings → About.
 
-```sh
-keytool -genkeypair -v -keystore pluralnova.jks -alias pluralnova \
-  -keyalg RSA -keysize 4096 -validity 10000
-```
+Android will ask once for permission to install apps from PluralNova; the app
+sends you to the right settings screen when that happens.
 
-Then a `keystore.properties` beside it — both are gitignored:
-
-```properties
-storeFile=pluralnova.jks
-storePassword=…
-keyAlias=pluralnova
-keyPassword=…
-```
-
-```sh
-./gradlew assembleRelease
-```
-
-Without that file `assembleRelease` produces an unsigned APK, which will not
-install. Use `assembleDebug` unless you actually need a release build.
+Nothing here is required. A server that has never published a build simply says
+there is nothing to install, and the download card stays hidden.
 
 ## First run
 

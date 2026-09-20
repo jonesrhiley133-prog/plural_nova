@@ -13,6 +13,15 @@
     <string name="setup_insecure">That address is reachable, but it is not https and not on a local network — anything you type, including your password, would travel unencrypted. Put it behind https if you can.</string>
     <string name="setup_not_pluralnova">Something answered, but it is not a PluralNova (%1$s). Check the address and the port.</string>
 
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_action">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading PluralNova %1$s</string>
+    <string name="update_preparing">Downloading…</string>
+    <string name="update_failed">That download did not finish. Try again when you have a better connection.</string>
+    <string name="update_corrupt">The download did not match what the server described, so it was not installed.</string>
+    <string name="update_needs_permission">Android needs your permission for PluralNova to install updates. Allow it on the next screen, then tap Update again.</string>
+
     <string name="error_title">Cannot reach PluralNova</string>
     <string name="error_detail">%1$s did not respond.\n\n%2$s</string>
     <string name="error_retry">Try again</string>

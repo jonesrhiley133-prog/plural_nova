@@ -2,7 +2,10 @@ package com.pluralnova.app
 
 import android.annotation.SuppressLint
 import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -25,6 +28,7 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import com.pluralnova.app.databinding.ActivityMainBinding
 import java.net.URL
+import java.util.concurrent.Executors
 
 /**
  * The app.
@@ -45,6 +49,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var serverUrl: String
     private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
+
+    private val worker = Executors.newSingleThreadExecutor()
+    private var offered: Updates.Available? = null
+    private var downloadId: Long = -1L
+    private var downloadWatcher: BroadcastReceiver? = null
 
     private val chooseFiles = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val callback = pendingFileChooser ?: return@registerForActivityResult
@@ -98,10 +107,88 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        binding.updateDismiss.setOnClickListener { binding.updateBar.visibility = View.GONE }
+        binding.updateAction.setOnClickListener { beginUpdate() }
+
         if (savedInstanceState != null) {
             binding.webView.restoreState(savedInstanceState)
         } else {
             load()
+        }
+
+        checkForUpdate()
+    }
+
+    // ----------------------------------------------------------- updating
+
+    private fun checkForUpdate() {
+        worker.execute {
+            val found = Updates.check(serverUrl) ?: return@execute
+            runOnUiThread {
+                offered = found
+                binding.updateText.text = getString(R.string.update_available, found.versionName)
+                binding.updateAction.isEnabled = true
+                binding.updateBar.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun beginUpdate() {
+        val update = offered ?: return
+
+        // Android 8 and later want per-app permission before the installer will
+        // open at all, and granting it is a trip to Settings rather than a dialog.
+        if (!Updates.canInstall(this)) {
+            binding.updateText.text = getString(R.string.update_needs_permission)
+            runCatching { startActivity(Updates.permissionIntent(this)) }
+            return
+        }
+
+        binding.updateAction.isEnabled = false
+        binding.updateText.text = getString(R.string.update_preparing)
+        downloadId = Updates.startDownload(this, update)
+        watchDownload()
+    }
+
+    private fun watchDownload() {
+        if (downloadWatcher != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val finished = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+                if (finished != downloadId) return
+                onDownloadFinished()
+            }
+        }
+        downloadWatcher = receiver
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receiver, filter)
+        }
+    }
+
+    private fun onDownloadFinished() {
+        val update = offered ?: return
+        val file = Updates.downloadTarget(this)
+
+        worker.execute {
+            val good = Updates.verify(file, update.sha256)
+            runOnUiThread {
+                binding.updateAction.isEnabled = true
+                if (!good) {
+                    // Either the download was cut short or the file is not what
+                    // the server said it was. Neither is worth installing.
+                    file.delete()
+                    binding.updateText.text = getString(
+                        if (file.exists()) R.string.update_corrupt else R.string.update_failed,
+                    )
+                    return@runOnUiThread
+                }
+                runCatching { startActivity(Updates.installIntent(this, file)) }
+                    .onFailure { binding.updateText.text = getString(R.string.update_failed) }
+            }
         }
     }
 
@@ -227,6 +314,9 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         pendingFileChooser?.onReceiveValue(emptyArray())
         pendingFileChooser = null
+        downloadWatcher?.let { runCatching { unregisterReceiver(it) } }
+        downloadWatcher = null
+        worker.shutdownNow()
         super.onDestroy()
     }
 }

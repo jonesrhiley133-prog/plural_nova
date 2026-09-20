@@ -35,7 +35,7 @@ Everything has a working default. The ones worth knowing:
 | Variable | Default | |
 | --- | --- | --- |
 | `PORT` | `4000` | |
-| `PLURALNOVA_DATA_DIR` | `./data` | database, uploads and keys |
+| `PLURALNOVA_DATA_DIR` | `./data` | database, uploads, keys and published app builds |
 | `PLURALNOVA_SERVE_WEB` | `true` | serve the built client from the API origin |
 | `PLURALNOVA_CORS` | localhost dev origins | comma separated |
 | `PLURALNOVA_MAIL_FROM` | unset | without it, reset codes come back in the response outside production |
@@ -73,13 +73,17 @@ it onto a phone. There is also a native shell in [`android/`](android/) for
 people who would rather install an APK:
 
 ```sh
-cd android && ./gradlew assembleDebug
+cd android
+./tools/make-keystore.sh     # once — Android updates require a stable key
+./gradlew assembleRelease
+./tools/publish.sh           # serves it from your own server
 ```
 
 It hosts the same web client in a WebView, so offline launch, the local
-database and sync all behave identically. See
-[`android/README.md`](android/README.md) for signing, first run and the one
-thing the shell cannot do (push).
+database and sync all behave identically. Publishing puts the APK on your
+server: phones with it installed are offered the update, phones without it can
+download it from Settings → About. See [`android/README.md`](android/README.md)
+for the details and the one thing the shell cannot do (push).
 
 ## Icons
 

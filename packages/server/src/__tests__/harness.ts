@@ -13,6 +13,8 @@ import type { Express } from 'express';
 
 export interface TestClient {
   app: Express;
+  /** The temporary data directory, for tests that put files where the server looks. */
+  dataDir: string;
   /** Clears the rate-limit windows so a suite can register many accounts. */
   resetLimits: () => void;
   request: (
@@ -71,6 +73,7 @@ export async function createTestApp(): Promise<TestClient> {
     app,
     request,
     resetLimits: resetRateLimits,
+    dataDir: dir,
     close: () => {
       server.close();
       closeDatabase();

@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { errorMiddleware, notFoundMiddleware } from './http/respond.js';
 import { optionalAuth } from './auth/middleware.js';
 import { authRouter } from './auth/routes.js';
+import { appDownloadRouter, appRouter } from './routes/app.js';
 import { recordsRouter } from './routes/records.js';
 import { metaRouter } from './routes/meta.js';
 import { frontingRouter } from './routes/fronting.js';
@@ -60,8 +61,11 @@ export function createApp(): Express {
   app.use('/api/media', mediaRouter);
   app.use('/api/providers', providersRouter);
 
+  app.use('/api/app', appRouter);
+
   app.use('/api', notFoundMiddleware);
   app.use('/uploads', express.static(config.uploadsDir, { maxAge: '365d', immutable: true }));
+  app.use('/app', appDownloadRouter);
 
   // The built client is served from the same origin when it exists, so the PWA
   // installs, the service worker registers at the root scope, and deep links
