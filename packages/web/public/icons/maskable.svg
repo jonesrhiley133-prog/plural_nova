@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="PluralNova">
+  <defs><radialGradient id="g0" gradientUnits="userSpaceOnUse" cx="195" cy="143" r="420"><stop offset="0%" stop-color="#16244a"/><stop offset="58%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="123" y1="82" x2="399" y2="451"><stop offset="0%" stop-color="#a9c6ff"/><stop offset="52%" stop-color="#7aa2f7"/><stop offset="100%" stop-color="#4f7fe0"/></linearGradient></defs>
+  <rect x="0" y="0" width="512" height="512" fill="url(#g0)"/>
+  <ellipse cx="256" cy="256" rx="126" ry="56" transform="rotate(-26 256 256)" fill="none" stroke="#7aa2f7" stroke-width="9" opacity="0.52"/>
+  <ellipse cx="256" cy="256" rx="126" ry="56" transform="rotate(38 256 256)" fill="none" stroke="#7aa2f7" stroke-width="9" opacity="0.3"/>
+  <circle cx="256" cy="256" r="44" fill="url(#g1)"/>
+  <circle cx="256" cy="256" r="44" fill="none" stroke="#c7dbff" stroke-width="3" opacity="0.5"/>
+  <circle cx="354" cy="194" r="14" fill="#8bd5ff"/>
+  <circle cx="162" cy="316" r="10" fill="#a78bfa" opacity="0.85"/>
+</svg>

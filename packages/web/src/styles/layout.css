@@ -459,3 +459,41 @@
   font-size: var(--size-sm);
   color: var(--text-muted);
 }
+
+/* ── Update banner ──────────────────────────────────────────────────────── */
+
+/*
+ * Sits above the bottom bar rather than over the content, so an update offer
+ * never covers the thing someone is reading or the field they are typing in.
+ */
+.app-update {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + var(--space-3));
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: min(30rem, calc(100vw - var(--space-6)));
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-strong);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+  color: var(--text);
+  font-size: var(--size-sm);
+}
+
+.app-update__text {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .app-update {
+    bottom: calc(var(--safe-bottom) + var(--space-4));
+  }
+}

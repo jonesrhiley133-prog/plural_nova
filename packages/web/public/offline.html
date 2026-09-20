@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>PluralNova — offline</title>
+    <meta name="theme-color" content="#080b14" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <!--
+      The last resort. The service worker only reaches this page when it has no
+      cached app shell at all — which in practice means the very first visit
+      happened without a connection. Everything after that opens the real app
+      against its local database, so this page stays deliberately small and
+      carries no script beyond the retry.
+    -->
+    <style>
+      :root {
+        color-scheme: dark light;
+        --bg: #080b14;
+        --surface: #121728;
+        --border: #1f2942;
+        --text: #e7ecf8;
+        --text-muted: #94a0bd;
+        --accent: #7aa2f7;
+        --accent-text: #04070f;
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f3f5fb;
+          --surface: #ffffff;
+          --border: #d8def0;
+          --text: #161b2c;
+          --text-muted: #565f7c;
+          --accent: #3559c7;
+          --accent-text: #ffffff;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: 2rem 1rem calc(2rem + env(safe-area-inset-bottom));
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      main {
+        width: min(30rem, 100%);
+        text-align: center;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 2.25rem 1.5rem;
+      }
+
+      img {
+        width: 72px;
+        height: 72px;
+        margin-bottom: 1.25rem;
+      }
+
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.375rem;
+        letter-spacing: -0.01em;
+      }
+
+      p {
+        margin: 0 0 1.5rem;
+        color: var(--text-muted);
+        font-size: 0.9375rem;
+      }
+
+      button {
+        font: inherit;
+        font-weight: 600;
+        min-height: 44px;
+        padding: 0 1.5rem;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent);
+        color: var(--accent-text);
+        cursor: pointer;
+      }
+
+      button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon.svg" alt="" width="72" height="72" />
+      <h1>PluralNova is offline</h1>
+      <p>
+        Nothing has been lost. This device has not stored a copy of the app yet, so it needs one
+        connection to finish setting up — after that PluralNova opens with or without a network.
+      </p>
+      <button type="button" onclick="location.replace('/')">Try again</button>
+    </main>
+  </body>
+</html>

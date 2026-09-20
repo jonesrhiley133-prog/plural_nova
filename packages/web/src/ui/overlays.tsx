@@ -48,6 +48,19 @@ export function Dialog({
   const titleId = useId();
   const descriptionId = useId();
 
+  /*
+   * Callers pass `onClose` as an inline arrow, so its identity changes on every
+   * render. Held in a ref, it stays current for the key handler without being a
+   * dependency of the effect below — which matters more than it sounds: an
+   * effect that re-ran on each render would tear down and re-run its focus
+   * setup between keystrokes, pulling the caret out of whatever field someone
+   * was typing in after the first character.
+   */
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+
   useEffect(() => {
     if (!open) return;
 
@@ -61,7 +74,7 @@ export function Dialog({
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && dismissible) {
         event.stopPropagation();
-        onClose();
+        closeRef.current();
         return;
       }
       if (event.key !== 'Tab' || !panel.current) return;
@@ -91,7 +104,7 @@ export function Dialog({
       window.scrollTo({ top: scrollY });
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose, dismissible]);
+  }, [open, dismissible]);
 
   if (!open) return null;
 

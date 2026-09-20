@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../core/auth.js';
 import { useI18n } from '../../core/i18n.js';
-import { api, messageFor, type ApiRequestError } from '../../core/api.js';
+import { api, messageFor, setToken, type ApiRequestError } from '../../core/api.js';
 import { Atmosphere, Logo } from '../../app/Atmosphere.js';
 import { Button, Card } from '../../ui/primitives.js';
 import { TextField } from '../../ui/forms.js';
@@ -414,7 +414,6 @@ function ResetPassword({ onChoose }: { onChoose: (screen: Screen) => void }): JS
         code: code.trim(),
         password,
       });
-      const { setToken } = await import('../../core/api.js');
       setToken(result.token);
       await refresh();
     } catch (cause) {
@@ -484,7 +483,6 @@ function RecoverAccount({
         recoveryCode: recoveryCode.trim(),
         password,
       });
-      const { setToken } = await import('../../core/api.js');
       setToken(result.token);
       if (result.recoveryCode) onRecoveryCode(result.recoveryCode);
       await refresh();

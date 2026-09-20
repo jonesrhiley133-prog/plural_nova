@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
+import { registerServiceWorker } from './core/serviceWorker.js';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
@@ -17,14 +18,8 @@ createRoot(container).render(
 
 /**
  * The service worker is what makes this an installable application rather than
- * a bookmark: offline caching, background push, and the shortcuts the platform
- * shows on a long press. Registration failing is not fatal — the app runs as a
- * normal page.
+ * a bookmark: offline launch, background push, and the shortcuts the platform
+ * shows on a long press. Registration failing is not fatal — the app then runs
+ * as an ordinary page.
  */
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((error: unknown) => {
-      console.info('[pluralnova] service worker unavailable:', error);
-    });
-  });
-}
+registerServiceWorker();

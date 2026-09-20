@@ -10,6 +10,7 @@ import { startRealtime } from './core/realtime.js';
 import { ErrorBoundary, SkeletonList } from './ui/feedback.js';
 import { Layout } from './app/Layout.js';
 import { Atmosphere } from './app/Atmosphere.js';
+import { AppUpdate } from './app/AppUpdate.js';
 import { AuthScreens } from './modules/auth/AuthScreens.js';
 import { Onboarding } from './modules/auth/Onboarding.js';
 
@@ -219,6 +220,7 @@ export function App(): JSX.Element {
             <ThemeProvider>
               <ToastProvider>
                 <DataProvider>
+                  <AppUpdate />
                   <Suspense fallback={<ScreenFallback />}>
                     <AppRoutes />
                   </Suspense>
