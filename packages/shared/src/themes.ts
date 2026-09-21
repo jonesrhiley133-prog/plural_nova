@@ -87,7 +87,7 @@ export const DEFAULT_THEME: ThemeSettings = {
   accent: DEFAULT_ACCENT,
   surfaceStyle: 'glass',
   effects: 'full',
-  surfaceOpacity: 46,
+  surfaceOpacity: 82,
   highContrast: false,
   reducedMotion: false,
   largeText: false,
@@ -98,13 +98,13 @@ export const DEFAULT_THEME: ThemeSettings = {
 };
 
 const DARK: ThemeTokens = {
-  bg: '#060912',
-  bgSubtle: '#0d1428',
-  surface: '#1b2340',
-  surfaceRaised: '#232d50',
-  surfaceSunken: '#0a0e1c',
-  border: '#2b3760',
-  borderStrong: '#3f4f80',
+  bg: '#0b1020',
+  bgSubtle: '#111935',
+  surface: '#19223c',
+  surfaceRaised: '#212c4c',
+  surfaceSunken: '#0e142a',
+  border: '#2a3558',
+  borderStrong: '#3c4a76',
   text: '#e7ecf8',
   textMuted: '#c3cee6',
   textFaint: '#b2bed7',
@@ -115,15 +115,17 @@ const DARK: ThemeTokens = {
   caution: '#f0a85a',
   critical: '#ec7392',
   info: '#8bd5ff',
-  atmosphere: '#132250',
+  atmosphere: '#16224a',
   shadow: '0 18px 40px -24px rgba(0, 0, 0, 0.9)',
-  glassEdge: 'rgba(200, 220, 255, 0.22)',
-  glassSheen: 'rgba(160, 190, 255, 0.10)',
+  glassEdge: 'rgba(200, 220, 255, 0.13)',
+  glassSheen: 'rgba(160, 190, 255, 0.045)',
   shadowLift: '0 2px 6px -2px rgba(0, 0, 0, 0.6), 0 24px 56px -28px rgba(4, 10, 30, 0.95)',
-  glow: 'rgba(122, 162, 247, 0.34)',
-  nebulaCore: '#3757c9',
-  nebulaDrift: '#9a5fe0',
-  nebulaDeep: '#1666a8',
+  glow: 'rgba(122, 162, 247, 0.17)',
+  // Muted rather than saturated: these wash the background, and a vivid one
+  // reads as a galaxy wallpaper instead of a night sky.
+  nebulaCore: '#2b3d73',
+  nebulaDrift: '#5f4a8c',
+  nebulaDeep: '#1a4668',
 };
 
 const AMOLED: ThemeTokens = {
@@ -137,14 +139,14 @@ const AMOLED: ThemeTokens = {
   borderStrong: '#242a38',
   atmosphere: '#04060d',
   shadow: '0 18px 40px -26px rgba(0, 0, 0, 1)',
-  glassEdge: 'rgba(170, 196, 255, 0.12)',
-  glassSheen: 'rgba(130, 160, 240, 0.05)',
+  glassEdge: 'rgba(170, 196, 255, 0.09)',
+  glassSheen: 'rgba(130, 160, 240, 0.03)',
   shadowLift: '0 2px 6px -2px rgba(0, 0, 0, 0.85), 0 24px 56px -30px rgba(0, 0, 0, 1)',
-  glow: 'rgba(122, 162, 247, 0.28)',
+  glow: 'rgba(122, 162, 247, 0.14)',
   // Dimmer on AMOLED: the point of a true-black theme is the black.
-  nebulaCore: '#182453',
-  nebulaDrift: '#432a6f',
-  nebulaDeep: '#0a2244',
+  nebulaCore: '#141d42',
+  nebulaDrift: '#33234f',
+  nebulaDeep: '#0a1e39',
 };
 
 const LIGHT: ThemeTokens = {
@@ -376,13 +378,18 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
     const opacity = Math.min(100, Math.max(20, settings.surfaceOpacity)) / 100;
     /*
      * Frosted glass is a pale film over whatever is behind it. A dark fill with
-     * some transparency in it is just a dark box that lets a little through —
-     * which is what this used to be, and why the panels read as flat. Lifting
-     * the fill toward the text colour first is the whole difference.
+     * some transparency in it is just a dark box that lets a little through,
+     * which is why lifting the fill toward the text colour comes first.
+     *
+     * The lift is slight, and the opacity is used as given. It used to be
+     * scaled by 0.62, so a panel set to 100 was still 38% see-through and the
+     * default sat at 29% — every surface competing with the background behind
+     * it, which is what made the app look like it was made of windows. A
+     * control named opacity should mean opacity.
      */
-    const film = mix(base.surface, tokens.text, isLight ? 0.0 : 0.2);
-    tokens.surface = withAlpha(film, opacity * 0.62);
-    tokens.surfaceRaised = withAlpha(film, Math.min(1, opacity * 0.62 + 0.09));
+    const film = mix(base.surface, tokens.text, isLight ? 0.0 : 0.11);
+    tokens.surface = withAlpha(film, opacity);
+    tokens.surfaceRaised = withAlpha(film, Math.min(1, opacity + 0.06));
   } else {
     tokens.surface = base.surface;
     tokens.surfaceRaised = isLight ? '#ffffff' : mix(base.surface, '#ffffff', 0.05);
@@ -397,7 +404,7 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
 export function normaliseThemeSettings(input: Partial<ThemeSettings> | null | undefined): ThemeSettings {
   const merged: ThemeSettings = { ...DEFAULT_THEME, ...(input ?? {}) };
   merged.textScale = Math.min(160, Math.max(80, Math.round(merged.textScale || 100)));
-  merged.surfaceOpacity = Math.min(100, Math.max(20, Math.round(merged.surfaceOpacity ?? 72)));
+  merged.surfaceOpacity = Math.min(100, Math.max(20, Math.round(merged.surfaceOpacity ?? 82)));
   if (!parseHex(merged.accent)) merged.accent = DEFAULT_ACCENT;
   if (!['dark', 'amoled', 'light'].includes(merged.base)) merged.base = 'dark';
   if (!['glass', 'solid', 'clear'].includes(merged.surfaceStyle)) merged.surfaceStyle = 'glass';

@@ -250,14 +250,25 @@ dataRouter.post(
   }),
 );
 
-/** Re-seeds the demo account, for a guest who wants to start the tour again. */
+/**
+ * Example data: a re-seed for a guest, an addition for everybody else.
+ *
+ * The strategy is the whole of the difference, and it is not cosmetic. A guest
+ * account is the tour, so starting it again means replacing what is there. A
+ * real account is somebody's records, and 'replace' would delete them — which
+ * is why this used to refuse any account that was not a guest.
+ *
+ * But onboarding offers example data to every new account, so on a registered
+ * one that offer could only ever fail. Refusing was the safe half of the fix
+ * and merging is the other half: nothing is removed, the rows are added
+ * alongside whatever is already there, and the button in onboarding does what
+ * it says.
+ */
 dataRouter.post(
   '/demo/reset',
   handler(async (req, res) => {
     const context = auth(req);
-    if (context.user.isGuest !== 1) {
-      throw badRequest('Demo data can only be reset on a guest account.');
-    }
+    const strategy = context.user.isGuest === 1 ? 'replace' : 'merge';
     const { buildDemoData } = await import('@pluralnova/shared');
     const days = ([7, 30, 60, 90] as const).includes(Number(req.body?.days) as 7 | 30 | 60 | 90)
       ? (Number(req.body.days) as 7 | 30 | 60 | 90)
@@ -267,9 +278,9 @@ dataRouter.post(
       systemId: context.scope.systemId ?? '',
       days,
     });
-    const report = restoreCollections(context.scope, data, 'replace');
+    const report = restoreCollections(context.scope, data, strategy);
     if (context.scope.systemId) refreshMemberCount(context.user.id, context.scope.systemId);
-    ok(res, { report, days });
+    ok(res, { report, days, strategy });
   }),
 );
 
