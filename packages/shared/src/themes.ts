@@ -33,6 +33,8 @@ export interface ThemeTokens {
   positive: string;
   caution: string;
   critical: string;
+  /** Text colour that sits on top of a filled `critical` surface, such as a badge. */
+  criticalText: string;
   info: string;
   /** Backdrop of the starfield / atmosphere layer. */
   atmosphere: string;
@@ -125,6 +127,9 @@ const DARK: ThemeTokens = {
   positive: '#5ec6a8',
   caution: '#f0a85a',
   critical: '#ec7392',
+  // #ec7392 only reaches 2.8:1 against white — a badge needs 4.5:1+, so its
+  // text is dark rather than the white every other filled surface here uses.
+  criticalText: '#05070d',
   info: '#8bd5ff',
   atmosphere: '#16224a',
   shadow: '0 18px 40px -24px rgba(0, 0, 0, 0.9)',
@@ -177,6 +182,7 @@ const LIGHT: ThemeTokens = {
   positive: '#1f8d70',
   caution: '#b26a12',
   critical: '#c23d63',
+  criticalText: '#ffffff',
   info: '#1d6f9c',
   atmosphere: '#dbe4f7',
   shadow: '0 16px 36px -26px rgba(22, 34, 63, 0.4)',
@@ -360,6 +366,7 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
   tokens.accent = accent;
   tokens.accentText = readableTextOn(accent);
   tokens.accentSoft = withAlpha(accent, isLight ? 0.12 : 0.16);
+  tokens.criticalText = readableTextOn(tokens.critical);
 
   /*
    * The glow and the nearest colour field follow the accent, so choosing a
