@@ -54,6 +54,27 @@ android {
         targetSdk = 35
         versionCode = appVersionCode
         versionName = appVersionName
+
+        /*
+         * The server this build points at, if it points at one.
+         *
+         * PluralNova is self-hosted, so the app cannot generally know its own
+         * server and asks on first launch. But a build made for one system's
+         * own server does know, and asking then is a question with exactly one
+         * possible answer — a screen between somebody and their app for no
+         * reason, every time they install it.
+         *
+         *   ./gradlew assembleRelease -Ppluralnova.serverUrl=https://yours.example
+         *
+         * Left unset it is empty and the setup screen behaves as before, which
+         * is what a build for anybody else needs.
+         */
+        val bakedServerUrl = (
+            (project.findProperty("pluralnova.serverUrl") as String?)
+                ?: System.getenv("PLURALNOVA_SERVER_URL")
+                ?: ""
+            ).trim()
+        buildConfigField("String", "DEFAULT_SERVER_URL", "\"$bakedServerUrl\"")
     }
 
     if (hasReleaseKey) {

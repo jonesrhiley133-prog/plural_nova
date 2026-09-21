@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Only the server address is backed up. The WebView's storage holds the local
-  copy of someone's records and their session token; restoring those onto
-  another device would move a signed-in session without anybody asking for it.
-  The app re-syncs from the server on the new device instead.
+  Only the server address travels, and a flag saying whether somebody chose it
+  themselves. The WebView's storage holds the local copy of someone's records
+  and their session token; restoring those onto another device would move a
+  signed-in session without anybody asking for it. The app re-syncs from the
+  server on the new device instead.
 
   One <include> is the whole rule. It turns these into an allowlist, so every
   other domain is already excluded and naming them again says nothing — which

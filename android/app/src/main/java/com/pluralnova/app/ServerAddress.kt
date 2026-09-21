@@ -18,15 +18,48 @@ object ServerAddress {
     private const val PREFS = "pluralnova"
     private const val KEY = "serverUrl"
 
-    fun stored(context: Context): String? =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null)
+    /*
+     * Set when somebody has chosen an address for themselves, including by
+     * clearing one. It is what keeps "change server" working in a build that
+     * ships with an address baked in: without it, clearing the stored value
+     * would fall straight back to the default and the screen would be
+     * unreachable.
+     */
+    private const val KEY_CHOSEN = "serverChosen"
+
+    /**
+     * The address baked in at build time, or empty when there is none.
+     *
+     * A build for one system's own server knows where that server is, and
+     * asking on first launch is a question with one possible answer. A build
+     * for anybody else does not, so this is empty and the setup screen does
+     * its job. Same app either way; the difference is one Gradle property.
+     */
+    private val baked: String?
+        get() = BuildConfig.DEFAULT_SERVER_URL.trim().ifEmpty { null }
+
+    fun stored(context: Context): String? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.getString(KEY, null)?.let { return it }
+        // Somebody cleared it on purpose: ask, rather than undoing their choice.
+        if (prefs.getBoolean(KEY_CHOSEN, false)) return null
+        return baked?.let { normalise(it) }
+    }
 
     fun store(context: Context, url: String) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, url).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY, url)
+            .putBoolean(KEY_CHOSEN, true)
+            .apply()
     }
 
     fun clear(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY)
+            .putBoolean(KEY_CHOSEN, true)
+            .apply()
     }
 
     /**
