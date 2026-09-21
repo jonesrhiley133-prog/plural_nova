@@ -714,6 +714,60 @@ export const emergencyContacts: CollectionDef = {
   ],
 };
 
+export const contactInteractions: CollectionDef = {
+  name: 'contactInteractions',
+  label: 'Contact log',
+  singular: 'Interaction',
+  icon: 'contact',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'summary',
+  sortField: 'happenedAt',
+  sortDir: 'desc',
+  indexes: [['systemId', 'contactId', 'happenedAt']],
+  neverPublic: true,
+  description:
+    'What happened, with whom, and who was out for it. Contacts carry a last-seen date; this is the record behind it.',
+  fields: [
+    f.ref('contactId', 'Who', 'contacts', { required: true, inList: true }),
+    f.datetime('happenedAt', 'When', { required: true, inList: true }),
+    f.text('summary', 'What happened', { inList: true, searchable: true }),
+    f.enumOf(
+      'channel',
+      'How',
+      [
+        { value: 'inPerson', label: 'In person' },
+        { value: 'call', label: 'Call' },
+        { value: 'video', label: 'Video call' },
+        { value: 'message', label: 'Message' },
+        { value: 'email', label: 'Email' },
+        { value: 'letter', label: 'Letter' },
+        { value: 'other', label: 'Something else' },
+      ],
+      { inList: true },
+    ),
+    f.int('durationMinutes', 'How long', { min: 0 }),
+    /*
+     * Who was out for it. The point of a contact log in a system is often
+     * exactly this: which of you has the relationship, and who they have
+     * actually met. Without it the log says the system saw someone, which is
+     * not the same fact.
+     */
+    f.refs('memberIds', 'Who was out', 'members'),
+    f.int('howItWent', 'How it went', { min: 1, max: 5, inList: true }),
+    f.int('energyCost', 'What it cost', {
+      min: 1,
+      max: 5,
+      hint: 'How draining it was, separately from whether it went well.',
+    }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
+    f.bool('needsFollowUp', 'Needs following up'),
+    f.date('followUpBy', 'Follow up by'),
+    f.tags('tags', 'Tags'),
+  ],
+};
+
 export const locationEntries: CollectionDef = {
   name: 'locationEntries',
   label: 'Locations',
@@ -832,6 +886,7 @@ export const vaultItems: CollectionDef = {
 };
 
 export const LIFE_COLLECTIONS = [
+  contactInteractions,
   noteFolders,
   notes,
   tasks,

@@ -355,7 +355,56 @@ export const videoItems: CollectionDef = {
   ],
 };
 
+export const ficChapters: CollectionDef = {
+  name: 'ficChapters',
+  label: 'Fic chapters',
+  singular: 'Chapter',
+  icon: 'fic',
+  area: 'creative',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'title',
+  sortField: 'number',
+  sortDir: 'asc',
+  indexes: [['systemId', 'ficId', 'number']],
+  description:
+    'Where you are in something long. A fic tracked only as read or unread loses the middle, which is where most of a long work is.',
+  fields: [
+    f.ref('ficId', 'Fic', 'fics', { required: true, inList: true }),
+    f.int('number', 'Chapter', { required: true, inList: true, min: 0 }),
+    f.text('title', 'Title', { inList: true, searchable: true }),
+    f.int('wordCount', 'Words', { min: 0 }),
+    f.date('publishedOn', 'Published'),
+
+    f.enumOf(
+      'status',
+      'Status',
+      [
+        { value: 'unread', label: 'Not read' },
+        { value: 'reading', label: 'Reading' },
+        { value: 'read', label: 'Read' },
+        { value: 'skipped', label: 'Skipped' },
+      ],
+      { defaultValue: 'unread', inList: true },
+    ),
+    f.datetime('readAt', 'Finished'),
+    /*
+     * Who read it, not just that it was read. Two members reading the same
+     * work at different paces is ordinary, and a single progress marker makes
+     * one of them lose their place every time the other opens it.
+     */
+    f.refs('readByMemberIds', 'Read by', 'members'),
+    f.int('progressPercent', 'How far in', { min: 0, max: 100 }),
+
+    f.int('rating', 'Rating', { min: 1, max: 5 }),
+    f.long('notes', 'Notes', { searchable: true }),
+    f.tags('tags', 'Tags'),
+    f.bool('isFavourite', 'Favourite'),
+  ],
+};
+
 export const CREATIVE_COLLECTIONS = [
+  ficChapters,
   fics,
   characters,
   stories,
