@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { APP_VERSION } from '@pluralnova/shared';
 import { config, ensureDirectories } from './config.js';
+import { inspectStorage } from './storage.js';
 import { migrate, openDatabase } from './db/index.js';
 import { createApp } from './app.js';
 import { attachRealtime, closeAll } from './realtime/hub.js';
@@ -10,6 +11,11 @@ import { pruneRateLimits } from './http/rateLimit.js';
 import { runReminderSweep } from './services/reminders.js';
 
 ensureDirectories();
+
+// Before anything is written, say whether writing it is worth anything.
+const storage = inspectStorage();
+if (storage.warning) console.warn(storage.warning);
+
 const db = openDatabase();
 const schema = migrate(db);
 ensurePushKeys();

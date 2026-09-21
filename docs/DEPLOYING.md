@@ -143,6 +143,10 @@ pin that.
    repo** → pick this repository. It finds the `Dockerfile` on its own.
 2. Service → **Variables** → add `PLURALNOVA_DATA_DIR` = `/data`.
 3. Service → **Settings** → **Volumes** → **Add volume**, mount path `/data`.
+   **This is the step that matters.** Skip it and the app runs perfectly until
+   your next deploy, at which point every account in it is gone. PluralNova
+   checks at startup and says so in the deploy logs if the volume is missing,
+   so look there if you are unsure.
 4. Service → **Settings** → **Networking** → **Generate Domain**.
 
 That domain is HTTPS, which means the app is installable from it.
