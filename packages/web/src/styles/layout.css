@@ -1,0 +1,530 @@
+/*
+ * The app shell.
+ *
+ * Two layouts, one set of rules: a bottom bar plus a full-width column on a
+ * phone, a persistent rail plus a wider content area from 900px up. The
+ * breakpoint is where a rail stops stealing room the content needs.
+ */
+
+.app {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-base);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: calc(var(--header-height) + var(--safe-top));
+  padding: var(--safe-top) var(--space-4) 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 78%, transparent),
+    color-mix(in srgb, var(--bg) 40%, transparent)
+  );
+  backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));
+  /*
+   * A hairline, not a bar. A solid top border here is the thing that makes a
+   * desktop web app look like a page rather than an application.
+   */
+  border-bottom: var(--border-width) solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.app-header__title {
+  font-size: var(--size-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header__subtitle {
+  font-size: var(--size-xs);
+  color: var(--text-faint);
+}
+
+.app-header__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* ── Content ────────────────────────────────────────────────────────────── */
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4);
+  /*
+   * The reserved strip at the bottom is what keeps the last row of a list from
+   * sitting underneath the floating bar or the action button, on every screen,
+   * without each page remembering to add it. Both heights come from the same
+   * tokens the two controls are positioned with, so they cannot drift apart.
+   */
+  padding-bottom: calc(
+    var(--bottom-nav-height) + var(--safe-bottom) + var(--fab-gap) + var(--fab-size) +
+      var(--space-6)
+  );
+  padding-left: max(var(--space-4), var(--safe-left));
+  padding-right: max(var(--space-4), var(--safe-right));
+}
+
+.app-main--narrow {
+  max-width: var(--content-narrow);
+}
+
+.app-main--flush {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* ── Bottom navigation (mobile) ─────────────────────────────────────────── */
+
+.app-bottom-nav {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--safe-bottom) + var(--space-2));
+  z-index: var(--z-nav);
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px;
+  width: min(520px, calc(100vw - var(--space-6)));
+  height: var(--bottom-nav-height);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 65%),
+    color-mix(in srgb, var(--bg-subtle) 66%, transparent);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    var(--shadow-lift);
+  backdrop-filter: blur(calc(var(--blur-surface) * 1.4)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(calc(var(--blur-surface) * 1.4)) saturate(var(--glass-saturate));
+}
+
+/*
+ * When the on-screen keyboard is up, the floating bar is hidden rather than
+ * left hovering over the field being typed into.
+ */
+.app-bottom-nav[data-keyboard-open='true'] {
+  display: none;
+}
+
+.app-bottom-nav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--space-1);
+  border-radius: var(--radius);
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  position: relative;
+  min-width: 0;
+  transition:
+    color var(--duration-fast) var(--ease),
+    background var(--duration-fast) var(--ease);
+}
+
+.app-bottom-nav__item:hover {
+  color: var(--text-muted);
+}
+
+.app-bottom-nav__item[aria-current='page'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-pill);
+  /* Lit from within, so where you are is obvious at a glance. */
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 18px -6px var(--glow);
+}
+
+.app-bottom-nav__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.app-bottom-nav__badge {
+  position: absolute;
+  top: 3px;
+  right: calc(50% - 18px);
+}
+
+@media (min-width: 900px) {
+  .app-bottom-nav {
+    display: none;
+  }
+
+  .app-main {
+    padding-bottom: var(--space-10);
+  }
+}
+
+/* ── Sidebar rail (desktop) ─────────────────────────────────────────────── */
+
+.app-shell {
+  display: flex;
+  min-height: 100dvh;
+}
+
+/*
+ * A flex item's automatic minimum is the width of its widest unbreakable child,
+ * so without this the column grows to fit a long tab row or an un-wrapped chip
+ * strip and takes the whole page sideways with it. Zero here lets those
+ * children scroll or wrap inside the column, which is what they are built to do.
+ */
+.app-shell__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-nav {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .app-nav {
+    display: flex;
+    flex-direction: column;
+    width: var(--nav-rail-width);
+    flex-shrink: 0;
+    height: 100dvh;
+    position: sticky;
+    top: 0;
+    padding: var(--space-4) var(--space-3);
+    padding-top: calc(var(--safe-top) + var(--space-4));
+    padding-left: max(var(--space-3), var(--safe-left));
+    border-right: var(--border-width) solid var(--border);
+    background: color-mix(in srgb, var(--bg-subtle) 55%, transparent);
+    backdrop-filter: blur(var(--blur-surface));
+    -webkit-backdrop-filter: blur(var(--blur-surface));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+}
+
+.app-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  margin-bottom: var(--space-4);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.app-nav__brand-name {
+  font-size: var(--size-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+}
+
+.app-nav__group {
+  margin-bottom: var(--space-3);
+}
+
+.app-nav__group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-2);
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: var(--size-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.app-nav__group-label:hover {
+  color: var(--text-muted);
+}
+
+.app-nav__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--size-sm);
+  transition:
+    background var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.app-nav__item:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.app-nav__item[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+.app-nav__item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-nav__footer {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border);
+}
+
+/* ── Quick action button ────────────────────────────────────────────────── */
+
+.quick-action-button {
+  position: fixed;
+  right: max(var(--space-4), var(--safe-right));
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + var(--fab-gap));
+  z-index: var(--z-nav);
+  width: var(--fab-size);
+  height: var(--fab-size);
+  border-radius: 50%;
+  border: var(--border-width) solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 88%, #ffffff),
+    var(--accent)
+  );
+  color: var(--accent-text);
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.3),
+    0 10px 30px -10px var(--glow),
+    var(--shadow-lift);
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.quick-action-button:hover {
+  transform: scale(1.05);
+}
+
+.quick-action-button:active {
+  transform: scale(0.95);
+}
+
+@media (min-width: 900px) {
+  .quick-action-button {
+    bottom: var(--space-6);
+    right: var(--space-6);
+  }
+}
+
+/* ── Page headers ───────────────────────────────────────────────────────── */
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.page-header__text {
+  min-width: 0;
+}
+
+.page-header__title {
+  font-size: var(--size-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+}
+
+.page-header__description {
+  font-size: var(--size-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+  max-width: 62ch;
+  line-height: var(--leading-relaxed);
+}
+
+.page-header__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ── Two-column split (desktop takes advantage of the width) ────────────── */
+
+.split {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 1000px) {
+  .split {
+    grid-template-columns: minmax(280px, 340px) 1fr;
+    align-items: start;
+  }
+
+  .split--wide-first {
+    grid-template-columns: 1fr minmax(280px, 340px);
+  }
+
+  .split__aside {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-4));
+  }
+}
+
+/* ── Sync indicator ─────────────────────────────────────────────────────── */
+
+.sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--size-xs);
+  color: var(--text-faint);
+  background: var(--surface-sunken);
+  border: var(--border-width) solid var(--border);
+}
+
+.sync-pill[data-state='offline'] {
+  color: var(--caution);
+  border-color: color-mix(in srgb, var(--caution) 35%, transparent);
+}
+
+.sync-pill[data-state='error'] {
+  color: var(--critical);
+  border-color: color-mix(in srgb, var(--critical) 35%, transparent);
+}
+
+.sync-pill[data-state='syncing'] {
+  color: var(--info);
+}
+
+/* ── Auth screens ───────────────────────────────────────────────────────── */
+
+.auth-screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+  padding-top: calc(var(--safe-top) + var(--space-6));
+  padding-bottom: calc(var(--safe-bottom) + var(--space-6));
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+  padding: var(--space-6);
+  box-shadow: var(--shadow);
+}
+
+.auth-card__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  text-align: center;
+}
+
+.auth-card__title {
+  font-size: var(--size-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.auth-card__tagline {
+  font-size: var(--size-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-relaxed);
+}
+
+.auth-card__footer {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border);
+  text-align: center;
+  font-size: var(--size-sm);
+  color: var(--text-muted);
+}
+
+/* ── Update banner ──────────────────────────────────────────────────────── */
+
+/*
+ * Sits above the bottom bar rather than over the content, so an update offer
+ * never covers the thing someone is reading or the field they are typing in.
+ */
+.app-update {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + var(--space-3));
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: min(30rem, calc(100vw - var(--space-6)));
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-strong);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+  color: var(--text);
+  font-size: var(--size-sm);
+}
+
+.app-update__text {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .app-update {
+    bottom: calc(var(--safe-bottom) + var(--space-4));
+  }
+}

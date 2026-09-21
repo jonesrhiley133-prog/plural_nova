@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="PluralNova">
+  <defs><radialGradient id="g0" gradientUnits="userSpaceOnUse" cx="195" cy="143" r="420"><stop offset="0%" stop-color="#16244a"/><stop offset="58%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="123" y1="82" x2="399" y2="451"><stop offset="0%" stop-color="#a9c6ff"/><stop offset="52%" stop-color="#7aa2f7"/><stop offset="100%" stop-color="#4f7fe0"/></linearGradient></defs>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#g0)"/>
+  <ellipse cx="256" cy="256" rx="176" ry="78" transform="rotate(-26 256 256)" fill="none" stroke="#7aa2f7" stroke-width="10" opacity="0.52"/>
+  <ellipse cx="256" cy="256" rx="176" ry="78" transform="rotate(38 256 256)" fill="none" stroke="#7aa2f7" stroke-width="10" opacity="0.3"/>
+  <circle cx="256" cy="256" r="58" fill="url(#g1)"/>
+  <circle cx="256" cy="256" r="58" fill="none" stroke="#c7dbff" stroke-width="3" opacity="0.5"/>
+  <circle cx="394" cy="168" r="19" fill="#8bd5ff"/>
+  <circle cx="126" cy="338" r="13" fill="#a78bfa" opacity="0.88"/>
+  <circle cx="340" cy="372" r="10" fill="#7aa2f7" opacity="0.72"/>
+  <circle cx="158" cy="160" r="7" fill="#e7ecf8" opacity="0.6"/>
+  <circle cx="420" cy="322" r="5" fill="#e7ecf8" opacity="0.42"/>
+  <circle cx="92" cy="216" r="4" fill="#e7ecf8" opacity="0.34"/>
+</svg>

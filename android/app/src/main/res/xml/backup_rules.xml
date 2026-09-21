@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Only the server address is backed up. The WebView's storage holds the local
+  copy of someone's records and their session token; restoring those onto
+  another device would move a signed-in session without anybody asking for it.
+  The app re-syncs from the server on the new device instead.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="pluralnova.xml" />
+    <exclude domain="database" path="." />
+    <exclude domain="file" path="." />
+</full-backup-content>

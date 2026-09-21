@@ -1,0 +1,22 @@
+# Caddy asks Let's Encrypt for a certificate on first start and renews it on its
+# own. Nothing here needs editing — the hostname comes from the environment.
+{
+	email {$PLURALNOVA_ACME_EMAIL}
+}
+
+{$PLURALNOVA_DOMAIN} {
+	encode zstd gzip
+
+	# The realtime channel is a WebSocket upgrade; Caddy passes it through
+	# without any special handling, which is why there is no matcher here.
+	reverse_proxy pluralnova:4000
+
+	header {
+		# PluralNova holds a system's private records. These are the headers
+		# that stop another site framing it or sniffing its content types.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+	}
+}

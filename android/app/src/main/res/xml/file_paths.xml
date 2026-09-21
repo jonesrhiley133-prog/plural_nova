@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The one directory a downloaded update lands in. The package installer runs in
+  another process and cannot read this app's files directly, so it is handed a
+  content:// URI scoped to exactly this folder rather than to storage at large.
+-->
+<paths>
+    <external-files-path name="updates" path="." />
+</paths>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PluralNova</string>
+
+    <string name="setup_title">Where is your PluralNova?</string>
+    <string name="setup_body">PluralNova runs on a server you control. Enter the address you open it at — on your home network, or wherever you host it.</string>
+    <string name="setup_hint">192.168.1.10:4000</string>
+    <string name="setup_connect">Connect</string>
+    <string name="setup_checking">Checking %1$s…</string>
+    <string name="setup_bad_address">That does not look like an address. A host and port is enough, like 192.168.1.10:4000.</string>
+    <string name="setup_unreachable">Nothing answered at that address (%1$s). Check the server is running and that this device is on the same network.</string>
+    <string name="setup_connect_anyway">Connect anyway</string>
+    <string name="setup_insecure">That address is reachable, but it is not https and not on a local network — anything you type, including your password, would travel unencrypted. Put it behind https if you can.</string>
+    <string name="setup_not_pluralnova">Something answered, but it is not a PluralNova (%1$s). Check the address and the port.</string>
+
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_action">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading PluralNova %1$s</string>
+    <string name="update_preparing">Downloading…</string>
+    <string name="update_failed">That download did not finish. Try again when you have a better connection.</string>
+    <string name="update_corrupt">The download did not match what the server described, so it was not installed.</string>
+    <string name="update_needs_permission">Android needs your permission for PluralNova to install updates. Allow it on the next screen, then tap Update again.</string>
+
+    <string name="error_title">Cannot reach PluralNova</string>
+    <string name="error_detail">%1$s did not respond.\n\n%2$s</string>
+    <string name="error_retry">Try again</string>
+    <string name="error_change_server">Use a different address</string>
+</resources>

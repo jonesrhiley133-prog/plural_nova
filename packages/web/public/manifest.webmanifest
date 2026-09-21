@@ -1,0 +1,65 @@
+{
+  "name": "PluralNova",
+  "short_name": "PluralNova",
+  "description": "A private constellation for your system — fronting, journalling, wellbeing and everything else, in one place.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#080b14",
+  "theme_color": "#080b14",
+  "categories": ["productivity", "lifestyle", "health"],
+  "dir": "ltr",
+  "lang": "en",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick front",
+      "short_name": "Front",
+      "description": "Record who is fronting, in one step",
+      "url": "/quick-front",
+      "icons": [{ "src": "/icons/shortcut-front.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "New journal entry",
+      "short_name": "Journal",
+      "description": "Write an entry",
+      "url": "/journal?new=1",
+      "icons": [{ "src": "/icons/shortcut-journal.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Log a mood",
+      "short_name": "Mood",
+      "description": "Record how things are right now",
+      "url": "/wellbeing?new=mood",
+      "icons": [{ "src": "/icons/shortcut-mood.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "New note",
+      "short_name": "Note",
+      "description": "Jot something down",
+      "url": "/notes?new=1",
+      "icons": [{ "src": "/icons/shortcut-note.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "New event",
+      "short_name": "Event",
+      "description": "Add something to the calendar",
+      "url": "/calendar?new=1",
+      "icons": [{ "src": "/icons/shortcut-calendar.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ],
+  "launch_handler": { "client_mode": "navigate-existing" },
+  "handle_links": "preferred",
+  "edge_side_panel": { "preferred_width": 420 }
+}

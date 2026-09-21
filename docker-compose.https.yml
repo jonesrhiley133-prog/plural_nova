@@ -1,0 +1,41 @@
+# Adds HTTPS, which is what makes PluralNova installable.
+#
+#   PLURALNOVA_DOMAIN=nova.example.com PLURALNOVA_ACME_EMAIL=you@example.com \
+#     docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
+#
+# Caddy gets a certificate from Let's Encrypt on first start and renews it
+# without being asked. It needs ports 80 and 443 reachable from the internet and
+# a DNS record pointing at this machine.
+#
+# If you do not want PluralNova on the public internet at all — a reasonable
+# thing to want — use the Tailscale route in docs/DEPLOYING.md instead. It gives
+# you the same HTTPS on a network only your own devices can reach.
+
+# Set PLURALNOVA_BIND=127.0.0.1 alongside these so the app is reachable only
+# through Caddy rather than also on its own port.
+
+services:
+  pluralnova:
+    environment:
+      PLURALNOVA_CORS: https://${PLURALNOVA_DOMAIN}
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: pluralnova-caddy
+    restart: unless-stopped
+    depends_on:
+      - pluralnova
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      PLURALNOVA_DOMAIN: ${PLURALNOVA_DOMAIN:?set PLURALNOVA_DOMAIN to the hostname you will open}
+      PLURALNOVA_ACME_EMAIL: ${PLURALNOVA_ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

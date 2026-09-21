@@ -1,0 +1,26 @@
+{
+  "name": "pluralnova",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PluralNova \u2014 a private operating system for a plural system.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/server",
+    "packages/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:server": "npm run dev -w @pluralnova/server",
+    "dev:web": "npm run dev -w @pluralnova/web",
+    "build": "npm run build -w @pluralnova/shared && npm run build -w @pluralnova/server && npm run build -w @pluralnova/web",
+    "start": "node --env-file-if-exists=.env packages/server/dist/index.js",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run typecheck"
+  }
+}
