@@ -50,9 +50,16 @@ COPY --from=build /app/packages/server/dist packages/server/dist/
 COPY --from=build /app/packages/web/dist packages/web/dist/
 
 # The database, uploads, push keys and any published APK live here. Without a
-# volume mounted on it, they last exactly as long as the container does.
+# volume mounted on it they last exactly as long as the container does, which
+# the server says at startup rather than leaving anybody to discover.
+#
+# Deliberately no VOLUME instruction. VOLUME makes Docker invent an unnamed
+# volume whenever nobody mounted one: it is a real filesystem, so it looks like
+# persistence to anything checking, and it survives a restart — but it is
+# orphaned under a random name the moment the container is replaced, which is
+# what a deploy does. Every host configuration here names its own volume
+# instead: docker-compose.yml, fly.toml, render.yaml, and Railway in the guide.
 RUN mkdir -p /data && chown -R node:node /data /app
-VOLUME ["/data"]
 
 USER node
 EXPOSE 4000

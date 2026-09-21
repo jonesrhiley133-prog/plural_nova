@@ -18,8 +18,8 @@ npm start          # http://localhost:4000
 ```
 
 That serves the API and the built client from one origin. Nothing else needs
-setting up: the database, the session secret and the push keys are created on
-first run, under `data/`.
+setting up: the database and the push keys are created on first run, under
+`data/`.
 
 To keep it running, `docker compose up -d --build`. To host it somewhere,
 PluralNova needs a persistent disk and a process that stays up — Railway,

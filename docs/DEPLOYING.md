@@ -49,7 +49,7 @@ Open <http://localhost:4000>. Create an account, or press **Explore with demo
 data** to look around a fully populated example system first — that account is
 real and yours, and you can delete it or turn it into a permanent one later.
 
-Everything lives in `./data`: the database, uploads, your session secret and
+Everything lives in `./data`: the database, uploads, your sessions and
 the push keys. That directory *is* your PluralNova.
 
 ## 2. Keep it running, with Docker
@@ -123,7 +123,7 @@ If you would rather not run the machine yourself, PluralNova needs a host that
 gives it two things:
 
 - **A disk that persists.** The database is a SQLite file. So are the uploads,
-  the session secret and the push keys. A host with an ephemeral filesystem
+  the sessions and the push keys. A host with an ephemeral filesystem
   loses every account on each deploy.
 - **A process that stays up.** The realtime channel is a WebSocket on
   `/realtime`, held open for as long as the app is.
