@@ -74,6 +74,9 @@ packages/web       React client: 60 screens, offline-first, installable
 
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) explains how those fit together
 and why the app is built the way it is.
+[`docs/DEPLOYING.md`](docs/DEPLOYING.md) is how to run it,
+[`docs/RELEASING.md`](docs/RELEASING.md) how to cut a version, and
+[`CHANGELOG.md`](CHANGELOG.md) what has changed.
 
 ## Android
 

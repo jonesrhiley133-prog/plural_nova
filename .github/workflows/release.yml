@@ -1,0 +1,220 @@
+name: Release
+
+# Cutting a release is pushing a tag:
+#
+#   git tag -a v1.0.0 -m "PluralNova 1.0.0" && git push origin v1.0.0
+#
+# Everything below follows from that. Nothing publishes on an ordinary push.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check the tag matches package.json
+        id: version
+        run: |
+          tagged="${GITHUB_REF_NAME#v}"
+          declared="$(node -p "require('./package.json').version")"
+          if [ "$tagged" != "$declared" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME says $tagged, package.json says $declared." >&2
+            echo "Bump the version and re-tag — the Android versionCode is derived from it," >&2
+            echo "so a mismatch ships an APK that cannot update the one before it." >&2
+            exit 1
+          fi
+          echo "version=$declared" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+
+  archive:
+    name: Archive
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+  image:
+    name: Container image
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # arm64 as well as amd64, because a Raspberry Pi is a reasonable place to
+      # run this and emulating the build is cheaper than asking people to.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  android:
+    name: Android APK
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Every update has to be signed with the same key as the install before
+      # it, so without the key there is nothing worth building: an APK signed
+      # with a throwaway debug key cannot update anything.
+      - name: Check for a signing key
+        id: signing
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No ANDROID_KEYSTORE_BASE64 secret, so no APK in this release."
+          fi
+
+      - if: steps.signing.outputs.available == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - if: steps.signing.outputs.available == 'true'
+        name: Restore the signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$KEYSTORE" | base64 -d > android/pluralnova.jks
+          cat > android/keystore.properties <<PROPS
+          storeFile=pluralnova.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          PROPS
+
+      - if: steps.signing.outputs.available == 'true'
+        run: ./gradlew --no-daemon assembleRelease
+        working-directory: android
+
+      - if: steps.signing.outputs.available == 'true'
+        name: Name the APK after the version
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk \
+            "dist/pluralnova-${{ needs.verify.outputs.version }}.apk"
+
+      - if: always()
+        name: Remove the key from the runner
+        run: rm -f android/pluralnova.jks android/keystore.properties
+
+      - if: steps.signing.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*.apk
+
+  publish:
+    name: Publish the release
+    needs: [verify, archive, image, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Take the notes from the changelog
+        run: |
+          version="${{ needs.verify.outputs.version }}"
+          # The section for this version, up to the next heading.
+          awk -v v="## [$version]" '
+            index($0, v) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+
+          # A tag with no changelog section still gets a release, with a line
+          # saying so rather than an empty body.
+          if [ ! -s release-notes.md ]; then
+            echo "::warning::No section for $version in CHANGELOG.md."
+            echo "See CHANGELOG.md for what changed in this version." > release-notes.md
+          fi
+
+          {
+            echo
+            echo '---'
+            echo
+            echo '### Verifying the archive'
+            echo
+            echo '```sh'
+            echo "sha256sum -c pluralnova-$version.tar.gz.sha256"
+            echo '```'
+            echo
+            echo '### Container image'
+            echo
+            echo '```sh'
+            echo "docker pull ghcr.io/${{ github.repository }}:$version"
+            echo '```'
+          } >> release-notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: artifacts/*
+          fail_on_unmatched_files: true

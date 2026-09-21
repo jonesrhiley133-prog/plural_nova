@@ -18,6 +18,7 @@
     "dev:server": "npm run dev -w @pluralnova/server",
     "dev:web": "npm run dev -w @pluralnova/web",
     "build": "npm run build -w @pluralnova/shared && npm run build -w @pluralnova/server && npm run build -w @pluralnova/web",
+    "package": "node scripts/package.mjs",
     "start": "node --env-file-if-exists=.env packages/server/dist/index.js",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
