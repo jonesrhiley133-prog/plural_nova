@@ -61,7 +61,16 @@ export interface FieldDef {
   searchable?: boolean;
   /** Form section heading. */
   group?: string;
-  /** Excluded from public/shared projections even when the record is shared. */
+  /**
+   * Never sent to another account.
+   *
+   * Enforced server-side by `shareableView`, which strips these before a
+   * record is projected to anybody who does not own it. That is the backstop:
+   * the projections that matter are allowlists naming each field they emit,
+   * which is the stronger pattern and stays the first line. This flag is what
+   * catches a field added to a collection later, by somebody who does not know
+   * which projections will end up carrying it.
+   */
   sensitive?: boolean;
   placeholder?: string;
 }

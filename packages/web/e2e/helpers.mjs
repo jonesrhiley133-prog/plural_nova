@@ -14,11 +14,13 @@ export const BASE = process.env['PLURALNOVA_E2E_URL'] ?? 'http://localhost:4000'
 /** The phone width worth holding the line at: a small Android in portrait. */
 export const PHONE = { width: 360, height: 780 };
 
-export async function openBrowser(viewport = PHONE) {
+export async function openBrowser(viewport = PHONE, contextOptions = {}) {
   const browser = await chromium.launch({
     ...(process.env['PLAYWRIGHT_CHROMIUM'] ? { executablePath: process.env['PLAYWRIGHT_CHROMIUM'] } : {}),
   });
-  const context = await browser.newContext({ viewport });
+  // contextOptions is how a check asks for something about the device rather
+  // than the app — reducedMotion, colorScheme, a different locale.
+  const context = await browser.newContext({ viewport, ...contextOptions });
   const page = await context.newPage();
 
   const problems = [];

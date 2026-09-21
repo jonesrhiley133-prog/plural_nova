@@ -47,11 +47,50 @@ export const workShifts: CollectionDef = {
     f.int('breakMinutes', 'Break', { defaultValue: 0 }),
     f.text('location', 'Location'),
     f.text('role', 'Role on shift'),
-    f.text('recurrence', 'Repeats'),
+    /*
+     * Recurrence in parts, for the same reason as the calendar: a rota
+     * described in a sentence cannot be expanded into shifts, so a repeating
+     * shift only ever showed up once. The text field stays for anything these
+     * cannot express, which with real rotas is plenty.
+     */
+    f.text('recurrence', 'Repeats', { hint: 'Described in your own words.' }),
+    f.enumOf(
+      'recurrenceType',
+      'Pattern',
+      [
+        { value: 'none', label: 'One-off' },
+        { value: 'weekly', label: 'Weekly' },
+        { value: 'fortnightly', label: 'Every two weeks' },
+        { value: 'custom', label: 'Every N weeks' },
+      ],
+      { defaultValue: 'none', group: 'Repeating' },
+    ),
+    f.json('recurrenceDays', 'Days of the week', { group: 'Repeating' }),
+    f.int('recurrenceInterval', 'Every N weeks', { min: 1, max: 52, group: 'Repeating' }),
+    f.date('recurrenceEndsOn', 'Until', { group: 'Repeating' }),
+
+    /*
+     * Scheduled time and clocked time are different numbers, and the
+     * difference is the one people actually need: unpaid minutes before a
+     * shift and after it add up, and nothing recovers them later.
+     */
+    f.datetime('clockedInAt', 'Clocked in', { group: 'Hours worked' }),
+    f.datetime('clockedOutAt', 'Clocked out', { group: 'Hours worked' }),
+    f.int('actualBreakMinutes', 'Break actually taken', { min: 0, group: 'Hours worked' }),
+    f.money('wageOverride', 'Rate for this shift', {
+      group: 'Hours worked',
+      hint: 'Only when it differs from the workplace rate.',
+    }),
+
+    f.refs('assignedMemberIds', 'Who is working it', 'members', { group: 'Who' }),
+    f.text('timezone', 'Time zone', { group: 'Details' }),
+    f.color('color', 'Colour', { group: 'Details' }),
+    f.json('breaks', 'Scheduled breaks', { group: 'Details' }),
+
     f.datetime('remindAt', 'Reminder'),
     f.bool('remindSent', 'Reminder sent'),
     f.bool('completed', 'Worked', { inList: true }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
   ],
 };
 
@@ -71,7 +110,7 @@ export const workTasks: CollectionDef = {
     f.ref('workplaceId', 'Workplace', 'workplaces'),
     f.text('title', 'Task', { required: true, inList: true, searchable: true }),
     f.text('project', 'Project', { inList: true, searchable: true }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
     f.datetime('dueAt', 'Due', { inList: true }),
     f.enumOf('priority', 'Priority', OPTIONS.priority, { defaultValue: 'normal', inList: true }),
     f.bool('completed', 'Completed', { inList: true }),

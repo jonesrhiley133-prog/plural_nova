@@ -12,6 +12,7 @@ import { badRequest, conflict, forbidden, notFound } from '../http/errors.js';
 import { auth, requireAuth } from '../auth/middleware.js';
 import { getDb } from '../db/index.js';
 import { deserialize, getRecord, listRecords } from '../db/repository.js';
+import { shareableView } from '../services/projection.js';
 import { findUserById } from '../auth/users.js';
 import { notify } from '../services/notifications.js';
 import { publish } from '../realtime/hub.js';
@@ -551,7 +552,10 @@ function postView(viewerId: string, post: StoredRecord): Record<string, unknown>
     .get(post.id, viewerId) as { emoji: string } | undefined;
 
   return {
-    ...post,
+    // Spread through shareableView rather than directly: this is the one
+    // projection in the codebase that emits a whole stored record to somebody
+    // who does not own it, so it is the one that has to strip first.
+    ...shareableView('posts', post),
     author,
     asMember,
     isMine: ownerId === viewerId,

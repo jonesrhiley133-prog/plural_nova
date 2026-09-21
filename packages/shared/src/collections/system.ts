@@ -536,10 +536,78 @@ export const polls: CollectionDef = {
     f.text('title', 'Question', { required: true, inList: true, searchable: true }),
     f.long('description', 'Details', { searchable: true }),
     f.json('options', 'Options', { required: true, hint: 'Each option has an id and a label.' }),
+    f.long('instructions', 'How to vote', {
+      hint: 'Anything voters should know before they answer.',
+    }),
     f.bool('anonymous', 'Anonymous voting'),
     f.bool('multipleChoice', 'Allow multiple answers'),
     f.datetime('closesAt', 'Closes', { inList: true }),
     f.bool('closed', 'Closed', { inList: true }),
+
+    /*
+     * A poll is not always a list of options. "How strongly, one to five" and
+     * "yes or no" are the same question shape asked differently, and forcing
+     * them all through a list of options makes the common ones tedious to set
+     * up and awkward to read back.
+     */
+    f.enumOf(
+      'pollType',
+      'Kind of poll',
+      [
+        { value: 'choice', label: 'Pick an option' },
+        { value: 'yesno', label: 'Yes or no' },
+        { value: 'scale', label: 'A scale' },
+        { value: 'ranked', label: 'Rank them' },
+        { value: 'text', label: 'Open answer' },
+      ],
+      { defaultValue: 'choice', inList: true, group: 'Question' },
+    ),
+    f.int('maxSelections', 'Most answers allowed', { min: 1, max: 50, group: 'Question' }),
+    f.int('scaleMin', 'Scale from', { group: 'Question' }),
+    f.int('scaleMax', 'Scale to', { group: 'Question' }),
+
+    /*
+     * Who is being asked, and who has to answer for the result to mean
+     * something. A decision that needed everybody but was settled by two
+     * people is the failure this prevents — quietly, by naming it up front.
+     */
+    f.refs('requiredVoterIds', 'Must vote', 'members', { group: 'Who votes' }),
+    f.refs('optionalVoterIds', 'May vote', 'members', { group: 'Who votes' }),
+    f.ref('subsystemId', 'Only this subsystem', 'subsystems', { group: 'Who votes' }),
+    f.text('roleRestriction', 'Only this role', { group: 'Who votes' }),
+    f.text('ageRestriction', 'Age note', {
+      group: 'Who votes',
+      hint: 'For anything not everyone should be asked to weigh in on.',
+    }),
+
+    f.enumOf(
+      'status',
+      'Status',
+      [
+        { value: 'draft', label: 'Draft' },
+        { value: 'scheduled', label: 'Scheduled' },
+        { value: 'open', label: 'Open' },
+        { value: 'closed', label: 'Closed' },
+        { value: 'archived', label: 'Archived' },
+      ],
+      { defaultValue: 'open', inList: true, group: 'Status' },
+    ),
+    f.datetime('opensAt', 'Opens', { group: 'Status' }),
+    f.bool('resultsRevealed', 'Results visible', {
+      defaultValue: true,
+      group: 'Status',
+      hint: 'Off keeps the tally hidden until the poll closes.',
+    }),
+    f.bool('allowDiscussion', 'Allow discussion', { defaultValue: true, group: 'Status' }),
+
+    f.enumOf('priority', 'Priority', OPTIONS.priority, { group: 'Organising' }),
+    f.text('category', 'Category', { group: 'Organising', searchable: true }),
+    f.tags('tags', 'Tags', { group: 'Organising' }),
+    f.bool('isPinned', 'Pinned', { group: 'Organising' }),
+    f.bool('isArchived', 'Archived', { group: 'Organising' }),
+    f.color('color', 'Colour', { group: 'Appearance' }),
+    f.text('icon', 'Symbol', { maxLength: 8, group: 'Appearance' }),
+    f.image('bannerUrl', 'Banner', { group: 'Appearance' }),
   ],
 };
 
