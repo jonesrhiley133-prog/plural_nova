@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ACCENT_PRESETS,
@@ -7,8 +7,11 @@ import {
   TERMS,
   THEME_PRESETS,
   ALL_NAV_ITEMS,
+  createCustomPreset,
+  sanitizeImportedPreset,
   type NotificationCategory,
   type TermOverrides,
+  type ThemePreset,
 } from '@pluralnova/shared';
 import { api, messageFor } from '../core/api.js';
 import { useQuery } from '../core/data.js';
@@ -21,9 +24,9 @@ import { disablePush, enablePush, isInstalled, pushStatus, pushSupported, sendTe
 import { syncEngine } from '../core/sync.js';
 import { offlineStorageProblem, storageEstimate } from '../core/localdb.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, Stat } from '../ui/primitives.js';
+import { Button, Card, Chip, IconButton, ListRow, Stat } from '../ui/primitives.js';
 import { NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
-import { ColorPicker } from '../ui/ColorPicker.js';
+import { ColorPicker, ColorSwatch } from '../ui/ColorPicker.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { DescriptiveNote } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
@@ -101,26 +104,192 @@ export default function Settings(): JSX.Element {
 
 function Appearance(): JSX.Element {
   const { settings: theme, tokens, update, reset } = useTheme();
+  const { settings, saveSettings } = useAuth();
   const toast = useToast();
+  const saveDialog = useDialog();
+  const deleteDialog = useDialog<ThemePreset>();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [presetName, setPresetName] = useState('');
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    if (saveDialog.open) setPresetName('');
+  }, [saveDialog.open]);
+
+  const customPresets = settings.customThemePresets;
+  const activeDescription =
+    THEME_PRESETS.find((preset) => preset.id === theme.presetId)?.description ??
+    customPresets.find((preset) => preset.id === theme.presetId)?.description ??
+    'Adjusted from a preset, or built from scratch below.';
+
+  const applyPreset = (preset: ThemePreset): void => {
+    void update({ ...preset.settings, presetId: preset.id });
+  };
+
+  const saveCurrentAsPreset = async (): Promise<void> => {
+    const preset = createCustomPreset(presetName, theme);
+    await saveSettings({ customThemePresets: [...customPresets, preset] });
+    await update({ presetId: preset.id });
+    saveDialog.hide();
+    toast.success('Saved', `"${preset.label}" was added to your presets.`);
+  };
+
+  const duplicatePreset = async (preset: ThemePreset): Promise<void> => {
+    const copy = createCustomPreset(`${preset.label} (copy)`, preset.settings);
+    await saveSettings({ customThemePresets: [...customPresets, copy] });
+    applyPreset(copy);
+    toast.success('Duplicated', `Adjust "${copy.label}" freely — the original is untouched.`);
+  };
+
+  const deletePreset = async (preset: ThemePreset): Promise<void> => {
+    await saveSettings({ customThemePresets: customPresets.filter((p) => p.id !== preset.id) });
+    if (theme.presetId === preset.id) void update({ presetId: null });
+    toast.success('Deleted');
+  };
+
+  const exportPreset = (preset: ThemePreset): void => {
+    const payload = JSON.stringify(
+      { label: preset.label, description: preset.description, settings: preset.settings },
+      null,
+      2,
+    );
+    const slug = preset.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+    const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${slug || 'theme'}.pluralnova-theme.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importPreset = async (file: File): Promise<void> => {
+    setImporting(true);
+    try {
+      const preset = sanitizeImportedPreset(JSON.parse(await file.text()));
+      if (!preset) throw new Error('not a theme file');
+      await saveSettings({ customThemePresets: [...customPresets, preset] });
+      applyPreset(preset);
+      toast.success('Imported', `"${preset.label}" was added to your presets and applied.`);
+    } catch (cause) {
+      toast.fromError(cause, 'Could not read that file as a theme');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   return (
     <>
-      <Card title="Presets" subtitle="A starting point you can then adjust">
+      <Card
+        title="Presets"
+        subtitle="A starting point you can then adjust, save your own, or bring in from a file"
+      >
         <div className="row">
           {THEME_PRESETS.map((preset) => (
-            <Chip
-              key={preset.id}
-              selected={theme.presetId === preset.id}
-              onClick={() => void update({ ...preset.settings, presetId: preset.id })}
-            >
+            <Chip key={preset.id} selected={theme.presetId === preset.id} onClick={() => applyPreset(preset)}>
               {preset.label}
             </Chip>
           ))}
         </div>
         <p className="tiny faint" style={{ marginTop: 'var(--space-2)' }}>
-          {THEME_PRESETS.find((preset) => preset.id === theme.presetId)?.description ?? ''}
+          {activeDescription}
         </p>
+
+        {customPresets.length > 0 ? (
+          <div className="list" style={{ marginTop: 'var(--space-4)' }}>
+            {customPresets.map((preset) => (
+              <ListRow
+                key={preset.id}
+                leading={
+                  <ColorSwatch
+                    color={preset.settings.accent ?? theme.accent}
+                    label={`${preset.label}'s accent`}
+                    size={22}
+                  />
+                }
+                title={preset.label}
+                meta={preset.description}
+                trailing={
+                  <div className="row row--nowrap">
+                    <Button size="sm" variant="secondary" disabled={theme.presetId === preset.id} onClick={() => applyPreset(preset)}>
+                      Use
+                    </Button>
+                    <IconButton
+                      icon="duplicate"
+                      label={`Duplicate ${preset.label}`}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void duplicatePreset(preset)}
+                    />
+                    <IconButton
+                      icon="download"
+                      label={`Export ${preset.label}`}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => exportPreset(preset)}
+                    />
+                    <IconButton
+                      icon="trash"
+                      label={`Delete ${preset.label}`}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteDialog.show(preset)}
+                    />
+                  </div>
+                }
+              />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="row" style={{ marginTop: 'var(--space-4)' }}>
+          <Button variant="secondary" icon="plus" onClick={() => saveDialog.show()}>
+            Save current as preset
+          </Button>
+          <Button variant="secondary" icon="import" loading={importing} onClick={() => fileInput.current?.click()}>
+            Import a theme
+          </Button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: 'none' }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) void importPreset(file);
+            }}
+          />
+        </div>
       </Card>
+
+      <Dialog
+        open={saveDialog.open}
+        onClose={saveDialog.hide}
+        title="Save current appearance as a preset"
+        footer={
+          <>
+            <Button variant="ghost" onClick={saveDialog.hide}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={() => void saveCurrentAsPreset()} disabled={!presetName.trim()}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <TextField label="Name" value={presetName} onChange={setPresetName} placeholder='e.g. "Late night"' autoFocus />
+      </Dialog>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onClose={deleteDialog.hide}
+        onConfirm={async () => {
+          if (deleteDialog.value) await deletePreset(deleteDialog.value);
+        }}
+        title={`Delete "${deleteDialog.value?.label ?? ''}"?`}
+        body="This removes it from your saved presets. It stays applied until you switch to something else."
+        recoverable={false}
+      />
 
       <Card title="Base">
         <SelectField
