@@ -1155,6 +1155,7 @@
 .tabs {
   display: flex;
   gap: var(--space-1);
+  margin-bottom: var(--space-4);
   border-bottom: var(--border-width) solid var(--border);
   overflow-x: auto;
   scrollbar-width: none;

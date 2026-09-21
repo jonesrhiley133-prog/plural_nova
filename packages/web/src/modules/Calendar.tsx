@@ -6,7 +6,7 @@ import { useAuth } from '../core/auth.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { EmptyState } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -81,19 +81,15 @@ export default function Calendar(): JSX.Element {
       />
 
       <div className="row row--between" style={{ marginBottom: 'var(--space-4)' }}>
-        <div className="segmented" role="group" aria-label="View">
-          {(['month', 'week', 'day', 'agenda'] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              className="segmented__option"
-              aria-pressed={view === option}
-              onClick={() => setView(option)}
-            >
-              {option[0]!.toUpperCase() + option.slice(1)}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          value={view}
+          onChange={setView}
+          label="View"
+          options={(['month', 'week', 'day', 'agenda'] as const).map((option) => ({
+            value: option,
+            label: option[0]!.toUpperCase() + option.slice(1),
+          }))}
+        />
 
         {view !== 'agenda' ? (
           <div className="row row--nowrap">

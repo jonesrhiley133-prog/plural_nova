@@ -6,7 +6,7 @@ import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { FRONT_STATUS_META } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton, Stat, Status } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -123,20 +123,12 @@ export default function MemberProfile(): JSX.Element {
         </div>
       </Card>
 
-      <div className="tabs" role="tablist" aria-label="Profile sections" style={{ marginBottom: 'var(--space-4)' }}>
-        {TABS.map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="tab"
-            className="tab"
-            aria-selected={tab === option}
-            onClick={() => setTab(option)}
-          >
-            {term(tabLabel(option))}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        label="Profile sections"
+        options={TABS.map((option) => ({ value: option, label: term(tabLabel(option)) }))}
+      />
 
       {tab === 'overview' ? <Overview member={member} /> : null}
       {tab === 'identity' ? <Identity member={member} /> : null}

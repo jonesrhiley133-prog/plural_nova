@@ -4,7 +4,7 @@ import { useCollection, useRecordMap } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { ColorField, SelectField, TextField } from '../ui/forms.js';
 import { EmptyState, SkeletonCards } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -150,19 +150,15 @@ export default function Headspace(): JSX.Element {
         title={term('{{Headspace}} mapper')}
         actions={
           <>
-            <div className="segmented" role="group" aria-label="View">
-              <button type="button" className="segmented__option" aria-pressed={view === 'canvas'} onClick={() => setView('canvas')}>
-                Canvas
-              </button>
-              <button
-                type="button"
-                className="segmented__option"
-                aria-pressed={view === 'analytics'}
-                onClick={() => setView('analytics')}
-              >
-                Structure
-              </button>
-            </div>
+            <SegmentedControl
+              value={view}
+              onChange={setView}
+              label="View"
+              options={[
+                { value: 'canvas', label: 'Canvas' },
+                { value: 'analytics', label: 'Structure' },
+              ]}
+            />
             <Button variant="ghost" icon="plus" onClick={() => mapEditor.show()}>
               New map
             </Button>
@@ -183,20 +179,12 @@ export default function Headspace(): JSX.Element {
       {view === 'canvas' ? (
         <>
           <div className="row" style={{ marginBottom: 'var(--space-3)' }}>
-            <div className="segmented" role="group" aria-label="Tool">
-              {TOOLS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className="segmented__option"
-                  aria-pressed={tool === option.id}
-                  onClick={() => setTool(option.id)}
-                  title={option.label}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              value={tool}
+              onChange={setTool}
+              label="Tool"
+              options={TOOLS.map(({ id, label }) => ({ value: id, label }))}
+            />
             <span className="spacer" />
             <IconButton icon="minus" label="Zoom out" variant="ghost" size="sm" onClick={() => setZoom((z) => Math.max(0.4, z - 0.15))} />
             <span className="tiny numeric faint" style={{ minWidth: 38, textAlign: 'center' }}>

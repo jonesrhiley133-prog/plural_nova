@@ -6,7 +6,7 @@ import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { FRONT_STATUS_META } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, Status } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, SegmentedControl, Status } from '../ui/primitives.js';
 import { SearchField, useDebounced } from '../ui/forms.js';
 import { AsyncContent, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
@@ -109,33 +109,19 @@ export default function Members(): JSX.Element {
               placeholder={term('Search {{members}}…')}
             />
             <div className="row">
-              <div className="segmented" role="group" aria-label="Sort">
-                {SORTS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    className="segmented__option"
-                    aria-pressed={sort === option.key}
-                    onClick={() => setSort(option.key)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl
+                value={sort}
+                onChange={setSort}
+                label="Sort"
+                options={SORTS.map(({ key, label }) => ({ value: key, label }))}
+              />
               <span className="spacer" />
-              <div className="segmented" role="group" aria-label="Columns">
-                {[2, 3, 4, 5].map((count) => (
-                  <button
-                    key={count}
-                    type="button"
-                    className="segmented__option"
-                    aria-pressed={columns === count}
-                    onClick={() => setColumns(count)}
-                  >
-                    {count}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl
+                value={columns}
+                onChange={setColumns}
+                label="Columns"
+                options={[2, 3, 4, 5].map((count) => ({ value: count, label: count }))}
+              />
             </div>
 
             {groups.items.length > 0 || subsystems.items.length > 0 ? (

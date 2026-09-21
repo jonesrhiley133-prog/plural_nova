@@ -2,6 +2,7 @@ import {
   forwardRef,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
+  type KeyboardEvent,
   type ReactNode,
 } from 'react';
 import { Icon, iconOr, type IconName } from './Icon.js';
@@ -198,6 +199,118 @@ export function Chip({
     >
       {children}
     </button>
+  );
+}
+
+// ── Tabs and segmented controls ──────────────────────────────────────────────
+
+/**
+ * Arrow/Home/End movement shared by `Tabs` and `SegmentedControl`: both are a
+ * row of same-role siblings where exactly one is current, so the same
+ * left/right/first/last math applies to either — only which of them also
+ * moves focus (see each component's own notes) differs.
+ */
+function moveOnArrowKeys(event: KeyboardEvent<HTMLButtonElement>, index: number, count: number, roleSelector: string): number | null {
+  let next: number | null = null;
+  if (event.key === 'ArrowRight') next = (index + 1) % count;
+  else if (event.key === 'ArrowLeft') next = (index - 1 + count) % count;
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = count - 1;
+  if (next === null) return null;
+
+  event.preventDefault();
+  const group = event.currentTarget.closest('[role="tablist"], [role="group"]');
+  (group?.querySelectorAll<HTMLElement>(roleSelector)[next])?.focus();
+  return next;
+}
+
+export interface TabOption<T extends string | number> {
+  value: T;
+  label: ReactNode;
+  /** Overrides the accessible name, for an icon-only option the visible label doesn't describe. */
+  srLabel?: string;
+}
+
+/**
+ * Real tabs: switching which panel of content is showing, not setting a
+ * filter — that distinction is what decides between this and
+ * `SegmentedControl` at a call site, not which one looks better.
+ */
+export function Tabs<T extends string | number>({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: T;
+  onChange: (value: T) => void;
+  options: readonly TabOption<T>[];
+  label: string;
+}): JSX.Element {
+  return (
+    <div className="tabs" role="tablist" aria-label={label}>
+      {options.map((option, index) => (
+        <button
+          key={option.value}
+          type="button"
+          role="tab"
+          className="tab"
+          aria-selected={value === option.value}
+          aria-label={option.srLabel}
+          tabIndex={value === option.value ? 0 : -1}
+          onClick={() => onChange(option.value)}
+          onKeyDown={(event) => {
+            const next = moveOnArrowKeys(event, index, options.length, '[role="tab"]');
+            if (next !== null) onChange(options[next]!.value);
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A small set of mutually exclusive choices — a filter, a view, a mode.
+ *
+ * Unlike `Tabs`, every option keeps its own place in the page's Tab order
+ * rather than only the pressed one — `role="group"` carries no convention
+ * that Tab should skip the rest, the way `role="tablist"` does, so removing
+ * their tab stops would be a behaviour change nothing here calls for. Arrow
+ * keys move the selection too, but as a shortcut alongside normal Tab, not a
+ * replacement for it.
+ */
+export function SegmentedControl<T extends string | number>({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: T;
+  onChange: (value: T) => void;
+  options: readonly TabOption<T>[];
+  label: string;
+}): JSX.Element {
+  return (
+    <div className="segmented" role="group" aria-label={label}>
+      {options.map((option, index) => (
+        <button
+          key={option.value}
+          type="button"
+          className="segmented__option"
+          aria-pressed={value === option.value}
+          aria-label={option.srLabel}
+          onClick={() => onChange(option.value)}
+          onKeyDown={(event) => {
+            const next = moveOnArrowKeys(event, index, options.length, '.segmented__option');
+            if (next !== null) onChange(options[next]!.value);
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

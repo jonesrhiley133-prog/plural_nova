@@ -4,7 +4,7 @@ import { useCollection, useQuery } from '../core/data.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton, Meter, Stat } from '../ui/primitives.js';
+import { Button, Card, Chip, IconButton, Meter, Stat, Tabs } from '../ui/primitives.js';
 import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -87,20 +87,15 @@ export default function Finances(): JSX.Element {
         }
       />
 
-      <div className="tabs" role="tablist" aria-label="Finance sections" style={{ marginBottom: 'var(--space-4)' }}>
-        {(['overview', 'transactions', 'budgets', 'goals', 'accounts'] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="tab"
-            className="tab"
-            aria-selected={tab === option}
-            onClick={() => setTab(option)}
-          >
-            {option[0]!.toUpperCase() + option.slice(1)}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        label="Finance sections"
+        options={(['overview', 'transactions', 'budgets', 'goals', 'accounts'] as const).map((option) => ({
+          value: option,
+          label: option[0]!.toUpperCase() + option.slice(1),
+        }))}
+      />
 
       {tab === 'overview' ? (
         <div className="stack">

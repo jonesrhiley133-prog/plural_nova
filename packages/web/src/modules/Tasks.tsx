@@ -5,7 +5,7 @@ import { useCollection, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton, Stat } from '../ui/primitives.js';
+import { Button, Card, Chip, IconButton, SegmentedControl, Stat } from '../ui/primitives.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -134,19 +134,15 @@ export default function Tasks(): JSX.Element {
       </div>
 
       <div className="stack" style={{ marginBottom: 'var(--space-4)' }}>
-        <div className="segmented" role="group" aria-label="Filter">
-          {(['open', 'today', 'overdue', 'done', 'all'] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              className="segmented__option"
-              aria-pressed={filter === option}
-              onClick={() => setFilter(option)}
-            >
-              {option[0]!.toUpperCase() + option.slice(1)}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          value={filter}
+          onChange={setFilter}
+          label="Filter"
+          options={(['open', 'today', 'overdue', 'done', 'all'] as const).map((option) => ({
+            value: option,
+            label: option[0]!.toUpperCase() + option.slice(1),
+          }))}
+        />
 
         {categories.length > 0 ? (
           <div className="row">

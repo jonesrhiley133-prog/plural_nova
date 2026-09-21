@@ -7,7 +7,7 @@ import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useSystemMode } from '../core/auth.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { SelectField, TextField } from '../ui/forms.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -120,24 +120,17 @@ export default function Flux(): JSX.Element {
         }
       />
 
-      <div className="segmented" role="group" aria-label="Feed" style={{ marginBottom: 'var(--space-4)' }}>
-        {(
-          [
-            ['friends', 'Friends'],
-            ['mine', 'Mine'],
-            ['public', 'Public'],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className="segmented__option"
-            aria-pressed={scope === value}
-            onClick={() => setScope(value)}
-          >
-            {label}
-          </button>
-        ))}
+      <div style={{ marginBottom: 'var(--space-4)' }}>
+        <SegmentedControl
+          value={scope}
+          onChange={setScope}
+          label="Feed"
+          options={[
+            { value: 'friends', label: 'Friends' },
+            { value: 'mine', label: 'Mine' },
+            { value: 'public', label: 'Public' },
+          ]}
+        />
       </div>
 
       {loading && posts.length === 0 ? (

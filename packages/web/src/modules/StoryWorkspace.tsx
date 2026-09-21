@@ -4,7 +4,7 @@ import type { StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecord } from '../core/data.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton, Stat } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, Stat, Tabs } from '../ui/primitives.js';
 import { TextField } from '../ui/forms.js';
 import { AsyncContent, EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -97,20 +97,15 @@ export default function StoryWorkspace(): JSX.Element {
         <Stat label="Status" value={String(story['status'] ?? 'planning')} />
       </div>
 
-      <div className="tabs" role="tablist" aria-label="Story sections" style={{ marginBottom: 'var(--space-4)' }}>
-        {(['chapters', 'scenes', 'characters', 'locations', 'world'] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="tab"
-            className="tab"
-            aria-selected={tab === option}
-            onClick={() => setTab(option)}
-          >
-            {option[0]!.toUpperCase() + option.slice(1)}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        label="Story sections"
+        options={(['chapters', 'scenes', 'characters', 'locations', 'world'] as const).map((option) => ({
+          value: option,
+          label: option[0]!.toUpperCase() + option.slice(1),
+        }))}
+      />
 
       {tab === 'chapters' ? (
         <AsyncContent

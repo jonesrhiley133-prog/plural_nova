@@ -4,7 +4,7 @@ import { useCollection, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -58,19 +58,15 @@ export default function Fronting(): JSX.Element {
       />
 
       <div className="row" style={{ marginBottom: 'var(--space-4)' }}>
-        <div className="segmented" role="group" aria-label="View">
-          {(['timeline', 'day', 'week', 'month'] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              className="segmented__option"
-              aria-pressed={view === option}
-              onClick={() => setView(option)}
-            >
-              {option === 'timeline' ? 'Timeline' : `By ${option}`}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          value={view}
+          onChange={setView}
+          label="View"
+          options={(['timeline', 'day', 'week', 'month'] as const).map((option) => ({
+            value: option,
+            label: option === 'timeline' ? 'Timeline' : `By ${option}`,
+          }))}
+        />
         <span className="spacer" />
         {memberList.length > 1 ? (
           <div className="row">

@@ -5,7 +5,7 @@ import { useCollection, useRecordMap } from '../core/data.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { FileButton, SearchField, useDebounced } from '../ui/forms.js';
 import { AsyncContent, SkeletonCards } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -91,24 +91,15 @@ export default function Media(): JSX.Element {
         description={term('Everything you have added, sorted however you like.')}
         actions={
           <>
-            <div className="segmented" role="group" aria-label="Layout">
-              <button
-                type="button"
-                className="segmented__option"
-                aria-pressed={layout === 'grid'}
-                onClick={() => setLayout('grid')}
-              >
-                <Icon name="grid" size={13} />
-              </button>
-              <button
-                type="button"
-                className="segmented__option"
-                aria-pressed={layout === 'list'}
-                onClick={() => setLayout('list')}
-              >
-                <Icon name="list" size={13} />
-              </button>
-            </div>
+            <SegmentedControl
+              value={layout}
+              onChange={setLayout}
+              label="Layout"
+              options={[
+                { value: 'grid', label: <Icon name="grid" size={13} />, srLabel: 'Grid layout' },
+                { value: 'list', label: <Icon name="list" size={13} />, srLabel: 'List layout' },
+              ]}
+            />
             <FileButton label={uploading ? 'Uploading…' : 'Upload'} onFile={(file) => void upload(file)} variant="primary" />
           </>
         }
