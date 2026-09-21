@@ -390,7 +390,7 @@ function CheckInDialog({
           <div key={index} className="row row--nowrap" style={{ marginBottom: 'var(--space-2)' }}>
             <input
               className="input"
-              placeholder="What"
+              placeholder="Metric name"
               value={metric.label}
               onChange={(event) =>
                 setCustom((current) =>

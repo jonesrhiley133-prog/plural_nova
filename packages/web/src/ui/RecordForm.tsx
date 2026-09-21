@@ -387,6 +387,28 @@ export function RecordField({
           placeholder="https://…"
         />
       );
+    case 'phone':
+      return (
+        <TextField
+          {...common}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          value={String(value ?? '')}
+          onChange={onChange}
+        />
+      );
+    case 'email':
+      return (
+        <TextField
+          {...common}
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          value={String(value ?? '')}
+          onChange={onChange}
+        />
+      );
     case 'ref':
       return (
         <ReferenceField

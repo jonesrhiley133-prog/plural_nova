@@ -4,7 +4,7 @@ import { useCollection, useQuery } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton, Stat, Status } from '../ui/primitives.js';
+import { Button, Card, Chip, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
 import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -74,20 +74,15 @@ export default function Work(): JSX.Element {
         }
       />
 
-      <div className="tabs" role="tablist" aria-label="Work sections" style={{ marginBottom: 'var(--space-4)' }}>
-        {(['overview', 'schedule', 'tasks', 'workplaces', 'people'] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="tab"
-            className="tab"
-            aria-selected={tab === option}
-            onClick={() => setTab(option)}
-          >
-            {option[0]!.toUpperCase() + option.slice(1)}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        label="Work sections"
+        options={(['overview', 'schedule', 'tasks', 'workplaces', 'people'] as const).map((option) => ({
+          value: option,
+          label: option[0]!.toUpperCase() + option.slice(1),
+        }))}
+      />
 
       {tab === 'overview' ? (
         <div className="stack">

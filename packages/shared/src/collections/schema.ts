@@ -29,6 +29,8 @@ export const FIELD_KINDS = [
   'image',
   'duration',
   'money',
+  'phone',
+  'email',
 ] as const;
 export type FieldKind = (typeof FIELD_KINDS)[number];
 
@@ -245,6 +247,20 @@ export const f = {
     kind: 'duration',
     label,
     hint: 'Minutes',
+    ...extra,
+  }),
+  phone: (name: string, label: string, extra: Partial<FieldDef> = {}): FieldDef => ({
+    name,
+    kind: 'phone',
+    label,
+    maxLength: 40,
+    ...extra,
+  }),
+  email: (name: string, label: string, extra: Partial<FieldDef> = {}): FieldDef => ({
+    name,
+    kind: 'email',
+    label,
+    maxLength: 200,
     ...extra,
   }),
 } as const;

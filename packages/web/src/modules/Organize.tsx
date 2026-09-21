@@ -5,7 +5,7 @@ import { useCollection } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { SearchField, useDebounced } from '../ui/forms.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
@@ -137,24 +137,15 @@ export default function Organize(): JSX.Element {
       />
 
       <div className="stack" style={{ marginBottom: 'var(--space-4)' }}>
-        <div className="segmented" role="group" aria-label="Organise by">
-          <button
-            type="button"
-            className="segmented__option"
-            aria-pressed={mode === 'group'}
-            onClick={() => setMode('group')}
-          >
-            Groups
-          </button>
-          <button
-            type="button"
-            className="segmented__option"
-            aria-pressed={mode === 'subsystem'}
-            onClick={() => setMode('subsystem')}
-          >
-            {term('{{Subsystems}}')}
-          </button>
-        </div>
+        <SegmentedControl
+          value={mode}
+          onChange={setMode}
+          label="Organise by"
+          options={[
+            { value: 'group', label: 'Groups' },
+            { value: 'subsystem', label: term('{{Subsystems}}') },
+          ]}
+        />
         <SearchField value={rawSearch} onChange={setRawSearch} placeholder={term('Find a {{member}}…')} />
       </div>
 

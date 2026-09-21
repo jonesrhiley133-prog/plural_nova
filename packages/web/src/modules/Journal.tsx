@@ -6,7 +6,7 @@ import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useSystemMode } from '../core/auth.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SectionHeading } from '../ui/primitives.js';
 import { SearchField, useDebounced } from '../ui/forms.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -126,9 +126,7 @@ export default function Journal(): JSX.Element {
           <div className="stack stack--loose">
             {groups.map(([day, entries]) => (
               <section key={day}>
-                <h2 className="section-heading__label" style={{ marginBottom: 'var(--space-2)' }}>
-                  {dates.date(`${day}T12:00:00`)}
-                </h2>
+                <SectionHeading label={dates.date(`${day}T12:00:00`)} />
                 <div className="stack">
                   {entries.map((entry) => {
                     const author = entry['memberId'] ? members.get(String(entry['memberId'])) : null;

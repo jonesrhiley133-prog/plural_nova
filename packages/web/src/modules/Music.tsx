@@ -5,7 +5,7 @@ import { useCollection } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { SearchField, TextField, useDebounced } from '../ui/forms.js';
 import { AsyncContent, EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -150,13 +150,16 @@ export default function Music(): JSX.Element {
         }
       />
 
-      <div className="segmented" role="group" aria-label="Section" style={{ marginBottom: 'var(--space-4)' }}>
-        <button type="button" className="segmented__option" aria-pressed={tab === 'library'} onClick={() => setTab('library')}>
-          Your library
-        </button>
-        <button type="button" className="segmented__option" aria-pressed={tab === 'search'} onClick={() => setTab('search')}>
-          Search
-        </button>
+      <div style={{ marginBottom: 'var(--space-4)' }}>
+        <SegmentedControl
+          value={tab}
+          onChange={setTab}
+          label="Section"
+          options={[
+            { value: 'library', label: 'Your library' },
+            { value: 'search', label: 'Search' },
+          ]}
+        />
       </div>
 
       {tab === 'search' ? (

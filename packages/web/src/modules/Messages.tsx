@@ -17,7 +17,7 @@ import {
   type KeyPairRecord,
 } from '../core/crypto.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Badge, Button, Card, Chip, IconButton } from '../ui/primitives.js';
 import { SwitchRow, TextField } from '../ui/forms.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
@@ -216,7 +216,7 @@ function ConversationRow({
         {conversation.lastMessageAt ? (
           <span className="tiny faint">{dates.relative(conversation.lastMessageAt)}</span>
         ) : null}
-        {conversation.unreadCount > 0 ? <span className="badge">{conversation.unreadCount}</span> : null}
+        <Badge count={conversation.unreadCount} />
       </span>
     </button>
   );
@@ -648,7 +648,7 @@ function MessageBubble({
             borderRadius: 'var(--radius)',
             background: mine ? 'var(--accent)' : 'var(--surface-sunken)',
             color: mine ? 'var(--accent-text)' : 'var(--text)',
-            border: mine ? 'none' : '1px solid var(--border)',
+            border: mine ? 'none' : 'var(--border-width) solid var(--border)',
             opacity: message.pending ? 0.6 : 1,
           }}
         >

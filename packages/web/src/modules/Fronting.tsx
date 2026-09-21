@@ -4,7 +4,7 @@ import { useCollection, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -58,19 +58,15 @@ export default function Fronting(): JSX.Element {
       />
 
       <div className="row" style={{ marginBottom: 'var(--space-4)' }}>
-        <div className="segmented" role="group" aria-label="View">
-          {(['timeline', 'day', 'week', 'month'] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              className="segmented__option"
-              aria-pressed={view === option}
-              onClick={() => setView(option)}
-            >
-              {option === 'timeline' ? 'Timeline' : `By ${option}`}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          value={view}
+          onChange={setView}
+          label="View"
+          options={(['timeline', 'day', 'week', 'month'] as const).map((option) => ({
+            value: option,
+            label: option === 'timeline' ? 'Timeline' : `By ${option}`,
+          }))}
+        />
         <span className="spacer" />
         {memberList.length > 1 ? (
           <div className="row">
@@ -108,7 +104,7 @@ export default function Fronting(): JSX.Element {
               <Card key={group.key} flush>
                 <div
                   className="row row--between"
-                  style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border)' }}
+                  style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: 'var(--border-width) solid var(--border)' }}
                 >
                   <div>
                     <div className="card__title">{group.label}</div>
@@ -133,7 +129,7 @@ export default function Fronting(): JSX.Element {
                             background: memberColor(
                               members.get(share.memberId) as { id: string; color?: string | null },
                             ),
-                            borderRadius: 3,
+                            borderRadius: 'var(--radius-xs)',
                           }}
                         />
                       ))}

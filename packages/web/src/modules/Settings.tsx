@@ -606,7 +606,7 @@ function Notifications(): JSX.Element {
                     style={{
                       textAlign: 'left',
                       padding: 'var(--space-2)',
-                      borderTop: '1px solid var(--border)',
+                      borderTop: 'var(--border-width) solid var(--border)',
                       fontWeight: 'var(--weight-normal)',
                     }}
                   >
@@ -615,7 +615,7 @@ function Notifications(): JSX.Element {
                   {(['inApp', 'foreground', 'push', 'badge'] as const).map((channel) => (
                     <td
                       key={channel}
-                      style={{ padding: 'var(--space-2)', borderTop: '1px solid var(--border)', textAlign: 'center' }}
+                      style={{ padding: 'var(--space-2)', borderTop: 'var(--border-width) solid var(--border)', textAlign: 'center' }}
                     >
                       <input
                         type="checkbox"

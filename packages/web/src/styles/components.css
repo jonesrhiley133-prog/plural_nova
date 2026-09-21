@@ -828,6 +828,28 @@
   font-size: var(--size-xs);
 }
 
+/*
+ * A row that is actually a button — an accordion header, a compact record
+ * link — but shouldn't take on `.list-row`'s own padding and divider, which
+ * assume a stack of siblings rather than one row standing alone in a card.
+ * Pair with `.row`/`.row--between` for the layout; this only resets the
+ * button chrome and restores the hover feedback resetting it would drop.
+ */
+.disclosure-toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.disclosure-toggle:hover {
+  opacity: 0.8;
+}
+
 /* ── Who is here ────────────────────────────────────────────────────────── */
 
 /*
@@ -1133,6 +1155,7 @@
 .tabs {
   display: flex;
   gap: var(--space-1);
+  margin-bottom: var(--space-4);
   border-bottom: var(--border-width) solid var(--border);
   overflow-x: auto;
   scrollbar-width: none;

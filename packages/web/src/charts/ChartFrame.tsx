@@ -103,7 +103,7 @@ export function Legend({ series }: { series: ChartSeries[] }): JSX.Element {
             style={{
               width: 10,
               height: 10,
-              borderRadius: 3,
+              borderRadius: 'var(--radius-xs)',
               background: item.color,
               flexShrink: 0,
             }}
@@ -139,7 +139,7 @@ export function DataTable({
                 style={{
                   textAlign: index === 0 ? 'left' : 'right',
                   padding: 'var(--space-2)',
-                  borderBottom: '1px solid var(--border)',
+                  borderBottom: 'var(--border-width) solid var(--border)',
                   color: 'var(--text-muted)',
                   fontWeight: 'var(--weight-medium)',
                   position: 'sticky',
@@ -161,7 +161,7 @@ export function DataTable({
                   style={{
                     textAlign: cellIndex === 0 ? 'left' : 'right',
                     padding: 'var(--space-2)',
-                    borderBottom: '1px solid var(--border)',
+                    borderBottom: 'var(--border-width) solid var(--border)',
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >

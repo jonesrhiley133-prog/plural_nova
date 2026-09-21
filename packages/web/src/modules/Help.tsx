@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../core/i18n.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip } from '../ui/primitives.js';
+import { Button, Card, Chip, SectionHeading } from '../ui/primitives.js';
 import { SearchField } from '../ui/forms.js';
 import { EmptyState } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
@@ -189,9 +189,7 @@ export default function Help(): JSX.Element {
         <div className="stack stack--loose">
           {categories.map((category) => (
             <section key={category}>
-              <h2 className="section-heading__label" style={{ marginBottom: 'var(--space-2)' }}>
-                {category}
-              </h2>
+              <SectionHeading label={category} />
               <div className="stack stack--tight">
                 {matching
                   .filter((topic) => term(topic.category) === category)

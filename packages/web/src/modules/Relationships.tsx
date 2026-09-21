@@ -4,7 +4,7 @@ import { useCollection, useRecordMap } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -81,14 +81,15 @@ export default function Relationships(): JSX.Element {
         description={term('How the {{members}}, contacts and friends connect.')}
         actions={
           <>
-            <div className="segmented" role="group" aria-label="View">
-              <button type="button" className="segmented__option" aria-pressed={view === 'map'} onClick={() => setView('map')}>
-                Map
-              </button>
-              <button type="button" className="segmented__option" aria-pressed={view === 'list'} onClick={() => setView('list')}>
-                List
-              </button>
-            </div>
+            <SegmentedControl
+              value={view}
+              onChange={setView}
+              label="View"
+              options={[
+                { value: 'map', label: 'Map' },
+                { value: 'list', label: 'List' },
+              ]}
+            />
             <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
               Add a relationship
             </Button>

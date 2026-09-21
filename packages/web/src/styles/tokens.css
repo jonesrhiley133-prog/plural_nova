@@ -86,6 +86,9 @@
    * something you could pick up at 20px; past about 28 it starts looking like
    * a toy, which is the wrong note for somewhere people keep health notes.
    */
+  /* For a swatch or bar too small for --radius-sm to read as rounding
+     rather than a blob — a legend dot, a heatmap cell, a colour bar. */
+  --radius-xs: 4px;
   --radius-sm: 10px;
   --radius: 14px;
   --radius-lg: 20px;

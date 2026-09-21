@@ -3,7 +3,7 @@ import { addDays, startOfDay } from '@pluralnova/shared';
 import { useQuery, useRecordMap } from '../core/data.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Card, Chip } from '../ui/primitives.js';
+import { Avatar, Card, Chip, SectionHeading } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
 
@@ -140,9 +140,7 @@ export default function SystemHistory(): JSX.Element {
         <div className="stack stack--loose">
           {[...grouped.entries()].map(([day, items]) => (
             <section key={day}>
-              <h2 className="section-heading__label" style={{ marginBottom: 'var(--space-2)' }}>
-                {dates.date(`${day}T12:00:00`)}
-              </h2>
+              <SectionHeading label={dates.date(`${day}T12:00:00`)} />
               <Card flush>
                 <div className="list">
                   {items.map((item) => {
