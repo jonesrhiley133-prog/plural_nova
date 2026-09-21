@@ -1,3 +1,4 @@
+import { DEFAULT_THEME } from '@pluralnova/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp, registerUser, type TestClient } from './harness.js';
 
@@ -167,7 +168,14 @@ describe('records, settings, backup and sync', () => {
     const reloaded = await client.request('GET', '/api/auth/me', { token });
     expect(reloaded.body.data.settings.theme.base).toBe('amoled');
     expect(reloaded.body.data.settings.theme.accent).toBe('#5ec6a8');
-    expect(reloaded.body.data.settings.theme.surfaceStyle).toBe('glass');
+    expect(reloaded.body.data.settings.theme.effects).toBe('performance');
+    /*
+     * The point of this line is that a partial update leaves the rest of the
+     * theme alone, not that any particular style is the default. It used to
+     * assert 'glass' literally and so failed the day the default changed,
+     * which told nobody anything about whether the merge still worked.
+     */
+    expect(reloaded.body.data.settings.theme.surfaceStyle).toBe(DEFAULT_THEME.surfaceStyle);
   });
 
   it('exports a backup that validates and restores', async () => {

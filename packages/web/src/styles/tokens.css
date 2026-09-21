@@ -80,9 +80,14 @@
    * boxed-off region, and stopping well short of the rounding that would make
    * it a tile in a game.
    */
-  --radius-sm: 8px;
+  /*
+   * Softly rounded, and stopping short of the bubble. A card reads as
+   * something you could pick up at 20px; past about 28 it starts looking like
+   * a toy, which is the wrong note for somewhere people keep health notes.
+   */
+  --radius-sm: 10px;
   --radius: 14px;
-  --radius-lg: 18px;
+  --radius-lg: 20px;
   --radius-pill: 999px;
 
   --border-width: 1px;
@@ -136,12 +141,19 @@
  * Solid surfaces drop the translucency entirely rather than faking it — and
  * with nothing showing through, the sheen and the rim light would be painted-on
  * highlights rather than light, so they go too.
+ *
+ * The glow and the starfield go with them. Both exist to give glass something
+ * to refract; behind an opaque card they are weather on a page nobody can see
+ * through, costing a paint and a little of the calm the app is supposed to be.
+ * This is the default now, so this block is what most people will see.
  */
 :root[data-surface='solid'] {
   --blur-surface: 0px;
   --glass-saturate: 1;
   --glass-sheen: transparent;
   --glass-edge: transparent;
+  --glow-opacity: 0;
+  --starfield-opacity: 0;
 }
 
 /*
@@ -169,12 +181,29 @@
   --motion: 0;
 }
 
+/*
+ * Asking for no motion wins over everything.
+ *
+ * Each effect tier sets --motion on `:root[data-effects=…]`, and an attribute
+ * selector outranks the bare `:root` these rules used to use — so the moment a
+ * tier other than "full" became the default, the balanced tier's 0.8 quietly
+ * overruled the operating system. Matching the tiers' own specificity is what
+ * makes this a preference rather than a suggestion.
+ *
+ * Last in the file, so at equal specificity these still win.
+ */
 @media (prefers-reduced-motion: reduce) {
-  :root {
+  :root,
+  :root[data-effects='full'],
+  :root[data-effects='balanced'],
+  :root[data-effects='performance'] {
     --motion: 0;
   }
 }
 
-:root[data-reduced-motion='true'] {
+:root[data-reduced-motion='true'],
+:root[data-reduced-motion='true'][data-effects='full'],
+:root[data-reduced-motion='true'][data-effects='balanced'],
+:root[data-reduced-motion='true'][data-effects='performance'] {
   --motion: 0;
 }

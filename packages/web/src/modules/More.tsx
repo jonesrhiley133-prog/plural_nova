@@ -48,30 +48,27 @@ export default function More(): JSX.Element {
             <h2 className="section-heading__label" style={{ marginBottom: 'var(--space-2)' }}>
               {term(category.label)}
             </h2>
-            <Card flush>
-              <div className="list">
-                {category.items.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="list-row"
-                    onClick={() => navigate(item.path)}
-                  >
-                    <Icon name={iconOr(item.icon)} size={18} />
-                    <span className="list-row__body">
-                      <span className="list-row__title">{term(item.label)}</span>
-                      {item.description ? (
-                        <span className="list-row__meta">{term(item.description)}</span>
-                      ) : null}
+            <div className="tile-grid">
+              {category.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="tile"
+                  onClick={() => navigate(item.path)}
+                  title={item.description ? term(item.description) : undefined}
+                >
+                  <span className="tile__icon">
+                    <Icon name={iconOr(item.icon)} size={21} />
+                  </span>
+                  <span className="tile__label">{term(item.label)}</span>
+                  {item.badge ? (
+                    <span className="tile__badge">
+                      <Badge count={badges[item.badge] ?? 0} />
                     </span>
-                    <span className="list-row__trailing">
-                      {item.badge ? <Badge count={badges[item.badge] ?? 0} /> : null}
-                      <Icon name="chevronRight" size={14} />
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </Card>
+                  ) : null}
+                </button>
+              ))}
+            </div>
           </section>
         ))}
       </div>

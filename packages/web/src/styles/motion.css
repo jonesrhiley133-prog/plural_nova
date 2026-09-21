@@ -117,11 +117,11 @@
 @keyframes breathe {
   0%,
   100% {
-    opacity: calc(var(--glow-opacity) * 0.6);
+    opacity: 0.6;
     transform: scale(1);
   }
   50% {
-    opacity: var(--glow-opacity);
+    opacity: 1;
     transform: scale(1.03);
   }
 }
