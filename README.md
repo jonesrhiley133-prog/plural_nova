@@ -21,7 +21,10 @@ That serves the API and the built client from one origin. Nothing else needs
 setting up: the database, the session secret and the push keys are created on
 first run, under `data/`.
 
-To keep it running, `docker compose up -d --build`.
+To keep it running, `docker compose up -d --build`. To host it somewhere,
+PluralNova needs a persistent disk and a process that stays up — Railway,
+Fly.io, Render or any VPS. It cannot run on Vercel or another serverless
+platform: it keeps a SQLite database on disk and holds WebSocket connections.
 
 One thing worth knowing before you put it on a phone: a browser only grants a
 page a service worker, push notifications and "Add to home screen" over

@@ -21,7 +21,12 @@ That leaves three honest choices:
 | --- | --- | --- |
 | A look around | Run it locally, open `localhost` | Yes, on that machine |
 | It on your phone, private to your devices | **Tailscale** | Yes |
-| It on your phone, reachable anywhere | **A domain + Caddy** | Yes |
+| It on your phone, reachable anywhere | **A domain + Caddy**, or a host | Yes |
+
+One thing no amount of configuration fixes: PluralNova cannot run on Vercel,
+Netlify or any serverless platform. It keeps a SQLite database on disk and
+holds WebSocket connections, and a function that starts per request can do
+neither. See **Hosting it somewhere** below for platforms that can.
 
 Tailscale is the one to reach for first. It gives you real HTTPS without
 putting a private record of your system on the public internet.
@@ -109,6 +114,70 @@ public internet gets scanned constantly. PluralNova requires an account for
 every record and rate-limits sign-in attempts, but the safest version of this
 app is the one nobody else can reach.
 
+
+---
+
+## Hosting it somewhere, rather than at home
+
+If you would rather not run the machine yourself, PluralNova needs a host that
+gives it two things:
+
+- **A disk that persists.** The database is a SQLite file. So are the uploads,
+  the session secret and the push keys. A host with an ephemeral filesystem
+  loses every account on each deploy.
+- **A process that stays up.** The realtime channel is a WebSocket on
+  `/realtime`, held open for as long as the app is.
+
+That rules out Vercel, Netlify, Cloudflare Pages and anything else built on
+serverless functions — not because of configuration, but because a function
+that starts per request has nowhere to keep a database and cannot hold a
+socket. A deploy there produces a 404 or an app that forgets everything.
+
+It also means **exactly one instance**. Two instances would be two separate
+databases, each convinced it was the only one. The configuration files below
+pin that.
+
+### Railway — closest to a one-click deploy
+
+1. [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub
+   repo** → pick this repository. It finds the `Dockerfile` on its own.
+2. Service → **Variables** → add `PLURALNOVA_DATA_DIR` = `/data`.
+3. Service → **Settings** → **Volumes** → **Add volume**, mount path `/data`.
+4. Service → **Settings** → **Networking** → **Generate Domain**.
+
+That domain is HTTPS, which means the app is installable from it.
+
+### Fly.io — a few commands
+
+`fly.toml` is in the repository, with the volume and health check already set.
+
+```sh
+fly launch --no-deploy --copy-config    # claims the app name
+fly volumes create pluralnova_data --size 1
+fly deploy
+fly open
+```
+
+Keep it at one machine: `fly scale count 1`.
+
+### Render
+
+New → **Blueprint** → point it at the repository; it reads `render.yaml`.
+Disks are not on Render's free tier, so check their current pricing first.
+
+### Any VPS
+
+A £4/month machine with Docker installed and the compose file above is the
+cheapest version of all of this, and the one with no platform between you and
+your data.
+
+### Before you put it on the open internet
+
+A hosted instance is reachable by anyone who finds the address. PluralNova
+requires an account for every record and rate-limits sign-in, but the safest
+version of this app is still the one only your devices can reach. The Tailscale
+route above gives you HTTPS and installability without that trade.
+
 ---
 
 ## Backing up
@@ -180,6 +249,12 @@ server serves the built client, and there is nothing to serve until it exists.
 **Everything disappeared after a Docker rebuild.** The volume was removed —
 `docker compose down -v` deletes it. Restore from a backup, and use
 `docker compose down` without `-v` in future.
+
+**A host returns 404 on every path.** Vercel, Netlify and Cloudflare Pages
+build static sites and serverless functions; there is no PluralNova to serve
+because nothing there runs a server. Use one of the hosts under **Hosting it
+somewhere** instead, and delete the broken project so it does not keep
+rebuilding on every push.
 
 **A reset code never arrives by email.** There is no mail transport configured
 by default, so outside production the code comes back in the API response
