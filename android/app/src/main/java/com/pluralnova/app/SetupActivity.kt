@@ -36,17 +36,30 @@ class SetupActivity : AppCompatActivity() {
     }
 
     private fun connect() {
-        val address = ServerAddress.normalise(binding.address.text?.toString().orEmpty())
-        if (address == null) {
+        /*
+         * Candidates rather than one address: somebody who types a hostname
+         * with no scheme has not said whether it is https, and the app should
+         * find out rather than assume. It used to assume http, which is the
+         * wrong half of the guess for anything hosted.
+         */
+        val candidates = ServerAddress.candidates(binding.address.text?.toString().orEmpty())
+        if (candidates.isEmpty()) {
             showStatus(getString(R.string.setup_bad_address), isError = true)
             return
         }
 
         setBusy(true)
-        showStatus(getString(R.string.setup_checking, address), isError = false)
+        showStatus(getString(R.string.setup_checking, candidates.first()), isError = false)
 
         worker.execute {
-            val result = ServerAddress.check(address)
+            // The first that answers wins. If none does, report what happened
+            // to the first one tried, since that is the address they meant.
+            val attempts = candidates.map { it to ServerAddress.check(it) }
+            val reached = attempts.firstOrNull { it.second is ServerAddress.Check.Reachable }
+            // Immutable before crossing to the UI thread: a captured var cannot
+            // be smart-cast, and the branches below need the result's own type.
+            val (address, result) = reached ?: attempts.first()
+
             runOnUiThread {
                 setBusy(false)
                 when (result) {
@@ -64,10 +77,13 @@ class SetupActivity : AppCompatActivity() {
                         startActivity(Intent(this, MainActivity::class.java))
                         finish()
                     }
+                    // Both name the address that was actually tried. Without
+                    // it, "nothing answered" is unactionable: it could be the
+                    // wrong host, the wrong port, or a scheme nobody chose.
                     is ServerAddress.Check.NotPluralNova ->
-                        showStatus(getString(R.string.setup_not_pluralnova, result.detail), isError = true)
+                        showStatus(getString(R.string.setup_not_pluralnova, address, result.detail), isError = true)
                     is ServerAddress.Check.Unreachable ->
-                        showStatus(getString(R.string.setup_unreachable, result.detail), isError = true)
+                        showStatus(getString(R.string.setup_unreachable, address, result.detail), isError = true)
                 }
             }
         }

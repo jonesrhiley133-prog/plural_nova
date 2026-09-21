@@ -73,13 +73,33 @@ object ServerAddress {
         val trimmed = input.trim().trimEnd('/')
         if (trimmed.isEmpty()) return null
 
-        val withScheme = if (trimmed.contains("://")) trimmed else "http://$trimmed"
+        val withScheme = if (trimmed.contains("://")) trimmed else "https://$trimmed"
         return try {
             val url = URL(withScheme)
             if (url.host.isNullOrBlank()) null else url.toString().trimEnd('/')
         } catch (error: Exception) {
             null
         }
+    }
+
+    /**
+     * The addresses worth trying for what somebody typed, best first.
+     *
+     * When no scheme is given this does not guess one. Guessing is what broke
+     * it: a bare hostname became http://, a hosted server answered that with a
+     * redirect to https, and HttpURLConnection will not follow a redirect that
+     * changes protocol — so the address of a perfectly good server failed, and
+     * said nothing had answered.
+     *
+     * Https first, because a hosted server is the case that cannot fall back,
+     * then http for the machine on somebody's own desk, which is the case that
+     * has no certificate to offer.
+     */
+    fun candidates(input: String): List<String> {
+        val trimmed = input.trim().trimEnd('/')
+        if (trimmed.isEmpty()) return emptyList()
+        if (trimmed.contains("://")) return listOfNotNull(normalise(trimmed))
+        return listOfNotNull(normalise("https://$trimmed"), normalise("http://$trimmed"))
     }
 
     /** True when the address is one a password can safely be typed into. */
@@ -102,22 +122,51 @@ object ServerAddress {
     }
 
     /** Asks the address whether it is a PluralNova. Call off the main thread. */
-    fun check(url: String): Check {
+    fun check(url: String): Check = check(url, redirectsLeft = 3)
+
+    private fun check(url: String, redirectsLeft: Int): Check {
         val connection = try {
             (URL("$url/api/health").openConnection() as HttpURLConnection).apply {
                 connectTimeout = 8000
                 readTimeout = 8000
                 requestMethod = "GET"
                 setRequestProperty("Accept", "application/json")
+                // Followed by hand below, because the automatic version stops
+                // at a change of protocol and reports it as an ordinary reply.
+                instanceFollowRedirects = false
             }
         } catch (error: Exception) {
             return Check.Unreachable(error.message ?: "that address could not be opened")
         }
 
         return try {
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            /*
+             * The status first, and the body from whichever stream matches it.
+             *
+             * inputStream throws for any 4xx or 5xx — the body of a failed
+             * response is on errorStream — so reading it first meant every
+             * error became "nothing answered", and the branch below that names
+             * the status code could never run. A wrong address and a server
+             * that was merely unhappy looked identical, which is most of why
+             * this was hard to get past.
+             */
+            val status = connection.responseCode
+
+            if (status in 300..399) {
+                val location = connection.getHeaderField("Location")
+                if (location.isNullOrBlank()) return Check.NotPluralNova("it redirected to nowhere")
+                if (redirectsLeft <= 0) return Check.NotPluralNova("it redirected too many times")
+                // Location may be relative, and may change http to https, which
+                // is exactly what a hosted server does to an http request.
+                val next = URL(URL(url), location).toString().removeSuffix("/api/health").trimEnd('/')
+                return check(next, redirectsLeft - 1)
+            }
+
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+
             when {
-                connection.responseCode != 200 -> Check.NotPluralNova("it answered ${connection.responseCode}")
+                status != 200 -> Check.NotPluralNova("it answered $status")
                 !body.contains("\"apiVersion\"") -> Check.NotPluralNova("something else is running there")
                 else -> Check.Reachable
             }
