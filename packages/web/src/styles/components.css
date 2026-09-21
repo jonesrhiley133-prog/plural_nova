@@ -25,6 +25,19 @@
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
+  /*
+   * Flat. The gradient underneath used to matter because translucent panels
+   * need something varied behind them to refract; with solid panels it is just
+   * a page that is subtly the wrong colour at the top and the bottom.
+   *
+   * The colour fields and the starfield above still exist and still draw when
+   * a theme turns them on, at which point the gradient comes with them.
+   */
+  background: var(--bg);
+}
+
+:root[data-surface='glass'] .atmosphere,
+:root[data-surface='clear'] .atmosphere {
   background:
     radial-gradient(140% 100% at 50% -20%, var(--atmosphere), transparent 55%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-subtle) 55%, var(--bg) 100%);
@@ -113,15 +126,17 @@
 /* ── Surfaces ───────────────────────────────────────────────────────────── */
 
 /*
- * Glass.
+ * A card is a block of colour.
  *
- * Four things together, and it stops reading as glass if any one is missing:
- * the blur, a saturation lift so the colour behind keeps its life instead of
- * going grey, a sheen over the panel's own fill so it is not a flat wash, and
- * a highlight along the top edge where light would actually land.
+ * One step of tone lighter than the page, a hairline border, a generous
+ * radius, and nothing else. No blur, no sheen, no rim light — those were four
+ * effects working together to imitate a material, and the result read as a
+ * website being clever rather than as somewhere to keep a diary.
  *
- * `--glass-sheen` and `--glass-edge` both go transparent for solid surfaces and
- * high contrast, which is what turns all of this off without a second ruleset.
+ * The glass treatment is still reachable: `--glass-sheen` and `--glass-edge`
+ * are transparent for solid surfaces and carry colour for glass ones, and
+ * `--blur-surface` is 0 unless a theme asks otherwise, so the same three rules
+ * serve both without a second ruleset. It is simply no longer the default.
  */
 .surface,
 .card {
@@ -130,7 +145,7 @@
     linear-gradient(180deg, var(--glass-sheen), transparent 58%),
     var(--surface);
   border: var(--border-width) solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   backdrop-filter: blur(var(--blur-surface)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--blur-surface)) saturate(var(--glass-saturate));
   box-shadow:
@@ -639,13 +654,19 @@
   width: var(--avatar-size, 40px);
   height: var(--avatar-size, 40px);
   border-radius: var(--radius);
-  overflow: hidden;
+  /*
+   * Deliberately not `overflow: hidden`.
+   *
+   * It was, and it silently clipped the ring — which sits just outside the
+   * avatar's box, so the ring prop drew nothing at all, anywhere, for as long
+   * as it has existed. The image rounds itself instead, which is the only
+   * thing the clipping was actually for.
+   */
   background: var(--surface-sunken);
   border: var(--border-width) solid var(--border);
   color: var(--text-muted);
   font-size: calc(var(--avatar-size, 40px) * 0.4);
   font-weight: var(--weight-semibold);
-  isolation: isolate;
   user-select: none;
 }
 
@@ -660,15 +681,24 @@
   height: 100%;
   object-fit: cover;
   object-position: var(--focal-x, 50%) var(--focal-y, 50%);
+  /* Rounds itself, now that the avatar no longer clips its children. */
+  border-radius: inherit;
 }
 
 .avatar__ring {
   position: absolute;
-  inset: -3px;
+  /* A ring with a gap, so it reads as worn rather than drawn on. */
+  inset: -4px;
   border-radius: inherit;
   border: 2px solid var(--member-color, var(--accent));
-  opacity: var(--glow-opacity);
   pointer-events: none;
+  /*
+   * Full strength, deliberately. This used to fade with --glow-opacity, which
+   * made it vanish entirely the moment the glow was turned off — and the ring
+   * is not glow. It is how you tell at a glance which member is out, in their
+   * own colour, which is the most important thing the dashboard says.
+   */
+  opacity: 1;
 }
 
 .avatar-stack {
@@ -802,12 +832,161 @@
   font-size: var(--size-xs);
 }
 
+/* ── Who is here ────────────────────────────────────────────────────────── */
+
+/*
+ * A row of faces, not a list of rows.
+ *
+ * Who is fronting is the single most important thing on the screen, and it is
+ * a set of people rather than a set of records — so it looks like people: a
+ * circle each, wearing their own colour, name underneath, in a strip you can
+ * push sideways when there are more than fit.
+ *
+ * The ring is where a member's colour earns its keep. It is the one place the
+ * app uses colour to mean "this specific person", which is why the avatar
+ * carries it and the card behind them does not.
+ */
+.front-row {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.front-row::-webkit-scrollbar {
+  display: none;
+}
+
+.front-person {
+  flex: none;
+  width: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.front-person__name {
+  font-size: var(--size-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.front-person__since {
+  font-size: var(--size-xs);
+  color: var(--text-faint);
+  line-height: 1.2;
+}
+
+/* ── Tiles ──────────────────────────────────────────────────────────────── */
+
+/*
+ * A tile grid, not a list of rows.
+ *
+ * Rows with a label on the left and a chevron on the right are the shape of a
+ * settings page on a website. Everywhere somebody navigates by choosing among
+ * many equal things — the whole feature map, the quick actions — is a grid of
+ * tiles instead: an icon to recognise at a glance, a short label under it, and
+ * the same weight given to each.
+ *
+ * Three across on a phone, more as the screen allows, and the label wraps
+ * rather than truncating. "Relationships" cut to "Relationshi" is how the
+ * references get this wrong, and there is room for two lines.
+ */
+.tile-grid {
+  display: grid;
+  gap: var(--space-2);
+  /*
+   * 92px, so three fit across the inside of a card on a 390px phone. At 104
+   * they fell to two, which reads as a broken grid rather than a deliberate
+   * one — the width has to account for the card's padding, not just the page's.
+   */
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 98px;
+  padding: var(--space-3) var(--space-2);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tile:hover {
+    background: var(--surface-raised);
+    border-color: var(--border-strong);
+  }
+}
+
+.tile:active {
+  transform: scale(calc(1 - 0.02 * var(--motion)));
+}
+
+/*
+ * The accent belongs here. On a tile the icon is the only thing carrying
+ * colour, which is what makes a grid of them scannable — and what stops the
+ * accent from being a wash over a panel, where it says nothing.
+ */
+.tile__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tile__label {
+  font-size: var(--size-sm);
+  font-weight: var(--weight-medium);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.tile__badge {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+}
+
 /* ── Grids ──────────────────────────────────────────────────────────────── */
 
 .grid {
   display: grid;
   gap: var(--space-3);
   grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 180px), 1fr));
+}
+
+/* As .split: a cell will not shrink below its content unless told to. */
+.grid > *,
+.stat-grid > * {
+  min-width: 0;
 }
 
 .grid--tight {
@@ -1238,13 +1417,10 @@
 
 .stat {
   padding: var(--space-4);
-  /* A tile is a small panel, not a hole: same glass as everything else. */
-  background:
-    linear-gradient(180deg, var(--glass-sheen), transparent 62%),
-    color-mix(in srgb, var(--surface-raised) 78%, transparent);
+  /* A tile is a small card: the same flat step of tone, nothing translucent. */
+  background: var(--surface-raised);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius);
-  box-shadow: inset 0 1px 0 0 var(--glass-edge);
 }
 
 .stat__label {
@@ -1258,6 +1434,15 @@
   font-weight: var(--weight-semibold);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  /*
+   * A stat is usually a number, but the same tile shows an email address on
+   * the account screen — and an address has no spaces to break at, so it sat
+   * in the layout as one 457px word and took the whole page sideways with it.
+   * `anywhere` rather than `break-word` because it is also allowed to shrink
+   * the box it is in, which is the half that stops the overflow.
+   */
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .stat__detail {

@@ -400,6 +400,17 @@
   gap: var(--space-4);
 }
 
+/*
+ * A grid item will not shrink below its own min-content unless told to, so one
+ * unbreakable string anywhere in the column — an email address, a long handle,
+ * a URL — widens the whole track and takes every sibling with it. On a phone
+ * that pushes the section list off the right edge of the screen, which is what
+ * it was doing: the settings nav was laid out at 487px inside a 390px window.
+ */
+.split > * {
+  min-width: 0;
+}
+
 @media (min-width: 1000px) {
   .split {
     grid-template-columns: minmax(280px, 340px) 1fr;

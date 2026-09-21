@@ -85,16 +85,27 @@ export const DEFAULT_ACCENT = '#7aa2f7';
 export const DEFAULT_THEME: ThemeSettings = {
   base: 'dark',
   accent: DEFAULT_ACCENT,
-  surfaceStyle: 'glass',
-  effects: 'full',
-  surfaceOpacity: 82,
+  /*
+   * Solid, not glass.
+   *
+   * Translucent panels stacked over a moving background read as a website
+   * being clever rather than as an app: every surface competes with what is
+   * behind it, and nothing sits still. The references worth copying here — the
+   * plural apps people actually keep on their phones — are all flat colour, a
+   * step of tone between the page and a card, and accent reserved for the few
+   * things that mean something. Glass is still available to anyone who wants
+   * it; it is no longer what the app is.
+   */
+  surfaceStyle: 'solid',
+  effects: 'balanced',
+  surfaceOpacity: 100,
   highContrast: false,
   reducedMotion: false,
   largeText: false,
   textScale: 100,
   custom: null,
   presetId: 'nebula',
-  showStarfield: true,
+  showStarfield: false,
 };
 
 const DARK: ThemeTokens = {
@@ -218,7 +229,7 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
     id: 'nebula',
     label: 'Nebula',
     description: 'The default: deep navy, soft glass, quiet motion.',
-    settings: { base: 'dark', accent: '#7aa2f7', surfaceStyle: 'glass', effects: 'full', showStarfield: true },
+    settings: { base: 'dark', accent: '#7aa2f7', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
   },
   {
     id: 'void',
@@ -393,8 +404,10 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
   } else {
     tokens.surface = base.surface;
     tokens.surfaceRaised = isLight ? '#ffffff' : mix(base.surface, '#ffffff', 0.05);
-    // An opaque panel with a rim light on it looks like a mistake, not glass.
+    // An opaque panel with a sheen and a rim light on it looks like a mistake,
+    // not like glass. Both go, so a solid surface is genuinely one colour.
     tokens.glassSheen = 'transparent';
+    tokens.glassEdge = 'transparent';
   }
 
   if (settings.custom) Object.assign(tokens, settings.custom);

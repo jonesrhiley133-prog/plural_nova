@@ -174,32 +174,34 @@ function CurrentFrontWidget(): JSX.Element {
         </div>
       ) : (
         <div className="stack stack--tight">
-          {state.active.map((event) => (
-            <div key={event.id} className="row row--nowrap">
-              <Avatar
-                name={String(event.member?.['name'] ?? t('front.unknown'))}
-                src={(event.member?.['avatarUrl'] as string) ?? null}
-                color={(event.member?.['color'] as string) ?? null}
-                icon={(event.member?.['icon'] as string) ?? null}
-                size={40}
-                round
-                ring
-              />
-              <div style={{ minWidth: 0 }}>
-                <div className="truncate" style={{ fontWeight: 'var(--weight-medium)' }}>
+          <div className="front-row">
+            {state.active.map((event) => (
+              <button
+                key={event.id}
+                type="button"
+                className="front-person"
+                onClick={() => navigate('/whos-there')}
+              >
+                <Avatar
+                  name={String(event.member?.['name'] ?? t('front.unknown'))}
+                  src={(event.member?.['avatarUrl'] as string) ?? null}
+                  color={(event.member?.['color'] as string) ?? null}
+                  icon={(event.member?.['icon'] as string) ?? null}
+                  size={58}
+                  round
+                  ring
+                />
+                <span className="front-person__name">
                   {String(event.member?.['name'] ?? t('front.unknown'))}
-                  {event.coFronters.length > 0 ? (
-                    <span className="faint"> + {event.coFronters.length}</span>
-                  ) : null}
-                </div>
-                <div className="tiny faint">
-                  {t('front.since', { time: dates.time(String(event['startedAt'])) })} ·{' '}
-                  {formatDuration(event.minutes)}
-                </div>
-              </div>
-            </div>
-          ))}
-          <p className="tiny faint">{term('Tap through to end or change the {{front}}.')}</p>
+                </span>
+                <span className="front-person__since">{formatDuration(event.minutes)}</span>
+              </button>
+            ))}
+          </div>
+          <p className="tiny faint">
+            {t('front.since', { time: dates.time(String(state.active[0]?.['startedAt'] ?? '')) })} ·{' '}
+            {term('tap someone to end or change the {{front}}.')}
+          </p>
         </div>
       )}
     </Card>
@@ -267,20 +269,20 @@ function QuickActionsWidget(): JSX.Element {
 
   return (
     <Card title={t('dashboard.quickActions')}>
-      <div className="stack stack--tight">
+      {/* Tiles, not rows: five equal things to choose between, and a column of
+          chevrons makes them look like settings rather than like doing. */}
+      <div className="tile-grid">
         {actions.map((action) => (
           <button
             key={action.path}
             type="button"
-            className="list-row"
-            style={{ borderRadius: 'var(--radius)' }}
+            className="tile"
             onClick={() => navigate(action.path)}
           >
-            <Icon name={action.icon} size={17} />
-            <span className="list-row__body">
-              <span className="list-row__title">{action.label}</span>
+            <span className="tile__icon">
+              <Icon name={action.icon} size={21} />
             </span>
-            <Icon name="chevronRight" size={14} />
+            <span className="tile__label">{action.label}</span>
           </button>
         ))}
       </div>
