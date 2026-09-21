@@ -17,6 +17,12 @@ on:
         type: choice
         default: release
         options: [release, debug]
+      server_url:
+        description: >-
+          Server to point the app at, so it does not ask on first launch.
+          Leave empty to use the PLURALNOVA_SERVER_URL secret, or to ask.
+        type: string
+        required: false
   pull_request:
     paths: ['android/**', '.github/workflows/android.yml']
   push:
@@ -74,8 +80,15 @@ jobs:
           keyPassword=$KEY_PASSWORD
           PROPS
 
+      # Baked in at build time when there is one to bake. PluralNova is
+      # self-hosted, so the app cannot generally know its own server and asks
+      # on first launch — but a build made for one known server should not ask
+      # a question with exactly one possible answer. Empty leaves the setup
+      # screen in place, which is what a build for anybody else needs.
       - name: Build
         working-directory: android
+        env:
+          PLURALNOVA_SERVER_URL: ${{ inputs.server_url || secrets.PLURALNOVA_SERVER_URL }}
         run: ./gradlew --no-daemon ${{ steps.choose.outputs.task }}
 
       - name: Remove the key from the runner
@@ -102,6 +115,13 @@ jobs:
           echo "### ${{ steps.name.outputs.file }}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Download it from the **Artifacts** section at the bottom of this run." >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${{ inputs.server_url || secrets.PLURALNOVA_SERVER_URL }}" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "It points at your server already and will not ask on first launch." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "No server address was baked in, so it asks for one on first launch. Set the \`PLURALNOVA_SERVER_URL\` secret, or pass it when running this workflow by hand." >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [ "${{ steps.choose.outputs.variant }}" = "debug" ]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "This is a **debug** build. It installs, but a later release build cannot update it unless the same signing key was used." >> "$GITHUB_STEP_SUMMARY"

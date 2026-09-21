@@ -10,6 +10,29 @@ the back button, file downloads for backup export, file pickers for media and
 import, links that are not PluralNova opening in a real browser, and an error
 screen that names the address instead of showing `ERR_CONNECTION_REFUSED`.
 
+## Pointing it at your own server
+
+PluralNova is self-hosted, so the app cannot know where your server is and asks
+on first launch. For a build made for one known server that is a question with
+exactly one possible answer, so the address can be baked in and the screen
+never appears:
+
+```sh
+./gradlew assembleRelease -Ppluralnova.serverUrl=https://yours.up.railway.app
+```
+
+Or set `PLURALNOVA_SERVER_URL` in the environment. In CI, set a repository
+secret of that name, or pass the address when running the **Android** workflow
+by hand — the run summary says which of the two happened.
+
+Leaving it unset keeps the setup screen, which is what a build for anybody else
+needs.
+
+**Changing it later** still works either way: the menu's *change server* option
+clears the stored address and asks again, and once somebody has chosen for
+themselves the baked-in address stops overriding them.
+
+
 ## Building it
 
 You need a JDK 17 or newer and the Android SDK. Nothing else — the Gradle
