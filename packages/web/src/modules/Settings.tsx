@@ -28,7 +28,7 @@ import { Button, Card, Chip, IconButton, ListRow, Stat } from '../ui/primitives.
 import { NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
 import { ColorPicker, ColorSwatch } from '../ui/ColorPicker.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
-import { DescriptiveNote } from '../ui/feedback.js';
+import { DescriptiveNote, ErrorLine, LoadingLine } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
 
 /**
@@ -896,12 +896,15 @@ function Account(): JSX.Element {
   const deleteDialog = useDialog();
 
   const [sessions, setSessions] = useState<{ id: string; userAgent: string | null; lastSeenAt: string; current: boolean }[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
 
   useEffect(() => {
     void api
       .get<{ id: string; userAgent: string | null; lastSeenAt: string; current: boolean }[]>('/api/auth/sessions')
       .then(setSessions)
-      .catch(() => setSessions([]));
+      .catch((cause: unknown) => setSessionsError(messageFor(cause)))
+      .finally(() => setSessionsLoading(false));
   }, []);
 
   return (
@@ -931,7 +934,15 @@ function Account(): JSX.Element {
         )}
       </Card>
 
-      {sessions.length > 0 ? (
+      {sessionsLoading ? (
+        <Card title="Signed in" subtitle="Everywhere this account is open">
+          <LoadingLine label="Loading sessions…" />
+        </Card>
+      ) : sessionsError ? (
+        <Card title="Signed in" subtitle="Everywhere this account is open">
+          <ErrorLine message={sessionsError} />
+        </Card>
+      ) : sessions.length > 0 ? (
         <Card title="Signed in" subtitle="Everywhere this account is open" flush>
           <div className="list">
             {sessions.map((session) => (

@@ -249,6 +249,15 @@ export function LoadingLine({ label }: { label: string }): JSX.Element {
   );
 }
 
+/** A compact one-line failure, for a small card where the full ErrorPanel would overwhelm it. */
+export function ErrorLine({ message }: { message: string }): JSX.Element {
+  return (
+    <p className="small faint" role="alert">
+      <Icon name="warning" size={12} /> {message}
+    </p>
+  );
+}
+
 /** For data the app describes rather than diagnoses. */
 export function DescriptiveNote({ children }: { children: ReactNode }): JSX.Element {
   return (

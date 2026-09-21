@@ -2,7 +2,7 @@ import { useQuery } from '../core/data.js';
 import { formatDuration } from '@pluralnova/shared';
 import { CollectionScreen } from '../ui/CollectionScreen.js';
 import { Card, Chip, ListRow, Stat } from '../ui/primitives.js';
-import { DescriptiveNote } from '../ui/feedback.js';
+import { DescriptiveNote, ErrorLine, LoadingLine } from '../ui/feedback.js';
 import { ColumnChart } from '../charts/index.js';
 import { useDateFormat } from '../core/i18n.js';
 
@@ -35,29 +35,37 @@ export default function Fitness(): JSX.Element {
       emptyBody="A walk counts. So does stretching for four minutes."
       above={
         <div className="stack" style={{ marginBottom: 'var(--space-4)' }}>
-          <div className="stat-grid">
-            <Stat label="Sessions" value={stats.data?.sessions ?? 0} detail="last 30 days" />
-            <Stat label="Time" value={formatDuration(stats.data?.totalMinutes ?? 0)} />
-            <Stat
-              label="Distance"
-              value={stats.data?.totalDistanceKm ? `${stats.data.totalDistanceKm} km` : '—'}
-            />
-            <Stat label="Steps" value={(stats.data?.totalSteps ?? 0).toLocaleString()} />
-          </div>
+          {stats.loading ? (
+            <LoadingLine label="Loading fitness stats…" />
+          ) : stats.error ? (
+            <ErrorLine message={stats.error} />
+          ) : (
+            <>
+              <div className="stat-grid">
+                <Stat label="Sessions" value={stats.data?.sessions ?? 0} detail="last 30 days" />
+                <Stat label="Time" value={formatDuration(stats.data?.totalMinutes ?? 0)} />
+                <Stat
+                  label="Distance"
+                  value={stats.data?.totalDistanceKm ? `${stats.data.totalDistanceKm} km` : '—'}
+                />
+                <Stat label="Steps" value={(stats.data?.totalSteps ?? 0).toLocaleString()} />
+              </div>
 
-          <Card>
-            <ColumnChart
-              title="Minutes over the last 30 days"
-              valueLabel="Minutes"
-              points={(stats.data?.byDay ?? []).map((bucket) => ({
-                label: bucket.label,
-                value: bucket.value,
-                detail: bucket.key,
-              }))}
-              format={(value) => formatDuration(value)}
-              emptyMessage="Nothing logged in this period."
-            />
-          </Card>
+              <Card>
+                <ColumnChart
+                  title="Minutes over the last 30 days"
+                  valueLabel="Minutes"
+                  points={(stats.data?.byDay ?? []).map((bucket) => ({
+                    label: bucket.label,
+                    value: bucket.value,
+                    detail: bucket.key,
+                  }))}
+                  format={(value) => formatDuration(value)}
+                  emptyMessage="Nothing logged in this period."
+                />
+              </Card>
+            </>
+          )}
 
           {stats.data?.activities.length ? (
             <Card title="What you have been doing">

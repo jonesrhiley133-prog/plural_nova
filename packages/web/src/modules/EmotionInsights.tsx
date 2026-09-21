@@ -4,7 +4,7 @@ import { useQuery } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Card, Chip, Stat } from '../ui/primitives.js';
-import { DescriptiveNote, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
+import { DescriptiveNote, EmptyState, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 import { ColumnChart, RankedBars } from '../charts/index.js';
 
 /**
@@ -62,10 +62,11 @@ export default function EmotionInsights(): JSX.Element {
       <>
         <PageHeader title="Emotion insights" />
         <Card>
-          <p className="prose muted">
-            Nothing to describe yet. Log a few emotions and this page will start showing what you
-            recorded — which words came up, when, and alongside what.
-          </p>
+          <EmptyState
+            icon="insight"
+            title="Nothing to describe yet"
+            body="Log a few emotions and this page will start showing what you recorded — which words came up, when, and alongside what."
+          />
         </Card>
       </>
     );

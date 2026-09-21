@@ -17,7 +17,7 @@ import { useFronting } from '../core/fronting.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, ListRow, Stat } from '../ui/primitives.js';
-import { EmptyState, SkeletonCards } from '../ui/feedback.js';
+import { EmptyState, ErrorLine, LoadingLine, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
 import { Switch } from '../ui/forms.js';
 import { Sparkline } from '../charts/index.js';
@@ -220,7 +220,11 @@ function QuickFrontWidget(): JSX.Element {
 
   return (
     <Card title={term('Quick {{front}}')} subtitle={term('One tap to record who is out')}>
-      {members.items.length === 0 ? (
+      {members.loading ? (
+        <LoadingLine label={term('Loading {{members}}…')} />
+      ) : members.error ? (
+        <ErrorLine message={members.error} />
+      ) : members.items.length === 0 ? (
         <p className="small faint">{term('Add a {{member}} to use this.')}</p>
       ) : (
         <div className="row">
@@ -305,7 +309,11 @@ function MoodWidget(): JSX.Element {
         </Button>
       }
     >
-      {!latest ? (
+      {moods.loading ? (
+        <LoadingLine label="Loading mood…" />
+      ) : moods.error ? (
+        <ErrorLine message={moods.error} />
+      ) : !latest ? (
         <p className="small faint">Nothing logged yet. A one-word answer counts.</p>
       ) : (
         <div className="row row--between">
@@ -339,19 +347,30 @@ function SystemStatusWidget(): JSX.Element {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [members.items]);
 
+  const loading = members.loading || subsystems.loading;
+  const error = members.error ?? subsystems.error;
+
   return (
     <Card title={term('{{System}} status')}>
-      <div className="stat-grid">
-        <Stat label={term('{{Members}}')} value={members.items.length} />
-        <Stat label={term('{{Subsystems}}')} value={subsystems.items.length} />
-      </div>
-      <div className="row" style={{ marginTop: 'var(--space-3)' }}>
-        {byStatus.map(([status, count]) => (
-          <Chip key={status}>
-            {status}: {count}
-          </Chip>
-        ))}
-      </div>
+      {loading ? (
+        <LoadingLine label={term('Loading {{system}} status…')} />
+      ) : error ? (
+        <ErrorLine message={error} />
+      ) : (
+        <>
+          <div className="stat-grid">
+            <Stat label={term('{{Members}}')} value={members.items.length} />
+            <Stat label={term('{{Subsystems}}')} value={subsystems.items.length} />
+          </div>
+          <div className="row" style={{ marginTop: 'var(--space-3)' }}>
+            {byStatus.map(([status, count]) => (
+              <Chip key={status}>
+                {status}: {count}
+              </Chip>
+            ))}
+          </div>
+        </>
+      )}
     </Card>
   );
 }
@@ -371,7 +390,11 @@ function JournalWidget(): JSX.Element {
         </Button>
       }
     >
-      {entries.items.length === 0 ? (
+      {entries.loading ? (
+        <LoadingLine label={term('Loading {{journal}}…')} />
+      ) : entries.error ? (
+        <ErrorLine message={entries.error} />
+      ) : entries.items.length === 0 ? (
         <p className="small faint">{term('Nothing written yet. The first entry can be one line.')}</p>
       ) : (
         <div className="stack stack--tight">
@@ -396,7 +419,7 @@ function JournalWidget(): JSX.Element {
 function TasksWidget(): JSX.Element {
   const navigate = useNavigate();
   const dates = useDateFormat();
-  const { items, update } = useCollection('tasks', {
+  const { items, update, loading, error } = useCollection('tasks', {
     filter: (task) => task['completed'] !== true && task['archived'] !== true,
     sort: (a, b) => String(a['dueAt'] ?? '9999').localeCompare(String(b['dueAt'] ?? '9999')),
     limit: 5,
@@ -416,7 +439,11 @@ function TasksWidget(): JSX.Element {
         </Button>
       }
     >
-      {items.length === 0 ? (
+      {loading ? (
+        <LoadingLine label="Loading tasks…" />
+      ) : error ? (
+        <ErrorLine message={error} />
+      ) : items.length === 0 ? (
         <p className="small faint">Nothing due. That is allowed.</p>
       ) : (
         <div className="stack stack--tight">
@@ -463,7 +490,11 @@ function CalendarWidget(): JSX.Element {
         </Button>
       }
     >
-      {events.items.length === 0 ? (
+      {events.loading ? (
+        <LoadingLine label="Loading today…" />
+      ) : events.error ? (
+        <ErrorLine message={events.error} />
+      ) : events.items.length === 0 ? (
         <p className="small faint">Nothing scheduled today.</p>
       ) : (
         <div className="stack stack--tight">
@@ -495,7 +526,11 @@ function SleepWidget(): JSX.Element {
         </Button>
       }
     >
-      {!latest ? (
+      {entries.loading ? (
+        <LoadingLine label="Loading sleep…" />
+      ) : entries.error ? (
+        <ErrorLine message={entries.error} />
+      ) : !latest ? (
         <p className="small faint">No sleep logged yet.</p>
       ) : (
         <div className="row row--between">
@@ -531,7 +566,11 @@ function WellnessWidget(): JSX.Element {
         </Button>
       }
     >
-      {!latest ? (
+      {entries.loading ? (
+        <LoadingLine label="Loading wellbeing…" />
+      ) : entries.error ? (
+        <ErrorLine message={entries.error} />
+      ) : !latest ? (
         <p className="small faint">No check-in yet today.</p>
       ) : (
         <div className="stat-grid">
@@ -584,7 +623,11 @@ function MessagesWidget(): JSX.Element {
         </Button>
       }
     >
-      {!conversations.data || conversations.data.conversations.length === 0 ? (
+      {conversations.loading ? (
+        <LoadingLine label="Loading messages…" />
+      ) : conversations.error ? (
+        <ErrorLine message={conversations.error} />
+      ) : !conversations.data || conversations.data.conversations.length === 0 ? (
         <p className="small faint">No conversations yet.</p>
       ) : (
         <div className="list">
@@ -617,7 +660,11 @@ function FriendsWidget(): JSX.Element {
         </Button>
       }
     >
-      {!friends.data || friends.data.friends.length === 0 ? (
+      {friends.loading ? (
+        <LoadingLine label="Loading friends…" />
+      ) : friends.error ? (
+        <ErrorLine message={friends.error} />
+      ) : !friends.data || friends.data.friends.length === 0 ? (
         <p className="small faint">No friends added yet.</p>
       ) : (
         <div className="row">
@@ -649,16 +696,18 @@ function DailySummaryWidget(): JSX.Element {
         </Button>
       }
     >
-      {!summary.data ? (
-        <p className="small faint">Loading today…</p>
-      ) : (
+      {summary.loading ? (
+        <LoadingLine label="Loading today…" />
+      ) : summary.error ? (
+        <ErrorLine message={summary.error} />
+      ) : summary.data ? (
         <div className="stat-grid">
           <Stat label="Fronts" value={summary.data.fronting.length} />
           <Stat label="Moods" value={summary.data.moods.length} />
           <Stat label="Entries" value={summary.data.journal.length} />
           <Stat label="Tasks done" value={summary.data.completedTasks.length} />
         </div>
-      )}
+      ) : null}
     </Card>
   );
 }
@@ -676,7 +725,11 @@ function MusicWidget(): JSX.Element {
         </Button>
       }
     >
-      {tracks.items.length === 0 ? (
+      {tracks.loading ? (
+        <LoadingLine label="Loading music…" />
+      ) : tracks.error ? (
+        <ErrorLine message={tracks.error} />
+      ) : tracks.items.length === 0 ? (
         <p className="small faint">No tracks saved yet.</p>
       ) : (
         <div className="stack stack--tight">
@@ -698,6 +751,9 @@ function HeadspaceWidget(): JSX.Element {
   const maps = useCollection('headspaceMaps');
   const objects = useCollection('headspaceObjects');
 
+  const loading = maps.loading || objects.loading;
+  const error = maps.error ?? objects.error;
+
   return (
     <Card
       title={term('{{Headspace}}')}
@@ -707,7 +763,11 @@ function HeadspaceWidget(): JSX.Element {
         </Button>
       }
     >
-      {maps.items.length === 0 ? (
+      {loading ? (
+        <LoadingLine label={term('Loading {{headspace}}…')} />
+      ) : error ? (
+        <ErrorLine message={error} />
+      ) : maps.items.length === 0 ? (
         <p className="small faint">{term('No {{headspace}} mapped yet.')}</p>
       ) : (
         <div className="stat-grid">
@@ -736,10 +796,16 @@ function FrontingStatsWidget(): JSX.Element {
         </Button>
       }
     >
-      <div className="stat-grid">
-        <Stat label="Recorded" value={formatDuration(stats.data?.totals.totalMinutes ?? 0)} />
-        <Stat label={term('{{Fronts}}')} value={stats.data?.totals.eventCount ?? 0} />
-      </div>
+      {stats.loading ? (
+        <LoadingLine label={term('Loading {{fronting}}…')} />
+      ) : stats.error ? (
+        <ErrorLine message={stats.error} />
+      ) : (
+        <div className="stat-grid">
+          <Stat label="Recorded" value={formatDuration(stats.data?.totals.totalMinutes ?? 0)} />
+          <Stat label={term('{{Fronts}}')} value={stats.data?.totals.eventCount ?? 0} />
+        </div>
+      )}
     </Card>
   );
 }
@@ -759,7 +825,11 @@ function LocationWidget(): JSX.Element {
         </Button>
       }
     >
-      {!latest ? (
+      {locations.loading ? (
+        <LoadingLine label="Loading location…" />
+      ) : locations.error ? (
+        <ErrorLine message={locations.error} />
+      ) : !latest ? (
         <p className="small faint">Nothing recorded yet.</p>
       ) : (
         <div>
