@@ -66,3 +66,79 @@ jobs:
           exit 1
 
       - run: npm run test:e2e -w @pluralnova/web
+
+  container:
+    name: Container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Nothing else builds this file. The release workflow publishes an image
+      # only on a tag, so without this job a broken Dockerfile surfaces for the
+      # first time partway through cutting a version.
+      - name: Build the image
+        run: docker build -t pluralnova:ci .
+
+      # The failure this exists for: a Railway deploy died on its health check
+      # because the volume mounted at /data was owned by root while the server
+      # runs as node. A Docker named volume hides that bug — it copies the image
+      # directory's ownership into itself — so only a root-owned mount
+      # reproduces what Railway, Fly, Render and Kubernetes actually do.
+      - name: Start it on a root-owned volume, the way a platform mounts one
+        run: |
+          sudo mkdir -p /tmp/pluralnova-data
+          sudo chown root:root /tmp/pluralnova-data
+          docker run -d --name pluralnova -p 4000:4000 \
+            -v /tmp/pluralnova-data:/data pluralnova:ci
+
+      - name: Wait for it to answer its own health endpoint
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/health >/dev/null 2>&1; then
+              echo "container is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "the container never became healthy" >&2
+          docker logs pluralnova
+          exit 1
+
+      # Running as root would pass the health check just as well, and would be a
+      # different application from the one that was reviewed.
+      - name: Check the server dropped to the node user
+        run: |
+          uid="$(docker exec pluralnova awk '/^Uid:/ {print $2}' /proc/1/status)"
+          if [ "$uid" != "1000" ]; then
+            echo "server is running as uid $uid, expected 1000 (node)" >&2
+            exit 1
+          fi
+          echo "server is running as uid 1000"
+
+      # Data written through one container has to still be there for the next.
+      # That is the entire reason for mounting a volume, and it is the thing
+      # that silently was not true.
+      - name: Check the data outlives the container
+        run: |
+          account='{"email":"ci@example.com","password":"correct-horse-battery-1","displayName":"CI","mode":"system","systemName":"CI"}'
+          curl -fsS -X POST http://localhost:4000/api/auth/register \
+            -H 'Content-Type: application/json' -d "$account" > /dev/null
+
+          docker rm -f pluralnova
+          docker run -d --name pluralnova-again -p 4000:4000 \
+            -v /tmp/pluralnova-data:/data pluralnova:ci
+          for attempt in $(seq 1 30); do
+            curl -fsS http://localhost:4000/api/health >/dev/null 2>&1 && break
+            sleep 2
+          done
+
+          if curl -fsS -X POST http://localhost:4000/api/auth/login \
+              -H 'Content-Type: application/json' \
+              -d '{"email":"ci@example.com","password":"correct-horse-battery-1"}' \
+              | grep -q '"ok":true'; then
+            echo "the account survived the container being replaced"
+          else
+            echo "the account did not survive the container" >&2
+            docker logs pluralnova-again
+            exit 1
+          fi

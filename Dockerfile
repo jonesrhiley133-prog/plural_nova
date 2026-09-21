@@ -61,7 +61,14 @@ COPY --from=build /app/packages/web/dist packages/web/dist/
 # instead: docker-compose.yml, fly.toml, render.yaml, and Railway in the guide.
 RUN mkdir -p /data && chown -R node:node /data /app
 
-USER node
+# No USER here, deliberately. A mounted volume arrives owned by root on every
+# platform that mounts one, and the chown above only touched the image's own
+# /data, which the mount hides. The entrypoint corrects the ownership and drops
+# to the node user before exec'ing the server, so the server never runs as
+# root — but it has to start with the privilege to do that.
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 4000
 
 # Uses the app's own health endpoint, so an unhealthy container means the API
@@ -69,4 +76,5 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "packages/server/dist/index.js"]
