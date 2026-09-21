@@ -7,7 +7,7 @@ import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, IconButton, Stat } from '../ui/primitives.js';
 import { NumberField, TextField } from '../ui/forms.js';
-import { AsyncContent, EmptyState } from '../ui/feedback.js';
+import { AsyncContent, EmptyState, LoadingLine } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { Icon } from '../ui/Icon.js';
@@ -88,7 +88,7 @@ export default function Vault(): JSX.Element {
       <>
         <PageHeader title="Private vault" />
         <Card>
-          <p className="small muted">Checking the vault…</p>
+          <LoadingLine label="Checking the vault…" />
         </Card>
       </>
     );

@@ -562,7 +562,7 @@ export function Heatmap({
                     title={`${row} · ${column}: ${format(value)}`}
                     style={{
                       aspectRatio: '1',
-                      borderRadius: 3,
+                      borderRadius: 'var(--radius-xs)',
                       background:
                         value === 0 ? 'var(--surface-sunken)' : magnitudeColor(value / max, mode),
                     }}

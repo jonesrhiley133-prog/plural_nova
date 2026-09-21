@@ -16,7 +16,7 @@ import { useBadges } from '../core/badges.js';
 import { useFronting } from '../core/fronting.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, Stat } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, ListRow, Stat } from '../ui/primitives.js';
 import { EmptyState, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
 import { Switch } from '../ui/forms.js';
@@ -587,18 +587,14 @@ function MessagesWidget(): JSX.Element {
       {!conversations.data || conversations.data.conversations.length === 0 ? (
         <p className="small faint">No conversations yet.</p>
       ) : (
-        <div className="stack stack--tight">
+        <div className="list">
           {conversations.data.conversations.slice(0, 3).map((conversation) => (
-            <button
+            <ListRow
               key={conversation.threadId}
-              type="button"
-              className="row row--between"
-              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, width: '100%' }}
+              title={conversation.counterpart.displayName}
+              trailing={conversation.unreadCount > 0 ? <Chip accent>{conversation.unreadCount}</Chip> : null}
               onClick={() => navigate(`/messages/${conversation.threadId}`)}
-            >
-              <span className="small truncate">{conversation.counterpart.displayName}</span>
-              {conversation.unreadCount > 0 ? <Chip accent>{conversation.unreadCount}</Chip> : null}
-            </button>
+            />
           ))}
         </div>
       )}

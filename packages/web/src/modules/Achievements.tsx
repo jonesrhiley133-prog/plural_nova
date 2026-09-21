@@ -5,7 +5,7 @@ import { useCollection } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Meter, Stat } from '../ui/primitives.js';
+import { Button, Card, Meter, SectionHeading, Stat } from '../ui/primitives.js';
 import { SwitchRow } from '../ui/forms.js';
 import { SkeletonCards } from '../ui/feedback.js';
 
@@ -79,9 +79,7 @@ export default function Achievements(): JSX.Element {
           if (items.length === 0) return null;
           return (
             <section key={category.id}>
-              <h2 className="section-heading__label" style={{ marginBottom: 'var(--space-3)' }}>
-                {category.label}
-              </h2>
+              <SectionHeading label={category.label} />
               <div className="grid" style={{ ['--grid-min' as never]: '210px' }}>
                 {items.map((achievement) => {
                   const row = byKey.get(achievement.key);

@@ -390,7 +390,7 @@ function DayList({
                 style={{
                   width: 3,
                   alignSelf: 'stretch',
-                  borderRadius: 2,
+                  borderRadius: 'var(--radius-xs)',
                   background: (event['color'] as string) || 'var(--accent)',
                 }}
                 aria-hidden="true"

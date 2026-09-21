@@ -4,7 +4,7 @@ import { useAuth } from '../core/auth.js';
 import { useI18n } from '../core/i18n.js';
 import { useBadges } from '../core/badges.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Badge, Button, Card } from '../ui/primitives.js';
+import { Avatar, Badge, Button, Card, SectionHeading } from '../ui/primitives.js';
 import { Icon, iconOr } from '../ui/Icon.js';
 
 /**
@@ -45,9 +45,7 @@ export default function More(): JSX.Element {
       <div className="stack stack--loose">
         {categories.map((category) => (
           <section key={category.id}>
-            <h2 className="section-heading__label" style={{ marginBottom: 'var(--space-2)' }}>
-              {term(category.label)}
-            </h2>
+            <SectionHeading label={term(category.label)} />
             <div className="tile-grid">
               {category.items.map((item) => (
                 <button

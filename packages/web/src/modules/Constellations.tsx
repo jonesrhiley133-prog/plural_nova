@@ -7,7 +7,7 @@ import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useCollection } from '../core/data.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, SectionHeading } from '../ui/primitives.js';
 import { ColorField, NumberField, SearchField, SelectField, SwitchRow, TextField, useDebounced } from '../ui/forms.js';
 import { EmptyState, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
@@ -148,9 +148,7 @@ export default function Constellations(): JSX.Element {
         </Card>
       )}
 
-      <h2 className="section-heading__label" style={{ marginBottom: 'var(--space-3)' }}>
-        Find other systems
-      </h2>
+      <SectionHeading label="Find other systems" />
       <div style={{ marginBottom: 'var(--space-4)' }}>
         <SearchField value={rawSearch} onChange={setRawSearch} placeholder="Search handles and names…" />
       </div>
@@ -404,7 +402,7 @@ function ProfileEditor({
                   }
                   style={{
                     padding: 0,
-                    border: pinned ? '2px solid var(--accent)' : '1px solid var(--border)',
+                    border: pinned ? '2px solid var(--accent)' : 'var(--border-width) solid var(--border)',
                     borderRadius: 'var(--radius-sm)',
                     overflow: 'hidden',
                     aspectRatio: '1',

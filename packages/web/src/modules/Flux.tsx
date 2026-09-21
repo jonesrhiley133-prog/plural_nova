@@ -383,7 +383,7 @@ function Comments({ postId }: { postId: string }): JSX.Element {
   };
 
   return (
-    <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--border)', paddingTop: 'var(--space-3)' }}>
+    <div style={{ marginTop: 'var(--space-4)', borderTop: 'var(--border-width) solid var(--border)', paddingTop: 'var(--space-3)' }}>
       {loading ? (
         <p className="tiny faint">Loading comments…</p>
       ) : comments.length === 0 ? (

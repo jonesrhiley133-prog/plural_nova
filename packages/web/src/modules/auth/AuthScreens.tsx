@@ -285,7 +285,7 @@ function Register({
               ['singlet', t('onboarding.modeSinglet'), t('onboarding.modeSingletBody')],
             ] as const
           ).map(([value, label, body]) => (
-            <label key={value} className="checkbox-row" style={{ border: '1px solid var(--border)' }}>
+            <label key={value} className="checkbox-row" style={{ border: 'var(--border-width) solid var(--border)' }}>
               <input
                 type="radio"
                 name="mode"

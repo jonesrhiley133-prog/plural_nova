@@ -108,7 +108,7 @@ export default function Fronting(): JSX.Element {
               <Card key={group.key} flush>
                 <div
                   className="row row--between"
-                  style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border)' }}
+                  style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: 'var(--border-width) solid var(--border)' }}
                 >
                   <div>
                     <div className="card__title">{group.label}</div>
@@ -133,7 +133,7 @@ export default function Fronting(): JSX.Element {
                             background: memberColor(
                               members.get(share.memberId) as { id: string; color?: string | null },
                             ),
-                            borderRadius: 3,
+                            borderRadius: 'var(--radius-xs)',
                           }}
                         />
                       ))}

@@ -7,7 +7,7 @@ import { refreshBadges } from '../core/badges.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton } from '../ui/primitives.js';
+import { Button, Card, Chip, Dot, IconButton } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
 
@@ -178,7 +178,7 @@ export default function NotificationCentre(): JSX.Element {
                   </span>
                 </span>
                 <span className="list-row__trailing">
-                  {!notification.readAt ? <span className="badge badge--dot" aria-label="Unread" /> : null}
+                  {!notification.readAt ? <Dot label="Unread" /> : null}
                   <IconButton
                     icon="close"
                     label="Dismiss"

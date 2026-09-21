@@ -216,8 +216,7 @@ export default function QuickFront(): JSX.Element {
       <Card>
         <button
           type="button"
-          className="row row--between"
-          style={{ width: '100%', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0 }}
+          className="row row--between disclosure-toggle"
           onClick={() => setShowDetail((value) => !value)}
           aria-expanded={showDetail}
         >
