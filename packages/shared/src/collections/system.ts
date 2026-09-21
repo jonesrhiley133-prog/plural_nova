@@ -37,7 +37,28 @@ export const members: CollectionDef = {
       hint: 'Never shown on public profiles.',
     }),
     f.text('pronouns', 'Pronouns', { inList: true, searchable: true, group: 'Identity' }),
+    f.tags('nicknames', 'Nicknames', {
+      group: 'Identity',
+      searchable: true,
+      hint: 'Other names they answer to.',
+    }),
     f.text('age', 'Age', { group: 'Identity', hint: 'Free text — "ageless", "teen", "27" all work.' }),
+    /*
+     * Three ages, because for a lot of systems they are three different
+     * answers and collapsing them into one loses the distinction that
+     * mattered. All free text: "ageless" and "somewhere around 8" are both
+     * real answers, and a number picker would refuse them.
+     */
+    f.text('mentalAge', 'Mental age', { group: 'Identity' }),
+    f.text('physicalAge', 'Physical age', {
+      group: 'Identity',
+      hint: 'How old they feel in the body, when that differs.',
+    }),
+    f.text('species', 'Species', {
+      group: 'Identity',
+      searchable: true,
+      hint: 'For anyone who is not human, or not only human.',
+    }),
     f.text('gender', 'Gender', { group: 'Identity', searchable: true }),
     f.text('sexuality', 'Sexuality', { group: 'Identity' }),
     f.text('nationality', 'Nationality', { group: 'Identity' }),
@@ -50,6 +71,29 @@ export const members: CollectionDef = {
     f.json('avatarFocus', 'Avatar focal point', { group: 'Appearance' }),
     f.json('bannerFocus', 'Banner focal point', { group: 'Appearance' }),
     f.color('color', 'Profile colour', { group: 'Appearance' }),
+    /*
+     * A second colour and a pair of gradient stops, so a member's card can be
+     * theirs rather than a tinted copy of everyone else's. Empty means fall
+     * back to the profile colour, which is what most people will leave it as.
+     */
+    f.color('accentColor', 'Accent colour', {
+      group: 'Appearance',
+      hint: 'A second colour for highlights. Optional.',
+    }),
+    f.color('gradientStart', 'Gradient from', { group: 'Appearance' }),
+    f.color('gradientEnd', 'Gradient to', { group: 'Appearance' }),
+    f.enumOf(
+      'cardStyle',
+      'Card style',
+      [
+        { value: 'default', label: 'Default' },
+        { value: 'solid', label: 'Solid colour' },
+        { value: 'gradient', label: 'Gradient' },
+        { value: 'banner', label: 'Banner image' },
+        { value: 'minimal', label: 'Minimal' },
+      ],
+      { group: 'Appearance', defaultValue: 'default' },
+    ),
     f.text('icon', 'Symbol', { group: 'Appearance', maxLength: 8, hint: 'A short glyph or emoji.' }),
     f.long('bio', 'Biography', { group: 'About', searchable: true }),
     f.tags('roles', 'Roles', { group: 'About' }),
@@ -59,9 +103,36 @@ export const members: CollectionDef = {
     f.tags('tags', 'Tags', { group: 'About' }),
     f.long('notes', 'Notes', { group: 'About', sensitive: true }),
     f.long('boundaries', 'Boundaries', { group: 'About' }),
+    /*
+     * Comforts and triggers are a pair, and the pair is the point: the first
+     * is what helps, the second is what to avoid, and someone looking one up
+     * in a bad moment should find the other beside it.
+     *
+     * Triggers are sensitive. It is the single most private thing on a member
+     * profile and it never leaves the account on a shared or public view.
+     */
+    f.long('comforts', 'Comforts', {
+      group: 'About',
+      hint: 'What helps — people, places, objects, routines.',
+    }),
+    f.long('triggers', 'Triggers', {
+      group: 'About',
+      sensitive: true,
+      hint: 'Never shown on a shared or public profile.',
+    }),
+    f.long('lore', 'Lore', {
+      group: 'About',
+      searchable: true,
+      hint: 'Backstory or origin, separate from the short biography.',
+    }),
+    f.bool('isSubsystemParent', 'Holds a subsystem', {
+      group: 'About',
+      hint: 'They contain a system of their own.',
+    }),
     f.long('likes', 'Likes', { group: 'Interests' }),
     f.long('dislikes', 'Dislikes', { group: 'Interests' }),
     f.tags('interests', 'Interests', { group: 'Interests' }),
+    f.tags('hobbies', 'Hobbies', { group: 'Interests' }),
     f.long('personality', 'Personality', { group: 'Interests' }),
     f.enumOf('frontStatus', 'Front status', FRONT_STATUS, {
       defaultValue: 'nearby',
@@ -73,8 +144,52 @@ export const members: CollectionDef = {
     f.int('frontCount', 'Front count', { defaultValue: 0, group: 'Fronting' }),
     f.int('frontMinutes', 'Total fronting minutes', { defaultValue: 0, group: 'Fronting' }),
     f.int('orbitOrder', 'Orbit order', { defaultValue: 0, group: 'Fronting' }),
+    /*
+     * Pinned and favourite are not the same thing and a system that has both
+     * will use both: pinned is "keep this at the top of the list", favourite
+     * is "this one matters to me". One is about the ordering, the other is
+     * about the person.
+     */
+    f.bool('isPinned', 'Pinned', { group: 'Fronting', hint: 'Kept at the top of the list.' }),
+    f.bool('isFavourite', 'Favourite', { group: 'Fronting' }),
     f.bool('isDormant', 'Dormant', { group: 'Fronting' }),
+    /*
+     * Identity flags were a whole collection that nothing on a member could
+     * reference, so a flag could be created and never worn. These are the
+     * reference and the display choices that go with it.
+     */
+    f.refs('identityFlags', 'Identity flags', 'flags', { group: 'Flags' }),
+    f.enumOf(
+      'flagDisplayStyle',
+      'Flag style',
+      [
+        { value: 'stripes', label: 'Stripes' },
+        { value: 'badge', label: 'Badge' },
+        { value: 'ring', label: 'Ring around the avatar' },
+        { value: 'background', label: 'Card background' },
+      ],
+      { group: 'Flags', defaultValue: 'stripes' },
+    ),
+    f.enumOf(
+      'flagDisplaySize',
+      'Flag size',
+      [
+        { value: 'sm', label: 'Small' },
+        { value: 'md', label: 'Medium' },
+        { value: 'lg', label: 'Large' },
+      ],
+      { group: 'Flags', defaultValue: 'md' },
+    ),
+    f.bool('flagDisplayEnabled', 'Show flags on their profile', {
+      group: 'Flags',
+      defaultValue: true,
+    }),
     f.json('customFields', 'Custom fields', { group: 'Custom' }),
+    f.json('customSections', 'Custom profile sections', {
+      group: 'Custom',
+      hint: 'Headed blocks of their own, in the order they choose.',
+    }),
+    f.json('customBadges', 'Badges', { group: 'Custom' }),
     f.json('privacy', 'Member privacy', {
       group: 'Privacy',
       hint: 'Per-member control over what a shared profile reveals.',
@@ -194,6 +309,47 @@ export const journalEntries: CollectionDef = {
     f.text('location', 'Location'),
     f.bool('pinned', 'Pinned'),
     f.bool('inVault', 'Keep in vault', { hint: 'Moves this entry behind the vault lock.' }),
+
+    /*
+     * An entry can have more than one author. A co-written entry is ordinary
+     * in a system, and recording only the member whose profile it was filed
+     * under loses who was actually there for it — which is often the thing
+     * somebody is looking for when they read it back.
+     *
+     * memberId above stays as the entry's owner; this is everyone involved.
+     */
+    f.refs('authorIds', 'Written by', 'members', {
+      group: 'Authors',
+      hint: 'Everyone who wrote this, if it was more than one of you.',
+    }),
+
+    f.enumOf(
+      'privacy',
+      'Who can see this',
+      [
+        { value: 'private', label: 'Only me' },
+        { value: 'system', label: 'Everyone in the system' },
+        { value: 'friends', label: 'Friends' },
+        { value: 'public', label: 'Public' },
+      ],
+      { group: 'Privacy', defaultValue: 'private' },
+    ),
+    f.bool('isSensitive', 'Sensitive', {
+      group: 'Privacy',
+      hint: 'Collapsed behind a tap, so it is not read over your shoulder.',
+    }),
+
+    f.bool('isDraft', 'Draft', { group: 'Organisation' }),
+    f.ref('folderId', 'Folder', 'noteFolders', { group: 'Organisation' }),
+    f.text('collection', 'Series', {
+      group: 'Organisation',
+      searchable: true,
+      hint: 'Group entries that belong together — a trip, a course of therapy, a year.',
+    }),
+
+    /* Check-ins are journal entries with a shape: the same prompts each time. */
+    f.bool('isCheckIn', 'Check-in', { group: 'Check-in' }),
+    f.json('checkInAnswers', 'Check-in answers', { group: 'Check-in' }),
   ],
 };
 
