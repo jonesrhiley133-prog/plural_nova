@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -260,13 +261,27 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     });
   }, []);
 
+  /*
+   * A drag or a fast key-repeat on something like the theme accent slider
+   * calls this many times a second, each a full round trip to the server.
+   * Those responses are not guaranteed to land in the order they were sent —
+   * two overlapping requests can finish in either order — so applying
+   * whichever one *arrives* last can quietly put an earlier value back after
+   * a newer one already landed. This tracks which call was *sent* last and
+   * only that one is allowed to update state, regardless of arrival order.
+   */
+  const saveSettingsSeq = useRef(0);
+
   const saveSettings = useCallback<AuthActions['saveSettings']>(async (patch) => {
+    const seq = (saveSettingsSeq.current += 1);
     const result = await api.put<{ settings: AppSettings; user: PublicUser }>(
       '/api/auth/settings',
       patch,
     );
     const settings = mergeSettings(result.settings);
-    setState((current) => ({ ...current, settings, user: result.user }));
+    if (seq === saveSettingsSeq.current) {
+      setState((current) => ({ ...current, settings, user: result.user }));
+    }
     return settings;
   }, []);
 

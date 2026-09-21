@@ -10,6 +10,57 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-09-21
+
+A design pass, and the bugs it turned up.
+
+### Changed
+
+- **The interface is solid.** Glass is no longer the default: no blur, sheen,
+  rim light, glow or starfield. Those were five effects cooperating to imitate
+  a material, and the result read as a website being clever — every panel
+  competing with whatever was behind it. The treatment is still available to
+  anyone who wants it.
+- **Navigation is tiles, not rows.** Wherever you choose among many equal
+  things — the feature map, the dashboard's quick actions — there is a grid of
+  tiles with an icon and a short label. Labels wrap rather than truncate.
+- **The accent moved to where it means something**: the icon on a tile and the
+  ring on an avatar, rather than a wash over a panel.
+- **Who is fronting is a row of faces**, each wearing their own colour, instead
+  of a list of rows.
+- **Screens no longer print their own name twice.** The heading that repeated
+  the bar at the top of the app stays in the document for structure and off the
+  page.
+
+### Fixed
+
+- **The settings screen was 262px wider than a phone**, so the section list ran
+  off the right edge. A grid item will not shrink below its own content unless
+  told to, and the content forcing it was an email address — no spaces to break
+  at, so it sat there as one 457-pixel word. The end-to-end check that should
+  have caught this only visited the settings index, never its nine sections; it
+  visits all of them now.
+- **The ring marking who is fronting had never rendered.** The avatar clipped
+  its own children to round its image, and the ring sits just outside that box.
+- **`prefers-reduced-motion` was overridden** by any effect tier other than
+  "full", because a tier sets the motion variable on an attribute selector and
+  the preference was set on a bare `:root`.
+- Example data could not be added to a registered account, only a guest one,
+  although onboarding offered it to everybody.
+- The Android setup screen refused addresses that worked: it assumed `http`
+  for anything typed without a scheme, read the response body before the status
+  so every failure became "nothing answered", and did not follow a redirect
+  that changed protocol.
+
+### Added
+
+- The Android build can be given its server address, so the app opens straight
+  into it rather than asking on first launch.
+- More depth across the records: members, sleep, fitness, locations, contacts,
+  calendar, dictionary, journal, polls and work shifts, plus a contact log, fic
+  chapters and a playback history. 69 collections, 795 fields.
+- `sensitive` fields are now enforced server-side rather than only described.
+
 ## [1.0.0] — 2026-09-21
 
 First release.

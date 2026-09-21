@@ -8,6 +8,7 @@ import { ErrorBoundary } from '../ui/feedback.js';
 import { IconButton } from '../ui/primitives.js';
 import { Badge } from '../ui/primitives.js';
 import { Atmosphere } from './Atmosphere.js';
+import { BarTitleContext } from './BarTitleContext.js';
 import { BottomNav, SidebarNav } from './Navigation.js';
 import { QuickActions } from './QuickActions.js';
 import { SyncIndicator } from './SyncIndicator.js';
@@ -89,7 +90,9 @@ export function Layout(): JSX.Element {
 
           <main id="main-content" className="app-main" tabIndex={-1}>
             <ErrorBoundary label={title} onReset={() => navigate(0)}>
-              <Outlet />
+              <BarTitleContext.Provider value={current ? title : null}>
+                <Outlet />
+              </BarTitleContext.Provider>
             </ErrorBoundary>
           </main>
         </div>

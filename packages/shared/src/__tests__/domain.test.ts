@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  APP_VERSION,
   ACHIEVEMENTS,
   BACKUP_COLLECTIONS,
   COLLECTIONS,
@@ -488,5 +489,28 @@ describe('the collection registry holds together', () => {
         .map((field) => `${collection.name}.${field.name}`),
     );
     expect(unlabelled).toEqual([]);
+  });
+});
+
+/**
+ * The version is written in two places that cannot see each other: package.json,
+ * which the Android build reads to derive its versionCode, and APP_VERSION,
+ * which is bundled into the browser where no package.json exists. The release
+ * workflow refuses a tag that disagrees with package.json — this refuses a
+ * build where the two copies have drifted apart, which is the failure that
+ * would otherwise reach a phone reporting the wrong version of itself.
+ */
+describe('the version is the same everywhere', () => {
+  it('matches package.json', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const { dirname, resolve } = await import('node:path');
+
+    const here = dirname(fileURLToPath(import.meta.url));
+    const declared = JSON.parse(
+      readFileSync(resolve(here, '..', '..', 'package.json'), 'utf8'),
+    ) as { version: string };
+
+    expect(APP_VERSION).toBe(declared.version);
   });
 });

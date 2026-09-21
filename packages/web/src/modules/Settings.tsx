@@ -22,7 +22,8 @@ import { syncEngine } from '../core/sync.js';
 import { offlineStorageProblem, storageEstimate } from '../core/localdb.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, Stat } from '../ui/primitives.js';
-import { ColorField, NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
+import { NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
+import { ColorPicker } from '../ui/ColorPicker.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { DescriptiveNote } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
@@ -99,7 +100,7 @@ export default function Settings(): JSX.Element {
 }
 
 function Appearance(): JSX.Element {
-  const { settings: theme, update, reset } = useTheme();
+  const { settings: theme, tokens, update, reset } = useTheme();
   const toast = useToast();
 
   return (
@@ -136,36 +137,18 @@ function Appearance(): JSX.Element {
 
         <div className="field">
           <span className="field__label">Accent</span>
-          <div className="row">
-            {ACCENT_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                aria-label={preset.label}
-                aria-pressed={theme.accent.toLowerCase() === preset.accent.toLowerCase()}
-                onClick={() => void update({ accent: preset.accent, presetId: null })}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  background: preset.accent,
-                  border:
-                    theme.accent.toLowerCase() === preset.accent.toLowerCase()
-                      ? '2px solid var(--text)'
-                      : '1px solid var(--border)',
-                  cursor: 'pointer',
-                }}
-              />
-            ))}
-          </div>
+          <p className="field__hint" style={{ marginTop: 0, marginBottom: 'var(--space-2)' }}>
+            Any colour — a preset, a recent one, or dial one in below. One unreadable on the
+            background is adjusted until it is.
+          </p>
+          <ColorPicker
+            value={theme.accent}
+            onChange={(value) => void update({ accent: value, presetId: null })}
+            presets={ACCENT_PRESETS}
+            showContrastAgainst={tokens.bg}
+            defaultOpen
+          />
         </div>
-
-        <ColorField
-          label="Or your own accent"
-          value={theme.accent}
-          onChange={(value) => void update({ accent: value, presetId: null })}
-          hint="An accent that would be unreadable on the background is adjusted until it is."
-        />
       </Card>
 
       <Card title="Surfaces">

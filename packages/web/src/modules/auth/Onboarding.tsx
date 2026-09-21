@@ -14,6 +14,7 @@ import { enablePush, pushSupported } from '../../core/push.js';
 import { Atmosphere, Logo } from '../../app/Atmosphere.js';
 import { Button, Card, Chip, Meter } from '../../ui/primitives.js';
 import { TextField, SwitchRow } from '../../ui/forms.js';
+import { ColorPicker } from '../../ui/ColorPicker.js';
 import { Icon } from '../../ui/Icon.js';
 
 /**
@@ -398,28 +399,11 @@ function ThemeStep(): JSX.Element {
 
       <div className="field">
         <span className="field__label">Accent</span>
-        <div className="row">
-          {ACCENT_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              aria-label={preset.label}
-              aria-pressed={settings.accent.toLowerCase() === preset.accent.toLowerCase()}
-              onClick={() => void update({ accent: preset.accent })}
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 8,
-                background: preset.accent,
-                border:
-                  settings.accent.toLowerCase() === preset.accent.toLowerCase()
-                    ? '2px solid var(--text)'
-                    : '1px solid var(--border)',
-                cursor: 'pointer',
-              }}
-            />
-          ))}
-        </div>
+        <ColorPicker
+          value={settings.accent}
+          onChange={(accent) => void update({ accent })}
+          presets={ACCENT_PRESETS}
+        />
       </div>
     </div>
   );

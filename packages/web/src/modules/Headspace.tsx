@@ -246,7 +246,10 @@ export default function Headspace(): JSX.Element {
                 if (event.target === surface.current) {
                   setSelected(null);
                   panning.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y };
-                  (event.target as HTMLElement).setPointerCapture(event.pointerId);
+                  // Not every WebView implements this, and this app ships as
+                  // one on Android — an unguarded call would throw before the
+                  // pan even starts.
+                  (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
                 }
               }}
               onPointerMove={(event) => {
