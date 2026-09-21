@@ -18,10 +18,13 @@ npm start          # http://localhost:4000
 ```
 
 That serves the API and the built client from one origin. Nothing else needs
-setting up: the database, the session secret and the push keys are created on
-first run, under `data/`.
+setting up: the database and the push keys are created on first run, under
+`data/`.
 
-To keep it running, `docker compose up -d --build`.
+To keep it running, `docker compose up -d --build`. To host it somewhere,
+PluralNova needs a persistent disk and a process that stays up — Railway,
+Fly.io, Render or any VPS. It cannot run on Vercel or another serverless
+platform: it keeps a SQLite database on disk and holds WebSocket connections.
 
 One thing worth knowing before you put it on a phone: a browser only grants a
 page a service worker, push notifications and "Add to home screen" over
@@ -74,6 +77,9 @@ packages/web       React client: 60 screens, offline-first, installable
 
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) explains how those fit together
 and why the app is built the way it is.
+[`docs/DEPLOYING.md`](docs/DEPLOYING.md) is how to run it,
+[`docs/RELEASING.md`](docs/RELEASING.md) how to cut a version, and
+[`CHANGELOG.md`](CHANGELOG.md) what has changed.
 
 ## Android
 
@@ -111,3 +117,8 @@ The output is committed; a clean checkout builds without running either.
 Everything is private by default. Export the whole account — every collection,
 in one file — from Backup, and restore it into any PluralNova instance. A
 restore only ever writes into the account doing the restoring.
+
+## Licence
+
+Proprietary — all rights reserved. See [LICENSE](LICENSE). Your own data is
+yours, and exportable in full at any time.

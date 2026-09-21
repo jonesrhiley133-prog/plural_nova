@@ -1,0 +1,26 @@
+# PluralNova on Render.
+#
+# New → Blueprint → point it at this repository. Render reads this file.
+#
+# Note the disk: PluralNova keeps SQLite, uploads and its keys on it, so the
+# service cannot run on an instance type that has no disk. Check Render's
+# current pricing — disks are not available on their free tier.
+services:
+  - type: web
+    name: pluralnova
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    # One instance, always. The database is a file, and two instances would be
+    # two databases.
+    numInstances: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PLURALNOVA_DATA_DIR
+        value: /data
+    disk:
+      name: pluralnova-data
+      mountPath: /data
+      sizeGB: 1

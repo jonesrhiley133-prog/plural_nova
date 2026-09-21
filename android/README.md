@@ -50,6 +50,13 @@ app and the server read it. The versionCode is derived from it (`1.2.3` becomes
 `10203`), because Android refuses any APK whose versionCode is not higher than
 the installed one. Bumping the npm version is the only thing to remember.
 
+## Building it without an Android SDK
+
+If you do not have the SDK installed, **Actions** → **Android** → **Run
+workflow** on GitHub builds it and attaches the APK to the run. That job also
+runs on every change under `android/`, so the Kotlin is compiled by something
+even when nobody is cutting a release.
+
 ## Publishing an update
 
 The server that runs PluralNova also hands out the app:

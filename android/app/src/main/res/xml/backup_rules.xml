@@ -4,9 +4,11 @@
   copy of someone's records and their session token; restoring those onto
   another device would move a signed-in session without anybody asking for it.
   The app re-syncs from the server on the new device instead.
+
+  One <include> is the whole rule. It turns these into an allowlist, so every
+  other domain is already excluded and naming them again says nothing — which
+  is what lint rejects: an <exclude> may only narrow an included path.
 -->
 <full-backup-content>
     <include domain="sharedpref" path="pluralnova.xml" />
-    <exclude domain="database" path="." />
-    <exclude domain="file" path="." />
 </full-backup-content>

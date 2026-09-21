@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 /**
  * Configuration comes from the environment with usable defaults, so a fresh
  * clone runs with `npm start` and no setup file. Anything security-relevant
- * (the session secret, the push keys) is generated once and persisted rather
- * than defaulted to a constant.
+ * — the push keys, and the session tokens in the database beside them — is
+ * generated once and persisted rather than defaulted to a constant.
  */
 
 function env(name: string, fallback: string): string {
