@@ -66,6 +66,16 @@ installed app, so this key has to be the same one forever. Keep it somewhere
 you will still have it in five years, and keep it out of the repository — it is
 gitignored for that reason.
 
+## Getting an APK without cutting a release
+
+**Actions** → **Android** → **Run workflow**. It builds a signed release APK
+when the signing secrets are set, a debug one when they are not, and attaches
+it to the run for download.
+
+The same workflow runs automatically whenever anything under `android/` changes,
+which is the only thing in this repository that compiles the Kotlin — the main
+CI job does not touch it.
+
 ## Building the archive yourself
 
 ```sh

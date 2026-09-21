@@ -114,3 +114,8 @@ The output is committed; a clean checkout builds without running either.
 Everything is private by default. Export the whole account — every collection,
 in one file — from Backup, and restore it into any PluralNova instance. A
 restore only ever writes into the account doing the restoring.
+
+## Licence
+
+Proprietary — all rights reserved. See [LICENSE](LICENSE). Your own data is
+yours, and exportable in full at any time.

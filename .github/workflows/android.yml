@@ -1,0 +1,108 @@
+name: Android
+
+# Two ways in:
+#
+#   - Automatically, whenever anything under android/ changes, so the Kotlin is
+#     compiled by something even when no release is being cut. Nothing else in
+#     this repository compiles it.
+#   - By hand, from the Actions tab, when you just want an APK.
+#
+# A release tag builds its own APK; see release.yml. This one is for everything
+# in between.
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Which build to produce
+        type: choice
+        default: release
+        options: [release, debug]
+  pull_request:
+    paths: ['android/**', '.github/workflows/android.yml']
+  push:
+    branches: ['**']
+    paths: ['android/**', '.github/workflows/android.yml']
+
+jobs:
+  build:
+    name: Build the APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      # The signing key decides which build is even worth making: an APK signed
+      # with a throwaway debug key cannot update one signed properly, so without
+      # the secrets the only honest output is a debug build.
+      - name: Choose a variant
+        id: choose
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          wanted="${{ inputs.variant || 'release' }}"
+          if [ -z "$KEYSTORE" ]; then
+            echo "::notice::No ANDROID_KEYSTORE_BASE64 secret — building debug instead."
+            wanted=debug
+          fi
+          echo "variant=$wanted" >> "$GITHUB_OUTPUT"
+          if [ "$wanted" = "release" ]; then
+            echo "task=assembleRelease" >> "$GITHUB_OUTPUT"
+            echo "path=android/app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_OUTPUT"
+          else
+            echo "task=assembleDebug" >> "$GITHUB_OUTPUT"
+            echo "path=android/app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore the signing key
+        if: steps.choose.outputs.variant == 'release'
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$KEYSTORE" | base64 -d > android/pluralnova.jks
+          cat > android/keystore.properties <<PROPS
+          storeFile=pluralnova.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          PROPS
+
+      - name: Build
+        working-directory: android
+        run: ./gradlew --no-daemon ${{ steps.choose.outputs.task }}
+
+      - name: Remove the key from the runner
+        if: always()
+        run: rm -f android/pluralnova.jks android/keystore.properties
+
+      - name: Name it after the version
+        id: name
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          mkdir -p out
+          cp "${{ steps.choose.outputs.path }}" \
+            "out/pluralnova-${version}-${{ steps.choose.outputs.variant }}.apk"
+          echo "file=pluralnova-${version}-${{ steps.choose.outputs.variant }}.apk" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name.outputs.file }}
+          path: out/*.apk
+          if-no-files-found: error
+
+      - name: Say where it is
+        run: |
+          echo "### ${{ steps.name.outputs.file }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Download it from the **Artifacts** section at the bottom of this run." >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.choose.outputs.variant }}" = "debug" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "This is a **debug** build. It installs, but a later release build cannot update it unless the same signing key was used." >> "$GITHUB_STEP_SUMMARY"
+          fi
