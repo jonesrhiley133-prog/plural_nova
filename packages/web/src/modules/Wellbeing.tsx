@@ -6,7 +6,7 @@ import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useActiveMemberId } from '../core/auth.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, Stat } from '../ui/primitives.js';
+import { Button, Card, Chip, ListRow, Stat } from '../ui/primitives.js';
 import { NumberField, TextField, SwitchRow } from '../ui/forms.js';
 import { DescriptiveNote, EmptyState } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
@@ -157,11 +157,8 @@ export default function Wellbeing(): JSX.Element {
           </Card>
         </div>
 
-        <Card
-          title="More tracking"
-          subtitle="Each of these is separate, and each is optional"
-        >
-          <div className="grid" style={{ ['--grid-min' as never]: '160px' }}>
+        <Card title="More tracking" subtitle="Each of these is separate, and each is optional" flush>
+          <div className="list">
             {(
               [
                 ['emotion', 'Emotions', '/emotions'],
@@ -172,20 +169,17 @@ export default function Wellbeing(): JSX.Element {
                 ['fitness', 'Fitness', '/fitness'],
               ] as const
             ).map(([icon, label, path]) => (
-              <button
+              <ListRow
                 key={path}
-                type="button"
-                className="card card--interactive"
-                style={{ textAlign: 'left', padding: 'var(--space-3)' }}
+                leading={
+                  <span className="list-row__icon">
+                    <Icon name={icon} size={17} />
+                  </span>
+                }
+                title={label}
+                trailing={<Icon name="chevronRight" size={14} />}
                 onClick={() => navigate(path)}
-              >
-                <span style={{ color: 'var(--accent)' }}>
-                  <Icon name={icon} size={18} />
-                </span>
-                <div className="small" style={{ marginTop: 'var(--space-2)' }}>
-                  {label}
-                </div>
-              </button>
+              />
             ))}
           </div>
         </Card>

@@ -240,7 +240,9 @@ export default function Work(): JSX.Element {
             <Card flush>
               <div className="list">
                 {items.map((task) => {
-                  const priority = OPTIONS.priority.find((option) => option.value === task['priority']);
+                  const priority =
+                    OPTIONS.priority.find((option) => option.value === task['priority']) ??
+                    OPTIONS.priority.find((option) => option.value === 'normal')!;
                   return (
                     <div key={task.id} className="list-row">
                       <input
@@ -255,6 +257,16 @@ export default function Work(): JSX.Element {
                         aria-label={`Mark ${String(task['title'])} complete`}
                         style={{ accentColor: 'var(--accent)', width: 18, height: 18 }}
                       />
+                      <span
+                        className="list-row__icon"
+                        aria-hidden="true"
+                        style={{
+                          ['--row-icon-color' as never]: `color-mix(in srgb, ${priority.color} 15%, transparent)`,
+                          ['--row-icon-fg' as never]: priority.color,
+                        }}
+                      >
+                        {priority.icon}
+                      </span>
                       <span className="list-row__body">
                         <span
                           className="list-row__title"
@@ -265,7 +277,7 @@ export default function Work(): JSX.Element {
                         <span className="list-row__meta">
                           {task['project'] ? <Chip>{String(task['project'])}</Chip> : null}
                           {task['dueAt'] ? <span>{dates.date(String(task['dueAt']))}</span> : null}
-                          {priority && priority.value !== 'normal' ? (
+                          {priority.value !== 'normal' ? (
                             <Chip color={priority.color}>
                               {priority.icon} {priority.label}
                             </Chip>

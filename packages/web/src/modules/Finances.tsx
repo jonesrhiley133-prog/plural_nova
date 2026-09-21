@@ -8,6 +8,7 @@ import { Button, Card, Chip, IconButton, Meter, Stat, Tabs } from '../ui/primiti
 import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
+import { Icon } from '../ui/Icon.js';
 import { ColumnChart, RankedBars } from '../charts/index.js';
 import { divergingColor } from '../charts/palette.js';
 import type { StoredRecord } from '@pluralnova/shared';
@@ -21,6 +22,12 @@ import type { StoredRecord } from '@pluralnova/shared';
  */
 
 type Tab = 'overview' | 'transactions' | 'budgets' | 'goals' | 'accounts';
+
+const KIND_META: Record<string, { icon: 'upload' | 'download' | 'repeat'; color: string }> = {
+  income: { icon: 'upload', color: 'var(--positive)' },
+  expense: { icon: 'download', color: 'var(--text-muted)' },
+  transfer: { icon: 'repeat', color: 'var(--info)' },
+};
 
 interface FinanceStats {
   balances: { accountId: string; name: string; balance: number }[];
@@ -192,8 +199,19 @@ export default function Finances(): JSX.Element {
               <div className="list">
                 {items.map((row) => {
                   const amount = Number(row['amount'] ?? 0);
+                  const kind = KIND_META[String(row['kind'])] ?? KIND_META['expense']!;
                   return (
                     <div key={row.id} className="list-row">
+                      <span
+                        className="list-row__icon"
+                        aria-hidden="true"
+                        style={{
+                          ['--row-icon-color' as never]: `color-mix(in srgb, ${kind.color} 15%, transparent)`,
+                          ['--row-icon-fg' as never]: kind.color,
+                        }}
+                      >
+                        <Icon name={kind.icon} size={16} />
+                      </span>
                       <span className="list-row__body">
                         <span className="list-row__title">{String(row['description'])}</span>
                         <span className="list-row__meta">
