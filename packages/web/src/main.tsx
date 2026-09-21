@@ -6,6 +6,8 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/layout.css';
+// Last, so the motion rules win ties without reaching for !important.
+import './styles/motion.css';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('The root element is missing from index.html.');

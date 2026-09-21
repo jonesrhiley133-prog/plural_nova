@@ -1,0 +1,179 @@
+/*
+ * Motion.
+ *
+ * Everything here is either ambience or feedback. None of it is information:
+ * the interface is complete and usable with --motion at 0, which is what
+ * reduced motion, the performance tier and the motion setting all set it to.
+ * That is the test each of these has to pass — turn it off, and nothing is
+ * missing, only quieter.
+ *
+ * The house style is slow and small. Durations sit above 300ms because a fast
+ * animation reads as a snap and this app is meant to feel like somewhere calm;
+ * distances stay under about ten pixels because anything further starts
+ * announcing itself. A night sky moves, but you have to watch to notice.
+ *
+ * Loading this file last means these rules win ties against the component
+ * styles without either having to reach for !important.
+ */
+
+/* ── Arriving ──────────────────────────────────────────────────────────────
+ * A route change lifts its content in rather than swapping it, so moving
+ * between screens feels like going somewhere instead of being cut to.
+ */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.app-main > * {
+  animation: rise-in calc(380ms * var(--motion)) var(--ease) both;
+}
+
+/*
+ * Cards in a list arrive one after another, but only the first six. Past that
+ * the delay would be longer than the patience of anybody scrolling, and the
+ * last card in a long list would be animating where nobody is looking.
+ */
+.stack > .card,
+.grid > .card,
+.list > .list-row {
+  animation: rise-in calc(420ms * var(--motion)) var(--ease) both;
+}
+
+.stack > .card:nth-child(1),
+.grid > .card:nth-child(1),
+.list > .list-row:nth-child(1) { animation-delay: calc(0ms * var(--motion)); }
+.stack > .card:nth-child(2),
+.grid > .card:nth-child(2),
+.list > .list-row:nth-child(2) { animation-delay: calc(40ms * var(--motion)); }
+.stack > .card:nth-child(3),
+.grid > .card:nth-child(3),
+.list > .list-row:nth-child(3) { animation-delay: calc(80ms * var(--motion)); }
+.stack > .card:nth-child(4),
+.grid > .card:nth-child(4),
+.list > .list-row:nth-child(4) { animation-delay: calc(120ms * var(--motion)); }
+.stack > .card:nth-child(5),
+.grid > .card:nth-child(5),
+.list > .list-row:nth-child(5) { animation-delay: calc(160ms * var(--motion)); }
+.stack > .card:nth-child(6),
+.grid > .card:nth-child(6),
+.list > .list-row:nth-child(6) { animation-delay: calc(200ms * var(--motion)); }
+
+/* ── Being touched ─────────────────────────────────────────────────────────
+ * Mobile-first means touch is the primary input, and a surface that does not
+ * acknowledge a tap feels broken well before it feels slow. There is no hover
+ * on a phone to carry that job, so the press state has to.
+ *
+ * The scale is deliberately barely-there. Anything deeper turns a serious
+ * tracking app into something springy.
+ */
+.card--interactive,
+.chip--interactive,
+.list-row,
+.btn,
+.app-bottom-nav__item,
+.app-nav__item {
+  transition:
+    transform calc(160ms * var(--motion)) var(--ease),
+    background-color calc(200ms * var(--motion)) var(--ease),
+    border-color calc(200ms * var(--motion)) var(--ease),
+    box-shadow calc(240ms * var(--motion)) var(--ease);
+}
+
+.card--interactive:active,
+.chip--interactive:active,
+.list-row:active,
+.btn:active:not(:disabled),
+.app-bottom-nav__item:active,
+.app-nav__item:active {
+  transform: scale(calc(1 - 0.012 * var(--motion)));
+}
+
+/*
+ * Lifting on hover is for pointers only. On a touch screen :hover sticks after
+ * a tap, which would leave a card raised until something else was touched.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .card--interactive:hover {
+    transform: translate3d(0, calc(-2px * var(--motion)), 0);
+  }
+}
+
+/* ── Fronting, and other things that are currently true ────────────────────
+ * A slow breath on the ring an avatar already wears when its member is
+ * fronting. It marks the state without another badge to read, and it is the
+ * one place a glow is worth spending, because who is here is the single most
+ * important fact on the screen.
+ *
+ * Five seconds a cycle is roughly a resting breath, and that is the intent:
+ * present, not blinking for attention.
+ */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: calc(var(--glow-opacity) * 0.6);
+    transform: scale(1);
+  }
+  50% {
+    opacity: var(--glow-opacity);
+    transform: scale(1.03);
+  }
+}
+
+.avatar__ring {
+  animation: breathe calc(5200ms / max(var(--motion), 0.001)) ease-in-out infinite;
+}
+
+/* ── Off ───────────────────────────────────────────────────────────────────
+ * At --motion 0 every duration above already computes to 0ms, so the states
+ * still apply and simply arrive instantly. The infinite loops are the
+ * exception: a zero-duration loop is undefined rather than stopped, so they
+ * are named and switched off.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .avatar__ring {
+    animation: none;
+  }
+}
+
+:root[data-reduced-motion='true'] .avatar__ring,
+:root[data-effects='performance'] .avatar__ring {
+  animation: none;
+}
+
+/*
+ * Anything animating on arrival needs its finished state to be the resting
+ * state when motion is off, not its first frame. `both` holds the last frame,
+ * and at 0ms the last frame is immediate — but only if the animation runs at
+ * all, which it does not when the user has asked for no motion. So the resting
+ * values are restated here rather than inherited from a keyframe.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .app-main > *,
+  .stack > .card,
+  .grid > .card,
+  .list > .list-row {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+:root[data-reduced-motion='true'] .app-main > *,
+:root[data-reduced-motion='true'] .stack > .card,
+:root[data-reduced-motion='true'] .grid > .card,
+:root[data-reduced-motion='true'] .list > .list-row,
+:root[data-effects='performance'] .app-main > *,
+:root[data-effects='performance'] .stack > .card,
+:root[data-effects='performance'] .grid > .card,
+:root[data-effects='performance'] .list > .list-row {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}

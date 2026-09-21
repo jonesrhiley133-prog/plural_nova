@@ -74,6 +74,26 @@ export const tasks: CollectionDef = {
   ],
 };
 
+export const calendarFolders: CollectionDef = {
+  name: 'calendarFolders',
+  label: 'Calendar folders',
+  singular: 'Calendar',
+  icon: 'folder',
+  area: 'life',
+  scope: 'system',
+  titleField: 'name',
+  sortField: 'sortOrder',
+  sortDir: 'asc',
+  description: 'Separate calendars — work, appointments, a shared one — each shown or hidden on its own.',
+  fields: [
+    f.text('name', 'Name', { required: true, inList: true, searchable: true }),
+    f.color('color', 'Colour', { inList: true }),
+    f.text('icon', 'Symbol', { maxLength: 8 }),
+    f.bool('visible', 'Shown on the calendar', { defaultValue: true, inList: true }),
+    f.int('sortOrder', 'Order', { defaultValue: 0 }),
+  ],
+};
+
 export const calendarEvents: CollectionDef = {
   name: 'calendarEvents',
   label: 'Calendar',
@@ -95,10 +115,58 @@ export const calendarEvents: CollectionDef = {
     f.text('location', 'Location', { searchable: true }),
     f.refs('memberIds', 'Members involved', 'members'),
     f.color('color', 'Colour'),
-    f.text('recurrence', 'Repeats'),
+    /*
+     * Recurrence, in parts rather than as a sentence.
+     *
+     * A text field saying "every other Tuesday" is readable and useless: the
+     * calendar cannot expand it into occurrences, so a repeating event only
+     * ever appeared once. These four are what an expander needs. The old text
+     * field stays for whatever people already typed into it, and as the place
+     * to describe a rule these cannot express.
+     */
+    f.text('recurrence', 'Repeats', { hint: 'Described in your own words.' }),
+    f.bool('isRecurring', 'Repeats', { group: 'Repeating' }),
+    f.enumOf(
+      'recurrenceType',
+      'How often',
+      [
+        { value: 'daily', label: 'Daily' },
+        { value: 'weekly', label: 'Weekly' },
+        { value: 'monthly', label: 'Monthly' },
+        { value: 'yearly', label: 'Yearly' },
+      ],
+      { group: 'Repeating' },
+    ),
+    f.int('recurrenceInterval', 'Every', {
+      min: 1,
+      max: 365,
+      defaultValue: 1,
+      group: 'Repeating',
+      hint: '2 with "weekly" is every other week.',
+    }),
+    f.json('recurrenceWeekdays', 'On these days', { group: 'Repeating' }),
+    f.date('recurrenceEndsOn', 'Until', { group: 'Repeating' }),
+
     f.datetime('remindAt', 'Reminder'),
+    f.int('remindMinutesBefore', 'Remind me', {
+      min: 0,
+      max: 20160,
+      group: 'Reminders',
+      hint: 'Minutes before it starts.',
+    }),
+    f.json('extraReminders', 'Other reminders', { group: 'Reminders' }),
     f.bool('remindSent', 'Reminder sent'),
     f.refs('attachmentIds', 'Attachments', 'mediaItems'),
+    f.text('emoji', 'Emoji', { maxLength: 8, group: 'Appearance' }),
+    f.image('bannerUrl', 'Banner', { group: 'Appearance' }),
+    f.url('link', 'Link', { hint: 'A meeting link, a ticket, a page about it.' }),
+    f.enumOf('priority', 'Priority', OPTIONS.priority, { group: 'Organisation' }),
+    f.ref('folderId', 'Folder', 'calendarFolders', { group: 'Organisation' }),
+    f.bool('showOnCalendar', 'Show on the calendar', {
+      defaultValue: true,
+      group: 'Organisation',
+      hint: 'Off keeps it as a record without putting it on the grid.',
+    }),
     f.enumOf('kind', 'Kind', [
       { value: 'personal', label: 'Personal' },
       { value: 'system', label: 'System' },
@@ -273,6 +341,77 @@ export const sleepEntries: CollectionDef = {
     f.long('dreamNotes', 'Dreams', { searchable: true }),
     f.long('note', 'Note', { searchable: true }),
     f.tags('tags', 'Tags'),
+
+    /*
+     * Four timestamps rather than two, because "went to bed" and "fell
+     * asleep" are different times and the gap between them is the single most
+     * useful number here for anybody who lies awake. Same at the other end:
+     * waking and getting up are not the same event.
+     *
+     * startedAt and endedAt above stay as the sleep itself, so nothing that
+     * already used them changes meaning.
+     */
+    f.datetime('bedtime', 'Went to bed', { group: 'Times' }),
+    f.datetime('outOfBedAt', 'Got up', { group: 'Times' }),
+    f.int('latencyMinutes', 'Minutes to fall asleep', {
+      min: 0,
+      max: 600,
+      group: 'Times',
+      hint: 'Filled in from the two times above if you leave it.',
+    }),
+
+    f.bool('nightmares', 'Nightmares', { group: 'During the night' }),
+    f.bool('sleepTalking', 'Sleep talking', { group: 'During the night' }),
+    f.bool('sleepwalking', 'Sleepwalking', { group: 'During the night' }),
+    f.ref('frontingMemberId', 'Who woke up', 'members', {
+      group: 'During the night',
+      hint: 'When that is not who went to sleep.',
+    }),
+
+    f.int('moodBefore', 'Mood before sleep', { min: 1, max: 10, group: 'Around it' }),
+    f.int('stress', 'Stress', { min: 1, max: 5, group: 'Around it' }),
+    f.tags('medications', 'Medications', { group: 'Around it', sensitive: true }),
+    f.bool('caffeine', 'Caffeine that day', { group: 'Around it' }),
+    f.bool('exercised', 'Exercised that day', { group: 'Around it' }),
+
+    /*
+     * Environment, because a pattern here is usually the answer when nothing
+     * else explains a run of bad nights, and none of it is knowable later.
+     */
+    f.text('location', 'Where', { group: 'Environment', hint: 'Home, away, somewhere new.' }),
+    f.enumOf(
+      'noise',
+      'Noise',
+      [
+        { value: 'silent', label: 'Silent' },
+        { value: 'quiet', label: 'Quiet' },
+        { value: 'some', label: 'Some noise' },
+        { value: 'loud', label: 'Loud' },
+      ],
+      { group: 'Environment' },
+    ),
+    f.enumOf(
+      'lightLevel',
+      'Light',
+      [
+        { value: 'dark', label: 'Dark' },
+        { value: 'dim', label: 'Dim' },
+        { value: 'lit', label: 'Lit' },
+      ],
+      { group: 'Environment' },
+    ),
+    f.enumOf(
+      'temperature',
+      'Temperature',
+      [
+        { value: 'cold', label: 'Cold' },
+        { value: 'cool', label: 'Cool' },
+        { value: 'comfortable', label: 'Comfortable' },
+        { value: 'warm', label: 'Warm' },
+        { value: 'hot', label: 'Hot' },
+      ],
+      { group: 'Environment' },
+    ),
   ],
 };
 
@@ -298,6 +437,57 @@ export const fitnessEntries: CollectionDef = {
     f.long('note', 'Note', { searchable: true }),
     f.text('goalKey', 'Goal'),
     f.tags('tags', 'Tags'),
+
+    f.enumOf(
+      'activityType',
+      'Kind of activity',
+      [
+        { value: 'walk', label: 'Walking' },
+        { value: 'run', label: 'Running' },
+        { value: 'cycle', label: 'Cycling' },
+        { value: 'swim', label: 'Swimming' },
+        { value: 'strength', label: 'Strength' },
+        { value: 'stretch', label: 'Stretching' },
+        { value: 'yoga', label: 'Yoga' },
+        { value: 'sport', label: 'Sport' },
+        { value: 'dance', label: 'Dance' },
+        { value: 'chores', label: 'Housework' },
+        { value: 'other', label: 'Something else' },
+      ],
+      { group: 'Activity', inList: true },
+    ),
+    f.datetime('startedAt', 'Started', { group: 'Activity' }),
+    f.datetime('endedAt', 'Ended', { group: 'Activity' }),
+    f.text('location', 'Where', { group: 'Activity' }),
+
+    f.int('calories', 'Energy (kcal)', { min: 0, group: 'Measurements' }),
+    f.int('heartRateAvg', 'Average heart rate', { min: 20, max: 250, group: 'Measurements' }),
+    f.int('heartRateMax', 'Peak heart rate', { min: 20, max: 250, group: 'Measurements' }),
+    f.real('elevationM', 'Elevation gained (m)', { group: 'Measurements' }),
+    f.int('reps', 'Reps', { min: 0, group: 'Measurements' }),
+    f.int('sets', 'Sets', { min: 0, group: 'Measurements' }),
+    f.real('weightKg', 'Weight (kg)', { group: 'Measurements' }),
+
+    /*
+     * How it felt, kept separate from how hard it was. Effort above is what
+     * the body did; these are what it cost and what it gave back, and for a
+     * lot of people the second pair is the reason they are logging at all.
+     */
+    f.int('moodBefore', 'Mood before', { min: 1, max: 10, group: 'How it felt' }),
+    f.int('moodAfter', 'Mood after', { min: 1, max: 10, group: 'How it felt' }),
+    f.int('energyAfter', 'Energy after', { min: 1, max: 5, group: 'How it felt' }),
+    f.int('painLevel', 'Pain', { min: 0, max: 10, group: 'How it felt' }),
+    f.tags('painLocations', 'Where it hurt', { group: 'How it felt' }),
+
+    /*
+     * Imported rows carry where they came from and the other side's id, so a
+     * second import updates a row rather than adding a duplicate of it.
+     */
+    f.text('source', 'Recorded by', {
+      group: 'Source',
+      hint: 'Left empty when you entered it yourself.',
+    }),
+    f.text('externalId', 'Source reference', { group: 'Source' }),
   ],
 };
 
@@ -460,6 +650,44 @@ export const contacts: CollectionDef = {
     f.long('notes', 'Notes', { searchable: true, sensitive: true }),
     f.tags('tags', 'Tags'),
     f.image('avatarUrl', 'Photo'),
+
+    /*
+     * A name in parts as well as whole. The single field above stays the one
+     * that is displayed and searched, because that is what people type; these
+     * are for the cases where the parts matter separately — sorting by
+     * surname, or knowing that the name on their documents is not the name
+     * you call them.
+     */
+    f.text('preferredName', 'Preferred name', { group: 'Name', searchable: true }),
+    f.text('firstName', 'First name', { group: 'Name' }),
+    f.text('lastName', 'Last name', { group: 'Name' }),
+    f.text('pronouns', 'Pronouns', { group: 'Name', inList: true }),
+
+    f.json('phoneNumbers', 'Other numbers', { group: 'Contact', sensitive: true }),
+    f.json('emails', 'Other addresses', { group: 'Contact', sensitive: true }),
+    f.text('address', 'Address', { group: 'Contact', sensitive: true }),
+
+    f.text('organisation', 'Organisation', { group: 'Context', searchable: true }),
+    f.text('occupation', 'Occupation', { group: 'Context' }),
+    f.date('birthday', 'Birthday', { group: 'Dates' }),
+    f.date('anniversary', 'Anniversary', { group: 'Dates' }),
+
+    f.text('category', 'Category', {
+      group: 'Organising',
+      inList: true,
+      hint: 'Family, work, medical, chosen family — whatever divides them usefully.',
+    }),
+    f.color('color', 'Colour', { group: 'Organising' }),
+    f.bool('isFavourite', 'Favourite', { group: 'Organising' }),
+    /*
+     * Emergency roles rather than one emergency contact flag. Who to call is
+     * rarely one person, and which of them to call depends on what happened.
+     */
+    f.tags('emergencyRoles', 'In an emergency', {
+      group: 'Organising',
+      hint: 'What they are the person to call about.',
+    }),
+    f.json('customFields', 'Custom fields', { group: 'Custom' }),
   ],
 };
 
@@ -509,6 +737,67 @@ export const locationEntries: CollectionDef = {
     f.text('address', 'Address', { sensitive: true }),
     f.tags('tags', 'Tags'),
     f.bool('favorite', 'Favourite'),
+
+    f.datetime('arrivedAt', 'Arrived', { group: 'Time there' }),
+    f.datetime('leftAt', 'Left', { group: 'Time there' }),
+    f.int('durationMinutes', 'How long', { min: 0, group: 'Time there' }),
+    f.bool('isCurrent', 'Still here', { group: 'Time there' }),
+
+    /*
+     * What the place was like, and what it did. For a lot of systems a
+     * location log is really a record of which places are survivable — so the
+     * sensory detail and the front are the useful columns, not the map pin.
+     */
+    f.ref('frontingMemberId', 'Who was out', 'members', { group: 'While there' }),
+    f.refs('peoplePresentIds', 'Who else was there', 'contacts', {
+      group: 'While there',
+      sensitive: true,
+    }),
+    f.int('mood', 'Mood', { min: 1, max: 10, group: 'While there' }),
+    f.tags('emotions', 'Emotions', { group: 'While there' }),
+    f.tags('bodySensations', 'Body sensations', { group: 'While there' }),
+
+    f.text('category', 'Kind of place', { group: 'The place', inList: true }),
+    f.enumOf(
+      'setting',
+      'Indoors or out',
+      [
+        { value: 'indoor', label: 'Indoors' },
+        { value: 'outdoor', label: 'Outdoors' },
+        { value: 'both', label: 'Both' },
+      ],
+      { group: 'The place' },
+    ),
+    f.enumOf(
+      'noiseLevel',
+      'Noise',
+      [
+        { value: 'silent', label: 'Silent' },
+        { value: 'quiet', label: 'Quiet' },
+        { value: 'moderate', label: 'Moderate' },
+        { value: 'loud', label: 'Loud' },
+        { value: 'overwhelming', label: 'Overwhelming' },
+      ],
+      { group: 'The place' },
+    ),
+    f.enumOf(
+      'crowdedness',
+      'How busy',
+      [
+        { value: 'empty', label: 'Empty' },
+        { value: 'quiet', label: 'Quiet' },
+        { value: 'busy', label: 'Busy' },
+        { value: 'packed', label: 'Packed' },
+      ],
+      { group: 'The place' },
+    ),
+    f.int('safetyRating', 'Felt safe', { min: 1, max: 5, group: 'The place' }),
+    f.long('accessibilityNotes', 'Accessibility', {
+      group: 'The place',
+      searchable: true,
+      hint: 'Steps, lighting, seating, quiet corners — whatever you would want to know before going back.',
+    }),
+    f.text('weather', 'Weather', { group: 'The place' }),
   ],
 };
 
@@ -546,6 +835,7 @@ export const LIFE_COLLECTIONS = [
   noteFolders,
   notes,
   tasks,
+  calendarFolders,
   calendarEvents,
   mediaItems,
   moodEntries,

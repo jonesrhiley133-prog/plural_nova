@@ -33,7 +33,7 @@
 .atmosphere__field {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
+  filter: blur(104px);
   opacity: var(--glow-opacity);
   will-change: transform;
 }
@@ -43,7 +43,7 @@
   height: 62vmax;
   top: -28vmax;
   left: -14vmax;
-  background: radial-gradient(circle, color-mix(in srgb, var(--nebula-core) 72%, transparent), transparent 68%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--nebula-core) 54%, transparent), transparent 68%);
   animation: nebula-core calc(46s / var(--motion, 1)) var(--ease) infinite alternate;
 }
 
@@ -52,7 +52,7 @@
   height: 54vmax;
   bottom: -24vmax;
   right: -18vmax;
-  background: radial-gradient(circle, color-mix(in srgb, var(--nebula-drift) 58%, transparent), transparent 66%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--nebula-drift) 40%, transparent), transparent 66%);
   animation: nebula-drift calc(62s / var(--motion, 1)) var(--ease) infinite alternate;
 }
 
@@ -61,7 +61,7 @@
   height: 50vmax;
   top: 24vmax;
   left: 8vmax;
-  background: radial-gradient(circle, color-mix(in srgb, var(--nebula-deep) 52%, transparent), transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--nebula-deep) 36%, transparent), transparent 70%);
   animation: nebula-deep calc(54s / var(--motion, 1)) var(--ease) infinite alternate;
 }
 

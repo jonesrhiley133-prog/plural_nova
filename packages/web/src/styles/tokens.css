@@ -36,7 +36,7 @@
   --glass-edge: rgb(200 220 255 / 0.22);
   --glass-sheen: rgb(160 190 255 / 0.1);
   --shadow-lift: 0 2px 6px -2px rgb(0 0 0 / 0.6), 0 24px 56px -28px rgb(4 10 30 / 0.95);
-  --glow: rgb(122 162 247 / 0.34);
+  --glow: rgb(122 162 247 / 0.17);
   --nebula-core: #3757c9;
   --nebula-drift: #9a5fe0;
   --nebula-deep: #1666a8;
@@ -81,8 +81,8 @@
    * it a tile in a game.
    */
   --radius-sm: 8px;
-  --radius: 16px;
-  --radius-lg: 22px;
+  --radius: 14px;
+  --radius-lg: 18px;
   --radius-pill: 999px;
 
   --border-width: 1px;
@@ -95,12 +95,16 @@
   --duration-slow: calc(320ms * var(--motion));
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 
-  /* Effects, switched off by the performance tier rather than removed. */
-  --blur-surface: 26px;
-  /* Blurring desaturates whatever is behind it; this puts the colour back. */
-  --glass-saturate: 1.5;
-  --glow-opacity: 1;
-  --starfield-opacity: 0.75;
+  /* Effects, switched off by the performance tier rather than removed.
+     Blur is deliberately light. At 26px with 1.5 saturation every panel became
+     a lens, which is expensive to draw and, stacked up a screen, reads as
+     smeared rather than as glass. The surfaces carry their own colour now, so
+     the blur only has to separate them from the background. */
+  --blur-surface: 13px;
+  /* Blurring desaturates whatever is behind it; this puts a little back. */
+  --glass-saturate: 1.15;
+  --glow-opacity: 0.55;
+  --starfield-opacity: 0.5;
 
   /* Layout. */
   --nav-rail-width: 264px;
@@ -148,11 +152,11 @@
  * how much the device has to draw.
  */
 :root[data-effects='balanced'] {
-  --blur-surface: 12px;
-  --glass-saturate: 1.2;
-  --glow-opacity: 0.6;
-  --starfield-opacity: 0.45;
-  --motion: 0.75;
+  --blur-surface: 7px;
+  --glass-saturate: 1.08;
+  --glow-opacity: 0.3;
+  --starfield-opacity: 0.3;
+  --motion: 0.8;
 }
 
 :root[data-effects='performance'] {

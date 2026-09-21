@@ -207,6 +207,52 @@ export const dictionaryTerms: CollectionDef = {
     f.bool('systemSpecific', 'Our own term', {
       hint: 'Marks a word this system coined or redefined.',
     }),
+
+    f.text('pronunciation', 'Pronunciation', {
+      hint: 'How it is said, however you like to write that.',
+    }),
+    f.tags('aliases', 'Also known as', { searchable: true }),
+    f.refs('relatedTermIds', 'Related terms', 'dictionaryTerms', {
+      hint: 'Words worth reading next to this one.',
+    }),
+    f.enumOf(
+      'definitionType',
+      'Kind of term',
+      [
+        { value: 'general', label: 'General plurality' },
+        { value: 'clinical', label: 'Clinical' },
+        { value: 'community', label: 'Community' },
+        { value: 'system', label: 'Ours' },
+        { value: 'slang', label: 'Slang' },
+        { value: 'other', label: 'Other' },
+      ],
+      { inList: true },
+    ),
+    f.tags('tags', 'Tags'),
+    f.ref('folderId', 'Folder', 'noteFolders', { group: 'Organising' }),
+    f.int('sortOrder', 'Order', { defaultValue: 0, group: 'Organising' }),
+    f.ref('memberId', 'About', 'members', {
+      group: 'Links',
+      hint: 'When a term belongs to one member in particular.',
+    }),
+    f.image('coverImageUrl', 'Image', { group: 'Appearance' }),
+
+    /*
+     * Where a definition came from, and whether it has been changed since.
+     *
+     * An imported glossary that somebody then edits is the normal case, and
+     * without these the edit is invisible: a re-import would quietly overwrite
+     * it, or be refused wholesale. Keeping the source and the edited flag
+     * separate means a re-import can leave edited entries alone and still
+     * refresh the rest.
+     */
+    f.text('sourceName', 'Source', { group: 'Source' }),
+    f.url('sourceUrl', 'Source link', { group: 'Source' }),
+    f.bool('isImported', 'Imported', { group: 'Source' }),
+    f.bool('isLocallyEdited', 'Edited here', {
+      group: 'Source',
+      hint: 'Set once you change an imported entry, so a re-import leaves it alone.',
+    }),
   ],
 };
 

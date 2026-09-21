@@ -425,3 +425,68 @@ describe('translations', () => {
     });
   }
 });
+
+/**
+ * The registry is the single description of PluralNova's data: it generates the
+ * SQLite DDL, the migrations, the validation, the CRUD routes, the backup
+ * format, the forms and the list screens. A mistake in it is therefore not a
+ * mistake in one place — which is the argument for checking its shape here
+ * rather than waiting for a screen to fail to render.
+ */
+describe('the collection registry holds together', () => {
+  const names = new Set(COLLECTIONS.map((collection) => collection.name));
+
+  it('points every reference at a collection that exists', () => {
+    // A dangling ref is silent until something tries to render the form for
+    // it, and then it is an empty picker with nothing to choose.
+    const dangling: string[] = [];
+    for (const collection of COLLECTIONS) {
+      for (const field of collection.fields) {
+        if (field.kind !== 'ref' && field.kind !== 'refs') continue;
+        if (!field.ref || !names.has(field.ref)) {
+          dangling.push(`${collection.name}.${field.name} -> ${String(field.ref)}`);
+        }
+      }
+    }
+    expect(dangling).toEqual([]);
+  });
+
+  it('gives every collection a title field it actually has', () => {
+    const broken = COLLECTIONS.filter(
+      (collection) => !collection.fields.some((field) => field.name === collection.titleField),
+    ).map((collection) => `${collection.name}.${collection.titleField}`);
+    expect(broken).toEqual([]);
+  });
+
+  it('names each field once per collection', () => {
+    // Two fields with one name means one column, and whichever is declared
+    // second silently wins everywhere.
+    const duplicated: string[] = [];
+    for (const collection of COLLECTIONS) {
+      const seen = new Set<string>();
+      for (const field of collection.fields) {
+        if (seen.has(field.name)) duplicated.push(`${collection.name}.${field.name}`);
+        seen.add(field.name);
+      }
+    }
+    expect(duplicated).toEqual([]);
+  });
+
+  it('gives every enum some options to choose from', () => {
+    const empty = COLLECTIONS.flatMap((collection) =>
+      collection.fields
+        .filter((field) => field.kind === 'enum' && (field.options?.length ?? 0) === 0)
+        .map((field) => `${collection.name}.${field.name}`),
+    );
+    expect(empty).toEqual([]);
+  });
+
+  it('labels every field, since the form has nothing else to show', () => {
+    const unlabelled = COLLECTIONS.flatMap((collection) =>
+      collection.fields
+        .filter((field) => !field.label || !field.label.trim())
+        .map((field) => `${collection.name}.${field.name}`),
+    );
+    expect(unlabelled).toEqual([]);
+  });
+});

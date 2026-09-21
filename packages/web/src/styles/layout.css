@@ -27,8 +27,8 @@
   padding: var(--safe-top) var(--space-4) 0;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--bg) 78%, transparent),
-    color-mix(in srgb, var(--bg) 40%, transparent)
+    color-mix(in srgb, var(--bg) 96%, transparent),
+    color-mix(in srgb, var(--bg) 82%, transparent)
   );
   backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));
@@ -105,9 +105,16 @@
   padding: 4px;
   width: min(520px, calc(100vw - var(--space-6)));
   height: var(--bottom-nav-height);
+  /*
+   * Nearly opaque, unlike a card. A panel is translucent over a background
+   * nobody needs to read; this bar floats over arbitrary content, and at 66%
+   * the words underneath it stayed legible through the bar — which does not
+   * read as glass, it reads as a rendering fault, and it made the bar look
+   * like it was covering content it was only passing over.
+   */
   background:
     linear-gradient(180deg, var(--glass-sheen), transparent 65%),
-    color-mix(in srgb, var(--bg-subtle) 66%, transparent);
+    color-mix(in srgb, var(--bg-subtle) 94%, transparent);
   border: var(--border-width) solid var(--border-strong);
   border-radius: var(--radius-pill);
   box-shadow:

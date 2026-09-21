@@ -411,6 +411,30 @@ describe('records, settings, backup and sync', () => {
     expect(keys).toContain('first-note');
   });
 
+  /*
+   * Onboarding offers example data to every new account, and on a registered
+   * one that offer could only ever fail: the endpoint refused anything that
+   * was not a guest. The refusal was protecting something real — it seeds with
+   * 'replace', which on an account with records in it would delete them — so
+   * the fix is the strategy, not the guard.
+   */
+  it('adds example data to a registered account without deleting what is there', async () => {
+    const before = await client.request('POST', '/api/records/notes', {
+      token,
+      body: { title: 'Mine', body: 'Written before the example data arrived.' },
+    });
+    expect(before.status).toBe(201);
+
+    const seeded = await client.request('POST', '/api/data/demo/reset', { token, body: { days: 30 } });
+    expect(seeded.status).toBe(200);
+    expect(seeded.body.data.strategy).toBe('merge');
+    expect(seeded.body.data.report.imported).toBeGreaterThan(0);
+
+    const notes = await client.request('GET', '/api/records/notes', { token });
+    const titles = notes.body.data.items.map((row: any) => row.title);
+    expect(titles).toContain('Mine');
+  });
+
   it('answers an unknown API route with a message, not a blank page', async () => {
     const result = await client.request('GET', '/api/nope', { token });
     expect(result.status).toBe(404);
