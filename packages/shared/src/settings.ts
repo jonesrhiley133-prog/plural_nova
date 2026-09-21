@@ -1,5 +1,5 @@
 import { DEFAULT_MOBILE_TABS, DEFAULT_SINGLET_TABS } from './navigation.js';
-import { DEFAULT_THEME, type ThemeSettings } from './themes.js';
+import { DEFAULT_THEME, type ThemePreset, type ThemeSettings } from './themes.js';
 import type { TermOverrides } from './terminology.js';
 import type { AppMode } from './types.js';
 
@@ -100,6 +100,8 @@ export interface PrivacyDefaults {
 export interface AppSettings {
   mode: AppMode;
   theme: ThemeSettings;
+  /** Themes saved, duplicated or imported by this account, alongside the built-in presets. */
+  customThemePresets: ThemePreset[];
   terminology: TermOverrides;
   locale: string;
   notifications: Record<NotificationCategory, NotificationChannelPrefs>;
@@ -146,6 +148,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
   return {
     mode,
     theme: { ...DEFAULT_THEME },
+    customThemePresets: [],
     terminology: {},
     locale: 'en',
     notifications: defaultNotificationPrefs(),
@@ -198,10 +201,22 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
     if (!widgets.some((w) => w.id === fallback.id)) widgets.push({ ...fallback, visible: false });
   }
 
+  const customThemePresets = Array.isArray(stored.customThemePresets)
+    ? stored.customThemePresets.filter(
+        (preset): preset is ThemePreset =>
+          !!preset &&
+          typeof preset.id === 'string' &&
+          typeof preset.label === 'string' &&
+          typeof preset.settings === 'object' &&
+          preset.settings !== null,
+      )
+    : [];
+
   return {
     ...base,
     ...stored,
     theme: { ...base.theme, ...(stored.theme ?? {}) },
+    customThemePresets,
     terminology: stored.terminology ?? {},
     notifications,
     quietHours: { ...base.quietHours, ...(stored.quietHours ?? {}) },

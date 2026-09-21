@@ -1,20 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
+  APP_VERSION,
   ACHIEVEMENTS,
   BACKUP_COLLECTIONS,
   COLLECTIONS,
   CRUD_COLLECTIONS,
+  DEFAULT_THEME,
   EN,
   EMOTIONS,
   EMOTION_FAMILIES,
   LOCALES,
   NAVIGATION,
   TERMS,
+  THEME_PRESETS,
   applyTerminology,
   buildDemoData,
   buildTheme,
   contrastRatio,
   createBackup,
+  createCustomPreset,
   currentStreak,
   defaultSettings,
   evaluateAchievements,
@@ -26,6 +30,7 @@ import {
   normaliseThemeSettings,
   notificationAllowed,
   resolveTerminology,
+  sanitizeImportedPreset,
   translate,
   validateBackup,
   validateRecord,
@@ -166,6 +171,77 @@ describe('theming', () => {
     const settings = normaliseThemeSettings({ accent: 'not-a-colour' });
     expect(settings.accent).toBe('#7aa2f7');
   });
+
+  it('has a unique, buildable id for every built-in preset', () => {
+    const ids = THEME_PRESETS.map((preset) => preset.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.length).toBeGreaterThanOrEqual(16);
+    for (const preset of THEME_PRESETS) {
+      // Every preset has to survive normalising and building without falling
+      // back to defaults it never asked for.
+      const settings = normaliseThemeSettings(preset.settings);
+      expect(buildTheme(settings)).toBeTruthy();
+      if (preset.settings.base) expect(settings.base).toBe(preset.settings.base);
+      if (preset.settings.accent) expect(settings.accent.toLowerCase()).toBe(preset.settings.accent.toLowerCase());
+    }
+  });
+
+  it('names a preset saved from the current theme, and drops the id it copied it from', () => {
+    const live = normaliseThemeSettings({ accent: '#22c55e', presetId: 'nebula' });
+    const saved = createCustomPreset('  My theme  ', live);
+
+    expect(saved.label).toBe('My theme');
+    expect(saved.settings.accent).toBe('#22c55e');
+    expect(saved.settings.presetId).toBeUndefined();
+    expect(saved.id).not.toBe('nebula');
+  });
+
+  it('falls back to a name rather than saving one blank', () => {
+    const saved = createCustomPreset('   ', normaliseThemeSettings(null));
+    expect(saved.label).toBe('Untitled theme');
+  });
+
+  it('gives two saved presets different ids even created back to back', () => {
+    const live = normaliseThemeSettings(null);
+    const a = createCustomPreset('One', live);
+    const b = createCustomPreset('Two', live);
+    expect(a.id).not.toBe(b.id);
+  });
+
+  describe('importing a theme file', () => {
+    it('accepts a well-formed export', () => {
+      const exported = { label: 'Shared with me', settings: { base: 'light', accent: '#22c55e' } };
+      const imported = sanitizeImportedPreset(exported);
+
+      expect(imported?.label).toBe('Shared with me');
+      expect(imported?.settings.base).toBe('light');
+      expect(imported?.settings.accent).toBe('#22c55e');
+    });
+
+    it('repairs settings the same way a normal save would, rather than trusting the file', () => {
+      const imported = sanitizeImportedPreset({ settings: { base: 'not-a-base', accent: 'garbage' } });
+      expect(imported?.settings.base).toBe('dark');
+      expect(imported?.settings.accent).toBe('#7aa2f7');
+    });
+
+    it('falls back to a name when the file has none', () => {
+      const imported = sanitizeImportedPreset({ settings: {} });
+      expect(imported?.label).toBe('Imported theme');
+    });
+
+    it('rejects anything that is not a settings object, rather than throwing', () => {
+      expect(sanitizeImportedPreset(null)).toBeNull();
+      expect(sanitizeImportedPreset('a string')).toBeNull();
+      expect(sanitizeImportedPreset(42)).toBeNull();
+      expect(sanitizeImportedPreset({})).toBeNull();
+      expect(sanitizeImportedPreset({ settings: 'not an object' })).toBeNull();
+    });
+
+    it('never carries over the id or label of whatever preset the file was exported from', () => {
+      const imported = sanitizeImportedPreset({ id: 'nebula', label: 'Nebula', settings: DEFAULT_THEME });
+      expect(imported?.id).not.toBe('nebula');
+    });
+  });
 });
 
 describe('settings', () => {
@@ -197,6 +273,23 @@ describe('settings', () => {
     const at = new Date('2026-01-01T12:00:00');
     expect(notificationAllowed(settings, 'messages', 'push', at)).toBe(false);
     expect(notificationAllowed(settings, 'messages', 'inApp', at)).toBe(true);
+  });
+
+  it('keeps a saved theme preset across a merge', () => {
+    const mine = createCustomPreset('Mine', DEFAULT_THEME);
+    const merged = mergeSettings({ customThemePresets: [mine] } as never);
+    expect(merged.customThemePresets).toEqual([mine]);
+  });
+
+  it('drops a stored preset that is not shaped like one, instead of passing it through', () => {
+    const merged = mergeSettings({
+      customThemePresets: [null, 'not a preset', { id: 'ok', label: 'Ok', settings: {} }, { label: 'no id' }],
+    } as never);
+    expect(merged.customThemePresets).toEqual([{ id: 'ok', label: 'Ok', settings: {} }]);
+  });
+
+  it('has no saved presets for a new account', () => {
+    expect(defaultSettings().customThemePresets).toEqual([]);
   });
 });
 
@@ -488,5 +581,28 @@ describe('the collection registry holds together', () => {
         .map((field) => `${collection.name}.${field.name}`),
     );
     expect(unlabelled).toEqual([]);
+  });
+});
+
+/**
+ * The version is written in two places that cannot see each other: package.json,
+ * which the Android build reads to derive its versionCode, and APP_VERSION,
+ * which is bundled into the browser where no package.json exists. The release
+ * workflow refuses a tag that disagrees with package.json — this refuses a
+ * build where the two copies have drifted apart, which is the failure that
+ * would otherwise reach a phone reporting the wrong version of itself.
+ */
+describe('the version is the same everywhere', () => {
+  it('matches package.json', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const { dirname, resolve } = await import('node:path');
+
+    const here = dirname(fileURLToPath(import.meta.url));
+    const declared = JSON.parse(
+      readFileSync(resolve(here, '..', '..', 'package.json'), 'utf8'),
+    ) as { version: string };
+
+    expect(APP_VERSION).toBe(declared.version);
   });
 });

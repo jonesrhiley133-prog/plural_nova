@@ -86,6 +86,7 @@ const PATHS = {
   chevronLeft: 'M15 5l-7 7 7 7',
   chevronUp: 'M5 15l7-7 7 7',
   edit: 'M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z',
+  duplicate: 'M9 9h11v11H9zM6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1',
   trash: 'M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M11 11v5M14 11v5',
   filter: 'M4 5h16l-6 7v6l-4 2v-8z',
   sort: 'M7 4v14M4 15l3 3 3-3M17 20V6M14 9l3-3 3 3',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_THEME, normaliseThemeSettings } from '@pluralnova/shared';
+import { contrastRatio, DEFAULT_THEME, normaliseThemeSettings } from '@pluralnova/shared';
 import { applyTheme } from '../theme.js';
 
 /**
@@ -62,5 +62,14 @@ describe('applyTheme', () => {
     // Near-black on a near-black base: the engine has to move it, not honour it.
     const tokens = applyTheme(normaliseThemeSettings({ base: 'amoled', accent: '#060606' }));
     expect(tokens.accent.toLowerCase()).not.toBe('#060606');
+  });
+
+  it('gives a filled critical surface, such as a badge, text that reads on it', () => {
+    // #ec7392 (dark mode's critical) only reaches 2.8:1 against white — a
+    // badge count was shipped unreadable until this had its own text colour.
+    for (const base of ['dark', 'amoled', 'light'] as const) {
+      const tokens = applyTheme(normaliseThemeSettings({ base }));
+      expect(contrastRatio(tokens.critical, tokens.criticalText)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

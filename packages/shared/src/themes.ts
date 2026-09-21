@@ -33,6 +33,8 @@ export interface ThemeTokens {
   positive: string;
   caution: string;
   critical: string;
+  /** Text colour that sits on top of a filled `critical` surface, such as a badge. */
+  criticalText: string;
   info: string;
   /** Backdrop of the starfield / atmosphere layer. */
   atmosphere: string;
@@ -125,6 +127,9 @@ const DARK: ThemeTokens = {
   positive: '#5ec6a8',
   caution: '#f0a85a',
   critical: '#ec7392',
+  // #ec7392 only reaches 2.8:1 against white — a badge needs 4.5:1+, so its
+  // text is dark rather than the white every other filled surface here uses.
+  criticalText: '#05070d',
   info: '#8bd5ff',
   atmosphere: '#16224a',
   shadow: '0 18px 40px -24px rgba(0, 0, 0, 0.9)',
@@ -177,6 +182,7 @@ const LIGHT: ThemeTokens = {
   positive: '#1f8d70',
   caution: '#b26a12',
   critical: '#c23d63',
+  criticalText: '#ffffff',
   info: '#1d6f9c',
   atmosphere: '#dbe4f7',
   shadow: '0 16px 36px -26px rgba(22, 34, 63, 0.4)',
@@ -275,7 +281,124 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
       showStarfield: false,
     },
   },
+  {
+    id: 'comet',
+    label: 'Comet',
+    description: 'Icy cyan streaking across dark glass.',
+    settings: { base: 'dark', accent: '#8bd5ff', surfaceStyle: 'glass', effects: 'full', showStarfield: true },
+  },
+  {
+    id: 'ember',
+    label: 'Ember',
+    description: 'Warm orange over calm, solid surfaces.',
+    settings: { base: 'dark', accent: '#f0855a', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
+  },
+  {
+    id: 'eclipse',
+    label: 'Eclipse',
+    description: 'True black with a violet corona.',
+    settings: { base: 'amoled', accent: '#a78bfa', surfaceStyle: 'glass', effects: 'full', showStarfield: true },
+  },
+  {
+    id: 'daybreak',
+    label: 'Daybreak',
+    description: 'Light mode with a warm gold accent.',
+    settings: { base: 'light', accent: '#f2c45a', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
+  },
+  {
+    id: 'overcast',
+    label: 'Overcast',
+    description: 'Muted silver, light mode — nothing moves, nothing competes.',
+    settings: {
+      base: 'light',
+      accent: '#c0c8e0',
+      surfaceStyle: 'solid',
+      effects: 'performance',
+      showStarfield: false,
+      reducedMotion: true,
+    },
+  },
+  {
+    id: 'stardust',
+    label: 'Stardust',
+    description: 'Rose pink drifting over dark glass.',
+    settings: { base: 'dark', accent: '#ec7392', surfaceStyle: 'glass', effects: 'full', showStarfield: true },
+  },
+  {
+    id: 'ion',
+    label: 'Ion',
+    description: 'True black, warm gold, kept simple.',
+    settings: { base: 'amoled', accent: '#f2c45a', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
+  },
+  {
+    id: 'twilight',
+    label: 'Twilight',
+    description: 'Violet over solid dark — no glass, no glow.',
+    settings: { base: 'dark', accent: '#a78bfa', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
+  },
+  {
+    id: 'horizon',
+    label: 'Horizon',
+    description: 'Light mode with a fresh green accent.',
+    settings: { base: 'light', accent: '#5ec6a8', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
+  },
+  {
+    id: 'driftfield',
+    label: 'Driftfield',
+    description: 'True black, cyan accent, minimal effects.',
+    settings: {
+      base: 'amoled',
+      accent: '#8bd5ff',
+      surfaceStyle: 'solid',
+      effects: 'performance',
+      showStarfield: false,
+    },
+  },
 ];
+
+/** A short, collision-resistant id for a preset a person saves themselves. */
+function customPresetId(): string {
+  return `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/**
+ * Builds a saved preset from any theme settings — whatever is currently live,
+ * for "save current as a preset", or another preset's own (partial) settings,
+ * for duplicating it. Either way the result is run through the same clamps
+ * and fallbacks a normal save gets, so a duplicate of a partial built-in
+ * preset ends up as complete and safe to edit as one saved from a live theme.
+ */
+export function createCustomPreset(label: string, settings: Partial<ThemeSettings>): ThemePreset {
+  const { presetId: _presetId, ...rest } = normaliseThemeSettings(settings);
+  return {
+    id: customPresetId(),
+    label: label.trim() || 'Untitled theme',
+    description: 'A saved theme.',
+    settings: rest,
+  };
+}
+
+/**
+ * Validates a preset read back from an imported JSON file before it is ever
+ * applied. The file came from outside the app — another install, a share, a
+ * hand-edited copy — so it is treated the same as any other untrusted input,
+ * reusing the exact same settings repair `createCustomPreset` already does
+ * rather than trusting the file's fields to already be in range.
+ */
+export function sanitizeImportedPreset(input: unknown): ThemePreset | null {
+  if (!input || typeof input !== 'object') return null;
+  const raw = input as Record<string, unknown>;
+  if (!raw['settings'] || typeof raw['settings'] !== 'object') return null;
+
+  const label =
+    typeof raw['label'] === 'string' && raw['label'].trim() ? raw['label'].trim().slice(0, 60) : 'Imported theme';
+  const description =
+    typeof raw['description'] === 'string' && raw['description'].trim()
+      ? raw['description'].trim().slice(0, 160)
+      : 'An imported theme.';
+
+  return { ...createCustomPreset(label, raw['settings'] as Partial<ThemeSettings>), description };
+}
 
 function clampChannel(value: number): number {
   return Math.min(255, Math.max(0, Math.round(value)));
@@ -360,6 +483,7 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
   tokens.accent = accent;
   tokens.accentText = readableTextOn(accent);
   tokens.accentSoft = withAlpha(accent, isLight ? 0.12 : 0.16);
+  tokens.criticalText = readableTextOn(tokens.critical);
 
   /*
    * The glow and the nearest colour field follow the accent, so choosing a

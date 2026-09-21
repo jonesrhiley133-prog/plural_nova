@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ACCENT_PRESETS, type FieldDef } from '@pluralnova/shared';
+import { ColorPicker } from './ColorPicker.js';
 import { Icon } from './Icon.js';
 import { Button, Chip } from './primitives.js';
 
@@ -399,67 +400,44 @@ export function TagField({
   );
 }
 
+/**
+ * A colour field on a record — a member's colour, a folder's, a story
+ * location's. Thin wrapper around the one shared `ColorPicker`: this is what
+ * every generic `kind: 'color'` field in the registry renders as, so a colour
+ * chosen here looks and behaves exactly like one chosen in Settings.
+ */
 export function ColorField({
   label,
   value,
   onChange,
   hint,
+  error,
+  required,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   hint?: string;
+  error?: string;
+  required?: boolean;
 }): JSX.Element {
   return (
-    <Field label={label} {...(hint ? { hint } : {})}>
-      {({ id }) => (
-        <div className="stack stack--tight">
-          <div className="row row--nowrap">
-            <input
-              id={id}
-              type="color"
-              className="input"
-              style={{ width: 52, padding: 4, minHeight: 42 }}
-              value={value || '#7aa2f7'}
-              onChange={(event) => onChange(event.target.value)}
-              aria-label={`${label} colour picker`}
-            />
-            <input
-              className="input"
-              value={value}
-              placeholder="#7aa2f7"
-              onChange={(event) => onChange(event.target.value)}
-              aria-label={`${label} hex value`}
-            />
-            {value ? (
-              <Button variant="ghost" size="sm" onClick={() => onChange('')}>
-                Clear
-              </Button>
-            ) : null}
+    <Field
+      label={label}
+      {...(hint ? { hint } : {})}
+      {...(error ? { error } : {})}
+      {...(required ? { required } : {})}
+    >
+      {() => (
+        <div className="row row--nowrap">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <ColorPicker value={value || '#7aa2f7'} onChange={onChange} presets={ACCENT_PRESETS} />
           </div>
-          <div className="row">
-            {ACCENT_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => onChange(preset.accent)}
-                title={preset.label}
-                aria-label={preset.label}
-                aria-pressed={value.toLowerCase() === preset.accent.toLowerCase()}
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 6,
-                  background: preset.accent,
-                  border:
-                    value.toLowerCase() === preset.accent.toLowerCase()
-                      ? '2px solid var(--text)'
-                      : '1px solid var(--border)',
-                  cursor: 'pointer',
-                }}
-              />
-            ))}
-          </div>
+          {value ? (
+            <Button variant="ghost" size="sm" onClick={() => onChange('')}>
+              Clear
+            </Button>
+          ) : null}
         </div>
       )}
     </Field>
