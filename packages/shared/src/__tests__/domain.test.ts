@@ -76,6 +76,22 @@ describe('collection registry', () => {
     expect(names).toContain('headspaceObjects');
     expect(names).not.toContain('devices');
   });
+
+  it('gives a phone or email field its own kind rather than treating it as plain text', () => {
+    // A field named this way but declared with f.text() would fall back to a
+    // generic input on mobile — no numeric keypad or @-optimised keyboard,
+    // and no autofill. This catches that regression anywhere in the registry.
+    const withContactInfo = COLLECTIONS.filter((c) =>
+      c.fields.some((field) => field.name === 'phone' || field.name === 'email'),
+    );
+    expect(withContactInfo.length).toBeGreaterThan(0);
+    for (const collection of withContactInfo) {
+      const phone = collection.fields.find((field) => field.name === 'phone');
+      const email = collection.fields.find((field) => field.name === 'email');
+      if (phone) expect(phone.kind, `${collection.name}.phone`).toBe('phone');
+      if (email) expect(email.kind, `${collection.name}.email`).toBe('email');
+    }
+  });
 });
 
 describe('emotions', () => {
