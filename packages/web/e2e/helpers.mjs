@@ -109,4 +109,13 @@ export const ROUTES = [
   'constellations', 'friends', 'flux', 'messages', 'notifications', 'music', 'video',
   'fics', 'characters', 'stories', 'resources', 'dictionary', 'templates', 'import',
   'backup', 'settings', 'help', 'features', 'search', 'more',
+
+  /*
+   * Settings sections are separate screens, and leaving them out of this list
+   * is how one of them shipped 262px too wide: the checks visited /settings,
+   * saw a tidy page, and never opened the panel with an email address in it.
+   */
+  'settings/appearance', 'settings/terminology', 'settings/notifications',
+  'settings/privacy', 'settings/accessibility', 'settings/performance',
+  'settings/navigation', 'settings/account', 'settings/about',
 ];
