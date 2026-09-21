@@ -1,0 +1,38 @@
+# PluralNova, running as a service.
+#
+#   docker compose up -d --build
+#
+# That serves the app on http://localhost:4000. Fine for a first look, and fine
+# forever if you only ever open it on the machine it runs on.
+#
+# It is NOT enough to install PluralNova to a phone. Service workers, push
+# notifications and "Add to home screen" are only available on a secure origin,
+# which means HTTPS or localhost — nothing else. Reaching this over your
+# network at http://192.168.x.x gives you a working website and none of the
+# app. See docs/DEPLOYING.md for the two ways round that.
+
+services:
+  pluralnova:
+    build: .
+    image: pluralnova:latest
+    container_name: pluralnova
+    restart: unless-stopped
+    ports:
+      # Bound to every interface by default, so you can open it from a phone on
+      # the same network. Set PLURALNOVA_BIND=127.0.0.1 when something else —
+      # Caddy, Tailscale, a tunnel — is the only thing that should reach it.
+      - '${PLURALNOVA_BIND:-0.0.0.0}:${PLURALNOVA_PORT:-4000}:4000'
+    environment:
+      NODE_ENV: production
+      # Every origin the browser will open the app from. Same-origin needs
+      # nothing here; a separate front end does.
+      PLURALNOVA_CORS: ${PLURALNOVA_CORS:-}
+      PLURALNOVA_MAIL_FROM: ${PLURALNOVA_MAIL_FROM:-}
+      PLURALNOVA_MAX_UPLOAD: ${PLURALNOVA_MAX_UPLOAD:-26214400}
+    volumes:
+      # The database, uploads, push keys and any published Android build.
+      # Without this, everything is lost when the container is replaced.
+      - pluralnova-data:/data
+
+volumes:
+  pluralnova-data:

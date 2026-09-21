@@ -21,6 +21,15 @@ That serves the API and the built client from one origin. Nothing else needs
 setting up: the database, the session secret and the push keys are created on
 first run, under `data/`.
 
+To keep it running, `docker compose up -d --build`.
+
+One thing worth knowing before you put it on a phone: a browser only grants a
+page a service worker, push notifications and "Add to home screen" over
+**HTTPS or localhost**. Reaching PluralNova at `http://192.168.x.x` gives you a
+working website and not an installable app.
+[`docs/DEPLOYING.md`](docs/DEPLOYING.md) covers the two straightforward ways
+round that, along with backups and updates.
+
 For development, two processes:
 
 ```sh
