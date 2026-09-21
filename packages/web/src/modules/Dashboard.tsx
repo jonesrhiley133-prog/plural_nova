@@ -272,22 +272,20 @@ function QuickActionsWidget(): JSX.Element {
   ];
 
   return (
-    <Card title={t('dashboard.quickActions')}>
-      {/* Tiles, not rows: five equal things to choose between, and a column of
-          chevrons makes them look like settings rather than like doing. */}
-      <div className="tile-grid">
+    <Card title={t('dashboard.quickActions')} flush>
+      <div className="list">
         {actions.map((action) => (
-          <button
+          <ListRow
             key={action.path}
-            type="button"
-            className="tile"
+            leading={
+              <span className="list-row__icon">
+                <Icon name={action.icon} size={17} />
+              </span>
+            }
+            title={action.label}
+            trailing={<Icon name="chevronRight" size={14} />}
             onClick={() => navigate(action.path)}
-          >
-            <span className="tile__icon">
-              <Icon name={action.icon} size={21} />
-            </span>
-            <span className="tile__label">{action.label}</span>
-          </button>
+          />
         ))}
       </div>
     </Card>

@@ -4,9 +4,9 @@ import { dayKey, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
-import { useSystemMode } from '../core/auth.js';
+import { useActiveMemberId, useSystemMode } from '../core/auth.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton, SectionHeading } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SectionHeading, SegmentedControl } from '../ui/primitives.js';
 import { SearchField, useDebounced } from '../ui/forms.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -27,18 +27,25 @@ export default function Journal(): JSX.Element {
   const toast = useToast();
   const systemMode = useSystemMode();
   const members = useRecordMap('members');
+  const activeMemberId = useActiveMemberId();
 
   const [rawSearch, setRawSearch] = useState('');
   const search = useDebounced(rawSearch);
+  const [view, setView] = useState<'all' | 'mine' | 'members'>('all');
   const [memberFilter, setMemberFilter] = useState<string | null | undefined>(undefined);
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // "My entries" always means this account's own writing, whichever member
+  // that is right now — so switching who is fronting doesn't strand the
+  // filter on someone who used to be active.
+  const effectiveFilter = view === 'mine' ? activeMemberId : memberFilter;
 
   const { items, all, loading, error, reload, create, update, remove } = useCollection(
     'journalEntries',
     {
       search,
-      ...(memberFilter !== undefined
-        ? { filter: (entry: StoredRecord) => (entry['memberId'] ?? null) === memberFilter }
+      ...(effectiveFilter !== undefined
+        ? { filter: (entry: StoredRecord) => (entry['memberId'] ?? null) === effectiveFilter }
         : {}),
     },
   );
@@ -67,7 +74,7 @@ export default function Journal(): JSX.Element {
     <>
       <PageHeader
         title={term('{{Journal}}')}
-        description={t('journal.wholeSystem')}
+        description={t('journal.subtitle')}
         actions={
           <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
             {t('journal.new')}
@@ -85,24 +92,41 @@ export default function Journal(): JSX.Element {
         ) : null}
 
         {systemMode && members.size > 0 ? (
-          <div className="row">
-            <Chip selected={memberFilter === undefined} onClick={() => setMemberFilter(undefined)}>
-              Everything
-            </Chip>
-            <Chip selected={memberFilter === null} onClick={() => setMemberFilter(null)}>
-              {t('journal.wholeSystem')}
-            </Chip>
-            {[...members.values()].map((member) => (
-              <Chip
-                key={member.id}
-                selected={memberFilter === member.id}
-                onClick={() => setMemberFilter(member.id)}
-                color={(member['color'] as string) ?? null}
-              >
-                {String(member['name'])}
-              </Chip>
-            ))}
-          </div>
+          <>
+            <SegmentedControl
+              value={view}
+              onChange={(next) => {
+                setView(next);
+                if (next !== 'members') setMemberFilter(undefined);
+              }}
+              label="View"
+              options={[
+                { value: 'all', label: t('journal.allEntries') },
+                { value: 'mine', label: t('journal.myEntries') },
+                { value: 'members', label: t('journal.membersTab') },
+              ]}
+            />
+            {view === 'members' ? (
+              <div className="row">
+                <Chip selected={memberFilter === undefined} onClick={() => setMemberFilter(undefined)}>
+                  Everything
+                </Chip>
+                <Chip selected={memberFilter === null} onClick={() => setMemberFilter(null)}>
+                  {t('journal.wholeSystem')}
+                </Chip>
+                {[...members.values()].map((member) => (
+                  <Chip
+                    key={member.id}
+                    selected={memberFilter === member.id}
+                    onClick={() => setMemberFilter(member.id)}
+                    color={(member['color'] as string) ?? null}
+                  >
+                    {String(member['name'])}
+                  </Chip>
+                ))}
+              </div>
+            ) : null}
+          </>
         ) : null}
       </div>
 
@@ -161,6 +185,11 @@ export default function Journal(): JSX.Element {
                             </div>
                           </div>
                           <div className="row row--nowrap">
+                            {entry['mood'] ? (
+                              <Chip>
+                                <Icon name="mood" size={11} /> {String(entry['mood'])}
+                              </Chip>
+                            ) : null}
                             {entry['pinned'] === true ? (
                               <span style={{ color: 'var(--accent)' }}>
                                 <Icon name="pin" size={14} label="Pinned" />
@@ -203,13 +232,8 @@ export default function Journal(): JSX.Element {
                           </>
                         ) : null}
 
-                        {(entry['mood'] || (Array.isArray(entry['tags']) && entry['tags'].length > 0)) ? (
+                        {Array.isArray(entry['tags']) && entry['tags'].length > 0 ? (
                           <div className="row" style={{ marginTop: 'var(--space-3)' }}>
-                            {entry['mood'] ? (
-                              <Chip>
-                                <Icon name="mood" size={11} /> {String(entry['mood'])}
-                              </Chip>
-                            ) : null}
                             {((entry['tags'] as string[]) ?? []).map((tag) => (
                               <Chip key={tag}>{tag}</Chip>
                             ))}

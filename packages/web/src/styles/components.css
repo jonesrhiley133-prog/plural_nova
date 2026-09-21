@@ -829,6 +829,23 @@
 }
 
 /*
+ * A small tinted square for a row's leading icon — a quick action, a task's
+ * category, a settings entry. Defaults to the accent at low opacity; a row
+ * that wants its own colour (a task's category, say) sets --row-icon-color
+ * rather than this needing its own variant per caller.
+ */
+.list-row__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--row-icon-color, var(--accent-soft));
+  color: var(--row-icon-fg, var(--accent));
+}
+
+/*
  * A row that is actually a button — an accordion header, a compact record
  * link — but shouldn't take on `.list-row`'s own padding and divider, which
  * assume a stack of siblings rather than one row standing alone in a card.

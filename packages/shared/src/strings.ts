@@ -180,11 +180,15 @@ export const EN = {
 
   // — Journal ———————————————————————————————————————————————
   'journal.title': '{{Journal}}',
+  'journal.subtitle': 'Your thoughts, your space.',
   'journal.empty': 'Nothing written yet',
   'journal.emptyBody': 'The first entry is the hardest. It can be one line.',
   'journal.new': 'New entry',
   'journal.writtenBy': 'Written by',
   'journal.wholeSystem': 'The whole {{system}}',
+  'journal.allEntries': 'All entries',
+  'journal.myEntries': 'My entries',
+  'journal.membersTab': '{{Members}}',
   'journal.private': 'Only me',
 
   // — Generic list/detail ——————————————————————————————————
@@ -446,11 +450,15 @@ export const ES: StringTable = {
   'profiles.wrongPin': 'Ese PIN no es correcto.',
   'profiles.manage': 'Gestionar perfiles',
   'journal.title': '{{Journal}}',
+  'journal.subtitle': 'Tus pensamientos, tu espacio.',
   'journal.empty': 'Todavía no hay nada escrito',
   'journal.emptyBody': 'La primera entrada es la más difícil. Puede ser una sola línea.',
   'journal.new': 'Entrada nueva',
   'journal.writtenBy': 'Escrito por',
   'journal.wholeSystem': 'Todo el {{system}}',
+  'journal.allEntries': 'Todas las entradas',
+  'journal.myEntries': 'Mis entradas',
+  'journal.membersTab': '{{Members}}',
   'journal.private': 'Solo yo',
   'list.empty': 'Todavía no hay nada aquí',
   'list.emptyBody': 'Añade el primero para empezar.',
