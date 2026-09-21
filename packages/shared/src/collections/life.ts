@@ -714,6 +714,59 @@ export const emergencyContacts: CollectionDef = {
   ],
 };
 
+export const playbackHistory: CollectionDef = {
+  name: 'playbackHistory',
+  label: 'Continue watching',
+  singular: 'History entry',
+  icon: 'media',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'title',
+  sortField: 'playedAt',
+  sortDir: 'desc',
+  indexes: [['systemId', 'playedAt']],
+  description:
+    'Where you got to, and who got there. One history across video, music and reading rather than three that do not know about each other.',
+  fields: [
+    f.text('title', 'Title', { required: true, inList: true, searchable: true }),
+    f.enumOf(
+      'mediaType',
+      'Kind',
+      [
+        { value: 'video', label: 'Video' },
+        { value: 'music', label: 'Music' },
+        { value: 'fic', label: 'Reading' },
+        { value: 'other', label: 'Something else' },
+      ],
+      { required: true, inList: true },
+    ),
+    /*
+     * A loose reference rather than a typed one: the thing being resumed can
+     * live in videoItems, musicTracks or fics, and a column cannot point at
+     * three tables. mediaType says which to look in.
+     */
+    f.text('itemId', 'Item'),
+    f.text('channel', 'Channel or artist', { inList: true, searchable: true }),
+    f.url('thumbnailUrl', 'Thumbnail'),
+    f.url('url', 'Link'),
+
+    f.int('positionSeconds', 'Stopped at', { min: 0 }),
+    f.int('durationSeconds', 'Length', { min: 0 }),
+    f.int('completionPercent', 'How far in', { min: 0, max: 100, inList: true }),
+    f.bool('finished', 'Finished'),
+
+    f.datetime('playedAt', 'Last opened', { required: true, inList: true }),
+    f.int('playCount', 'Times opened', { defaultValue: 1, min: 0 }),
+    /*
+     * Who was watching. Two members part-way through the same thing is the
+     * normal case, and a single resume point hands one of them the other's
+     * place — the same problem as fic chapters, one layer up.
+     */
+    f.ref('memberId', 'Who', 'members', { inList: true }),
+  ],
+};
+
 export const contactInteractions: CollectionDef = {
   name: 'contactInteractions',
   label: 'Contact log',
@@ -886,6 +939,7 @@ export const vaultItems: CollectionDef = {
 };
 
 export const LIFE_COLLECTIONS = [
+  playbackHistory,
   contactInteractions,
   noteFolders,
   notes,
