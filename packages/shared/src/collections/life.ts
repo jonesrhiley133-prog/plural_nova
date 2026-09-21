@@ -519,7 +519,7 @@ export const cycleEntries: CollectionDef = {
     f.int('energy', 'Energy', { min: 1, max: 10 }),
     f.int('discomfort', 'Discomfort', { min: 0, max: 10 }),
     f.text('mood', 'Mood'),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, sensitive: true }),
     f.bool('remind', 'Remind me next cycle'),
   ],
 };
@@ -548,7 +548,7 @@ export const financeAccounts: CollectionDef = {
     f.money('openingBalance', 'Opening balance', { defaultValue: 0 }),
     f.text('currency', 'Currency', { defaultValue: 'USD', maxLength: 8 }),
     f.color('color', 'Colour'),
-    f.long('notes', 'Notes'),
+    f.long('notes', 'Notes', { sensitive: true }),
     f.bool('archived', 'Archived'),
   ],
 };
@@ -578,7 +578,7 @@ export const transactions: CollectionDef = {
       { value: 'transfer', label: 'Transfer' },
     ], { defaultValue: 'expense', inList: true }),
     f.text('recurrence', 'Repeats'),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
     f.tags('tags', 'Tags'),
   ],
 };
@@ -599,7 +599,7 @@ export const budgets: CollectionDef = {
     f.money('limitAmount', 'Monthly limit', { required: true, inList: true }),
     f.text('period', 'Period', { defaultValue: 'monthly' }),
     f.color('color', 'Colour'),
-    f.long('notes', 'Notes'),
+    f.long('notes', 'Notes', { sensitive: true }),
   ],
 };
 
@@ -620,7 +620,7 @@ export const savingsGoals: CollectionDef = {
     f.money('savedAmount', 'Saved so far', { defaultValue: 0, inList: true }),
     f.date('targetDate', 'Target date'),
     f.color('color', 'Colour'),
-    f.long('notes', 'Notes'),
+    f.long('notes', 'Notes', { sensitive: true }),
   ],
 };
 

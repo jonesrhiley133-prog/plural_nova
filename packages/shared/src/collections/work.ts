@@ -90,7 +90,7 @@ export const workShifts: CollectionDef = {
     f.datetime('remindAt', 'Reminder'),
     f.bool('remindSent', 'Reminder sent'),
     f.bool('completed', 'Worked', { inList: true }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
   ],
 };
 
@@ -110,7 +110,7 @@ export const workTasks: CollectionDef = {
     f.ref('workplaceId', 'Workplace', 'workplaces'),
     f.text('title', 'Task', { required: true, inList: true, searchable: true }),
     f.text('project', 'Project', { inList: true, searchable: true }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
     f.datetime('dueAt', 'Due', { inList: true }),
     f.enumOf('priority', 'Priority', OPTIONS.priority, { defaultValue: 'normal', inList: true }),
     f.bool('completed', 'Completed', { inList: true }),
