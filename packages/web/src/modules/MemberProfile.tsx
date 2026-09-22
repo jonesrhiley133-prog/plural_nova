@@ -272,11 +272,21 @@ function About({ member }: { member: StoredRecord }): JSX.Element {
 }
 
 function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
+  const toast = useToast();
   const flags = useCollection('flags');
   const assignments = useCollection('flagAssignments', {
     filter: (record) => record['targetType'] === 'member' && record['targetId'] === member.id,
   });
   const flagById = useMemo(() => new Map(flags.items.map((flag) => [flag.id, flag])), [flags.items]);
+  const attachedIds = useMemo(
+    () => new Set(assignments.items.map((assignment) => String(assignment['flagId']))),
+    [assignments.items],
+  );
+  const available = useMemo(
+    () => flags.items.filter((flag) => !attachedIds.has(flag.id)),
+    [flags.items, attachedIds],
+  );
+  const picker = useDialog();
 
   return (
     <div className="stack">
@@ -287,24 +297,70 @@ function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
           <p className="small faint">Nothing recorded here.</p>
         )}
       </Card>
-      <Card title="Flags" subtitle="Markers attached to this profile">
+      <Card
+        title="Flags"
+        subtitle="Markers attached to this profile"
+        actions={
+          flags.items.length > 0 ? (
+            <Button variant="ghost" size="sm" icon="plus" onClick={() => picker.show()}>
+              Attach
+            </Button>
+          ) : null
+        }
+      >
         {assignments.items.length === 0 ? (
-          <p className="small faint">No flags attached.</p>
+          <p className="small faint">
+            {flags.items.length === 0
+              ? 'No flags defined yet — create one in Flags, then attach it here.'
+              : 'No flags attached.'}
+          </p>
         ) : (
           <div className="row">
             {assignments.items.map((assignment) => {
               const flag = flagById.get(String(assignment['flagId']));
               if (!flag) return null;
               return (
-                <Chip key={assignment.id} color={(flag['color'] as string) ?? null}>
+                <Chip
+                  key={assignment.id}
+                  color={(flag['color'] as string) ?? null}
+                  onClick={() => {
+                    void assignments.remove(assignment.id).catch((cause: unknown) => toast.fromError(cause));
+                  }}
+                  title={`Remove ${String(flag['name'])}`}
+                >
                   {flag['icon'] ? `${String(flag['icon'])} ` : ''}
-                  {String(flag['name'])}
+                  {String(flag['name'])} <Icon name="close" size={10} />
                 </Chip>
               );
             })}
           </div>
         )}
       </Card>
+
+      <Dialog open={picker.open} onClose={picker.hide} title="Attach a flag">
+        {available.length === 0 ? (
+          <p className="small muted">Every flag you have defined is already attached.</p>
+        ) : (
+          <div className="row">
+            {available.map((flag) => (
+              <Chip
+                key={flag.id}
+                color={(flag['color'] as string) ?? null}
+                onClick={() => {
+                  void assignments
+                    .create({ targetType: 'member', targetId: member.id, flagId: flag.id })
+                    .then(() => toast.success('Attached'))
+                    .catch((cause: unknown) => toast.fromError(cause));
+                  picker.hide();
+                }}
+              >
+                {flag['icon'] ? `${String(flag['icon'])} ` : ''}
+                {String(flag['name'])}
+              </Chip>
+            ))}
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

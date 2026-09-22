@@ -257,16 +257,69 @@ export default function Finances(): JSX.Element {
       ) : null}
 
       {tab === 'budgets' ? (
-        <SimpleList
-          collection={budgets}
-          title="category"
-          subtitle={(row) => money(Number(row['limitAmount'] ?? 0))}
-          emptyTitle="No budgets set"
-          emptyBody="A budget is a line to notice, not a rule to obey."
-          onEdit={(row) => editor.show({ collection: 'budgets', record: row })}
-          onDelete={(row) => confirm.show({ collection: 'budgets', record: row })}
-          onAdd={() => editor.show({ collection: 'budgets', record: null })}
-        />
+        <AsyncContent
+          loading={budgets.loading}
+          error={budgets.error}
+          items={budgets.items}
+          onRetry={budgets.reload}
+          empty={{
+            title: 'No budgets set',
+            body: 'A budget is a line to notice, not a rule to obey.',
+            icon: 'finance',
+            action: { label: 'Add a budget', run: () => editor.show({ collection: 'budgets', record: null }) },
+          }}
+        >
+          {(items) => (
+            <div className="grid" style={{ ['--grid-min' as never]: '250px' }}>
+              {items.map((budget) => {
+                const progress = stats.data?.budgets.find((row) => row.id === budget.id);
+                const limit = Number(budget['limitAmount'] ?? 0);
+                const spent = progress?.spent ?? 0;
+                return (
+                  <Card
+                    key={budget.id}
+                    title={String(budget['category'])}
+                    subtitle="this month"
+                    actions={
+                      <>
+                        <IconButton
+                          icon="edit"
+                          label="Edit budget"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => editor.show({ collection: 'budgets', record: budget })}
+                        />
+                        <IconButton
+                          icon="trash"
+                          label="Delete budget"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => confirm.show({ collection: 'budgets', record: budget })}
+                        />
+                      </>
+                    }
+                  >
+                    <div className="row row--between small" style={{ marginBottom: 6 }}>
+                      <span className="numeric">{money(spent)}</span>
+                      <span className="numeric muted">of {money(limit)}</span>
+                    </div>
+                    <Meter
+                      value={spent}
+                      max={limit || 1}
+                      color={spent > limit ? 'var(--critical)' : undefined}
+                      label={`${String(budget['category'])}: ${money(spent)} of ${money(limit)} spent this month`}
+                    />
+                    {progress && progress.remaining < 0 ? (
+                      <p className="tiny" style={{ color: 'var(--critical)', marginTop: 6 }}>
+                        {money(Math.abs(progress.remaining))} over
+                      </p>
+                    ) : null}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </AsyncContent>
       ) : null}
 
       {tab === 'goals' ? (

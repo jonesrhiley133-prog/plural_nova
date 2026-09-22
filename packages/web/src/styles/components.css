@@ -751,6 +751,8 @@
 .banner-profile__avatar {
   position: relative;
   z-index: 2;
+  display: inline-block;
+  border-radius: 999px;
   margin-top: calc(var(--avatar-size, 88px) / -2);
   margin-left: var(--space-4);
   box-shadow: 0 0 0 3px var(--bg);
