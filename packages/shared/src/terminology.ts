@@ -27,8 +27,8 @@ export const TERMS: readonly TermDef[] = [
   {
     key: 'member',
     label: 'A person in the system',
-    one: 'member',
-    other: 'members',
+    one: 'alter',
+    other: 'alters',
     hint: 'Used everywhere a single person in the system is referred to.',
     suggestions: [
       ['member', 'members'],

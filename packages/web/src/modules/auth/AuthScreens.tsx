@@ -27,31 +27,43 @@ export function AuthScreens(): JSX.Element {
     <>
       <Atmosphere />
       <div className="auth-screen">
-        <div className="auth-card">
-          <div className="auth-card__brand">
-            <Logo size={44} />
-            <div>
-              <h1 className="auth-card__title">PluralNova</h1>
-              <p className="auth-card__tagline">A private constellation for your system.</p>
-            </div>
+        <div className="auth-screen__branding">
+          <div className="auth-screen__branding-content">
+            <h2 className="auth-screen__branding-title">A cozy home for your whole system.</h2>
+            <p className="auth-screen__branding-body">
+              Track fronting, manage member profiles, and journal together — privately and on your
+              own terms.
+            </p>
           </div>
-
-          {screen === 'welcome' ? <Welcome onChoose={setScreen} /> : null}
-          {screen === 'signIn' ? <SignIn onChoose={setScreen} /> : null}
-          {screen === 'register' ? (
-            <Register onChoose={setScreen} onRecoveryCode={setRecoveryCode} />
-          ) : null}
-          {screen === 'forgot' ? <ForgotPassword onChoose={setScreen} /> : null}
-          {screen === 'reset' ? <ResetPassword onChoose={setScreen} /> : null}
-          {screen === 'recover' ? (
-            <RecoverAccount onChoose={setScreen} onRecoveryCode={setRecoveryCode} />
-          ) : null}
         </div>
 
-        <p className="tiny faint" style={{ marginTop: 'var(--space-5)', textAlign: 'center', maxWidth: 420 }}>
-          Everything you write here is private by default and stored under your account. You can
-          export or delete all of it at any time.
-        </p>
+        <div className="auth-screen__form-side">
+          <div className="auth-card">
+            <div className="auth-card__brand">
+              <Logo size={36} />
+              <div>
+                <h1 className="auth-card__title">PluralNova</h1>
+                <p className="auth-card__tagline">A private constellation for your system.</p>
+              </div>
+            </div>
+
+            {screen === 'welcome' ? <Welcome onChoose={setScreen} /> : null}
+            {screen === 'signIn' ? <SignIn onChoose={setScreen} /> : null}
+            {screen === 'register' ? (
+              <Register onChoose={setScreen} onRecoveryCode={setRecoveryCode} />
+            ) : null}
+            {screen === 'forgot' ? <ForgotPassword onChoose={setScreen} /> : null}
+            {screen === 'reset' ? <ResetPassword onChoose={setScreen} /> : null}
+            {screen === 'recover' ? (
+              <RecoverAccount onChoose={setScreen} onRecoveryCode={setRecoveryCode} />
+            ) : null}
+          </div>
+
+          <p className="tiny faint" style={{ marginTop: 'var(--space-5)', textAlign: 'center', maxWidth: 420 }}>
+            Everything you write here is private by default and stored under your account. You can
+            export or delete all of it at any time.
+          </p>
+        </div>
       </div>
 
       <RecoveryCodeDialog code={recoveryCode} onClose={() => setRecoveryCode(null)} />

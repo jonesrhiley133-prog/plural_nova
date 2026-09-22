@@ -29,7 +29,7 @@
             var root = document.documentElement;
             root.dataset.base = theme.base || 'dark';
             root.dataset.effects = theme.effects || 'full';
-            root.dataset.surface = theme.surfaceStyle || 'glass';
+            root.dataset.surface = theme.surfaceStyle || 'solid';
             if (theme.tokens) {
               for (var key in theme.tokens) {
                 root.style.setProperty('--' + key, theme.tokens[key]);
