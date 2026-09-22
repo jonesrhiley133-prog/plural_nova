@@ -4,7 +4,7 @@ import { useQuery, useRecordMap } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Card, Chip, Stat } from '../ui/primitives.js';
-import { DescriptiveNote, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
+import { DescriptiveNote, ErrorLine, ErrorPanel, LoadingLine, SkeletonCards } from '../ui/feedback.js';
 import { ColumnChart, Heatmap, RankedBars, ShareBar } from '../charts/index.js';
 import { memberColor } from '../charts/palette.js';
 
@@ -155,22 +155,32 @@ export default function Stats(): JSX.Element {
         </Card>
 
         <Card>
-          <ColumnChart
-            title={term('{{Fronting}} by day')}
-            subtitle="Minutes recorded"
-            valueLabel="Minutes"
-            points={(overview.data?.fronting.byDay ?? []).map((bucket) => ({
-              label: bucket.label,
-              value: bucket.value,
-              detail: bucket.key,
-            }))}
-            format={(value) => formatDuration(value)}
-            emptyMessage="Nothing recorded in this period yet."
-          />
+          {overview.loading ? (
+            <LoadingLine label={term('Loading {{fronting}} by day…')} />
+          ) : overview.error ? (
+            <ErrorLine message={overview.error} />
+          ) : (
+            <ColumnChart
+              title={term('{{Fronting}} by day')}
+              subtitle="Minutes recorded"
+              valueLabel="Minutes"
+              points={(overview.data?.fronting.byDay ?? []).map((bucket) => ({
+                label: bucket.label,
+                value: bucket.value,
+                detail: bucket.key,
+              }))}
+              format={(value) => formatDuration(value)}
+              emptyMessage="Nothing recorded in this period yet."
+            />
+          )}
         </Card>
 
-        {hourly.length > 0 && weekday.length > 0 ? (
-          <Card>
+        <Card>
+          {overview.loading ? (
+            <LoadingLine label="Loading when fronts start…" />
+          ) : overview.error ? (
+            <ErrorLine message={overview.error} />
+          ) : (
             <Heatmap
               title="When fronts start"
               subtitle="Day of the week against hour of the day"
@@ -182,8 +192,8 @@ export default function Stats(): JSX.Element {
               )}
               emptyMessage="Not enough recorded yet to show a pattern."
             />
-          </Card>
-        ) : null}
+          )}
+        </Card>
 
         <div className="split">
           <Card title={term('Who {{fronts}} together')} subtitle="Pairs present at the same time">

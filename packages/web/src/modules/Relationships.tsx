@@ -1,14 +1,23 @@
 import { useMemo, useRef, useState } from 'react';
-import type { StoredRecord } from '@pluralnova/shared';
+import { VISIBILITY_LEVELS, type StoredRecord, type Visibility } from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
+import { useSettings } from '../core/auth.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
+import { ColorField, ReferenceField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
-import { RecordForm } from '../ui/RecordForm.js';
+import { visibilityLabel } from '../ui/RecordForm.js';
 import { memberColor } from '../charts/palette.js';
+
+const STRENGTH_OPTIONS = [
+  { value: 'distant', label: 'Distant' },
+  { value: 'neutral', label: 'Neutral' },
+  { value: 'close', label: 'Close' },
+  { value: 'inseparable', label: 'Inseparable' },
+];
 
 /**
  * The relationship map.
@@ -249,34 +258,23 @@ export default function Relationships(): JSX.Element {
         )}
       </AsyncContent>
 
-      <Dialog
+      <RelationshipDialog
         open={creating || editor.open}
+        record={editor.value}
         onClose={() => {
           setCreating(false);
           editor.hide();
         }}
-        title={editor.value ? 'Edit relationship' : 'Add a relationship'}
-      >
-        <RecordForm
-          collection="relationships"
-          record={editor.value}
-          onSubmit={async (values) => {
-            if (editor.value) {
-              await relationships.update(editor.value.id, values);
-              toast.success('Saved');
-              editor.hide();
-            } else {
-              await relationships.create(values);
-              toast.success('Added');
-              setCreating(false);
-            }
-          }}
-          onCancel={() => {
-            setCreating(false);
-            editor.hide();
-          }}
-        />
-      </Dialog>
+        onSave={async (values) => {
+          if (editor.value) {
+            await relationships.update(editor.value.id, values);
+            toast.success('Saved');
+          } else {
+            await relationships.create(values);
+            toast.success('Added');
+          }
+        }}
+      />
 
       <ConfirmDialog
         open={confirm.open}
@@ -290,5 +288,209 @@ export default function Relationships(): JSX.Element {
         }}
       />
     </>
+  );
+}
+
+/**
+ * From and to are polymorphic — a member or a contact, chosen by `fromType`/
+ * `toType` — so the registry's generic `ref` field kind cannot express either
+ * one, and `RecordForm` would otherwise render them as raw text boxes asking
+ * for an internal id. This picks the collection each side points at, then
+ * offers `ReferenceField`'s ordinary name-based picker into it.
+ */
+function RelationshipDialog({
+  open,
+  record,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  record: StoredRecord | null;
+  onClose: () => void;
+  onSave: (values: Record<string, unknown>) => Promise<void>;
+}): JSX.Element {
+  const { term } = useI18n();
+  const settings = useSettings();
+  const members = useCollection('members');
+  const contacts = useCollection('contacts');
+
+  const [fromType, setFromType] = useState('member');
+  const [fromId, setFromId] = useState<string | null>(null);
+  const [toType, setToType] = useState('member');
+  const [toId, setToId] = useState<string | null>(null);
+  const [label, setLabel] = useState('');
+  const [reverseLabel, setReverseLabel] = useState('');
+  const [strength, setStrength] = useState('neutral');
+  const [mutual, setMutual] = useState(true);
+  const [showOnMap, setShowOnMap] = useState(true);
+  const [color, setColor] = useState('');
+  const [notes, setNotes] = useState('');
+  const [visibility, setVisibility] = useState<Visibility>(settings.privacy.defaultVisibility);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+
+  const targetId = record?.id ?? 'new';
+  if (open && loadedId !== targetId) {
+    setLoadedId(targetId);
+    setFromType(record ? String(record['fromType'] ?? 'member') : 'member');
+    setFromId(record ? String(record['fromId'] ?? '') || null : null);
+    setToType(record ? String(record['toType'] ?? 'member') : 'member');
+    setToId(record ? String(record['toId'] ?? '') || null : null);
+    setLabel(record ? String(record['label'] ?? '') : '');
+    setReverseLabel(record ? String(record['reverseLabel'] ?? '') : '');
+    setStrength(record ? String(record['strength'] ?? 'neutral') : 'neutral');
+    setMutual(record ? record['mutual'] !== false : true);
+    setShowOnMap(record ? record['showOnMap'] !== false : true);
+    setColor(record ? String(record['color'] ?? '') : '');
+    setNotes(record ? String(record['notes'] ?? '') : '');
+    setVisibility(record ? ((record['visibility'] as Visibility) ?? settings.privacy.defaultVisibility) : settings.privacy.defaultVisibility);
+    setError(null);
+  }
+  if (!open && loadedId !== null) setLoadedId(null);
+
+  const optionsFor = (type: string): { id: string; label: string; color?: string | null }[] =>
+    (type === 'contact' ? contacts.items : members.items).map((item) => ({
+      id: item.id,
+      label: String(item['name'] ?? 'Unnamed'),
+      color: (item['color'] as string) ?? null,
+    }));
+
+  const save = async (): Promise<void> => {
+    if (!fromId || !toId) {
+      setError(term('Choose who this connects — both a {{member}} or contact on each side.'));
+      return;
+    }
+    if (!label.trim()) {
+      setError('Say what the relationship is.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave({
+        fromType,
+        fromId,
+        toType,
+        toId,
+        label: label.trim(),
+        reverseLabel,
+        strength,
+        mutual,
+        showOnMap,
+        color,
+        notes,
+        visibility,
+      });
+      onClose();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'That could not be saved. Nothing was changed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={record ? 'Edit relationship' : 'Add a relationship'}
+      wide
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={() => void save()} loading={saving}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="field">
+        <span className="field__label">From</span>
+        <SegmentedControl
+          value={fromType}
+          onChange={(value) => {
+            setFromType(value);
+            setFromId(null);
+          }}
+          label="From type"
+          options={[
+            { value: 'member', label: term('{{Member}}') },
+            { value: 'contact', label: 'Contact' },
+          ]}
+        />
+      </div>
+      <ReferenceField
+        label={fromType === 'contact' ? 'Which contact' : term('Which {{member}}')}
+        value={fromId}
+        onChange={(value) => setFromId(value as string | null)}
+        options={optionsFor(fromType)}
+        emptyLabel="Choose someone"
+      />
+
+      <TextField
+        label="Relationship"
+        value={label}
+        onChange={setLabel}
+        hint="How the first person describes the second — sibling, mentor, rival."
+        required
+      />
+      <TextField
+        label="Reverse label"
+        value={reverseLabel}
+        onChange={setReverseLabel}
+        hint="How the other side describes it, if different."
+      />
+
+      <div className="field">
+        <span className="field__label">To</span>
+        <SegmentedControl
+          value={toType}
+          onChange={(value) => {
+            setToType(value);
+            setToId(null);
+          }}
+          label="To type"
+          options={[
+            { value: 'member', label: term('{{Member}}') },
+            { value: 'contact', label: 'Contact' },
+          ]}
+        />
+      </div>
+      <ReferenceField
+        label={toType === 'contact' ? 'Which contact' : term('Which {{member}}')}
+        value={toId}
+        onChange={(value) => setToId(value as string | null)}
+        options={optionsFor(toType)}
+        emptyLabel="Choose someone"
+      />
+
+      <SelectField label="Closeness" value={strength} onChange={setStrength} options={STRENGTH_OPTIONS} />
+      <SwitchRow
+        label="Mutual"
+        hint="Both directions feel the same way about it."
+        checked={mutual}
+        onChange={setMutual}
+      />
+      <SwitchRow label="Show on the relationship map" checked={showOnMap} onChange={setShowOnMap} />
+      <ColorField label="Line colour" value={color} onChange={setColor} />
+      <TextField label="Notes" value={notes} onChange={setNotes} multiline rows={2} />
+
+      <SelectField
+        label="Who can see this"
+        value={visibility}
+        onChange={(value) => setVisibility(value as Visibility)}
+        options={VISIBILITY_LEVELS.map((level) => ({ value: level, label: visibilityLabel(level, term) }))}
+        hint="Private means only you. Nothing is shared unless you choose it."
+      />
+
+      {error ? (
+        <p className="field__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </Dialog>
   );
 }

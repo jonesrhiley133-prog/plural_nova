@@ -8,7 +8,16 @@ import { useToast } from '../core/toast.js';
 import { useCollection } from '../core/data.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, SectionHeading } from '../ui/primitives.js';
-import { ColorField, NumberField, SearchField, SelectField, SwitchRow, TextField, useDebounced } from '../ui/forms.js';
+import {
+  ColorField,
+  ImageField,
+  NumberField,
+  SearchField,
+  SelectField,
+  SwitchRow,
+  TextField,
+  useDebounced,
+} from '../ui/forms.js';
 import { EmptyState, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
@@ -166,7 +175,7 @@ export default function Constellations(): JSX.Element {
           />
         </Card>
       ) : (
-        <div className="grid" style={{ ['--grid-min' as never]: '210px' }}>
+        <div className="stack">
           {discovered.map((other) => (
             <button
               key={other.id}
@@ -175,30 +184,31 @@ export default function Constellations(): JSX.Element {
               style={{ textAlign: 'left' }}
               onClick={() => navigate(`/constellations/${other.handle}`)}
             >
-              <div className="row row--nowrap">
-                <Avatar
-                  name={other.displayName}
-                  src={other.avatarUrl || null}
-                  color={other.accent || null}
-                  size={40}
-                  round
-                />
-                <div style={{ minWidth: 0 }}>
-                  <div className="truncate" style={{ fontWeight: 'var(--weight-medium)' }}>
-                    {other.displayName}
+              <div className="row row--between row--nowrap">
+                <div className="row row--nowrap" style={{ minWidth: 0 }}>
+                  <Avatar
+                    name={other.displayName}
+                    src={other.avatarUrl || null}
+                    color={other.accent || null}
+                    size={40}
+                    round
+                  />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="truncate" style={{ fontWeight: 'var(--weight-medium)' }}>
+                      {other.displayName}
+                    </div>
+                    <div className="tiny faint truncate">
+                      @{other.handle}
+                      {other.memberCount !== undefined ? ` · ${other.memberCount} ${term('{{members}}')}` : ''}
+                    </div>
                   </div>
-                  <div className="tiny faint truncate">@{other.handle}</div>
                 </div>
+                <Icon name="chevronRight" size={14} />
               </div>
               {other.bio ? (
                 <p className="small muted clamp-2" style={{ marginTop: 'var(--space-2)' }}>
                   {other.bio}
                 </p>
-              ) : null}
-              {other.memberCount !== undefined ? (
-                <div className="tiny faint" style={{ marginTop: 'var(--space-2)' }}>
-                  {other.memberCount} {term('{{members}}')}
-                </div>
               ) : null}
             </button>
           ))}
@@ -316,8 +326,8 @@ function ProfileEditor({
         onChange={(value) => set('systemType', value)}
         hint="Only if you want it shown. Nothing is assumed."
       />
-      <TextField label="Avatar link" value={String(draft.avatarUrl ?? '')} onChange={(value) => set('avatarUrl', value)} />
-      <TextField label="Banner link" value={String(draft.bannerUrl ?? '')} onChange={(value) => set('bannerUrl', value)} />
+      <ImageField label="Avatar" value={String(draft.avatarUrl ?? '')} onChange={(value) => set('avatarUrl', value)} shape="avatar" />
+      <ImageField label="Banner" value={String(draft.bannerUrl ?? '')} onChange={(value) => set('bannerUrl', value)} shape="banner" />
       <ColorField label="Accent" value={String(draft.accent ?? '')} onChange={(value) => set('accent', value)} />
 
       <h3 className="section-heading__label" style={{ margin: 'var(--space-5) 0 var(--space-3)' }}>

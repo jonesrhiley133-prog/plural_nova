@@ -9,6 +9,16 @@ import { Button, Card, Chip, IconButton, Stat } from '../ui/primitives.js';
 import { NumberField, SwitchRow, TagField, TextField, DateTimeField } from '../ui/forms.js';
 import { AsyncContent, DescriptiveNote, EmptyState } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { Heatmap, Sparkline } from '../charts/index.js';
+import { Icon } from '../ui/Icon.js';
+
+const EVENT_META: Record<string, { icon: 'flag' | 'sparkle' | 'note' | 'cycle'; color: string }> = {
+  start: { icon: 'flag', color: 'var(--accent)' },
+  end: { icon: 'flag', color: 'var(--text-muted)' },
+  symptom: { icon: 'sparkle', color: 'var(--caution)' },
+  note: { icon: 'note', color: 'var(--info)' },
+  none: { icon: 'cycle', color: 'var(--text-faint)' },
+};
 
 /**
  * Cycle & wellness.
@@ -40,6 +50,7 @@ export default function Cycle(): JSX.Element {
     }
     return {
       starts,
+      gaps,
       lastStart: starts[starts.length - 1] ?? null,
       averageGap: gaps.length ? Math.round(gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length) : null,
     };
@@ -49,6 +60,45 @@ export default function Cycle(): JSX.Element {
     () => [...new Set(entries.items.map((entry) => String(entry['phase'] ?? '')).filter(Boolean))],
     [entries.items],
   );
+
+  // Ten weeks, Sunday-aligned, so a glance shows the shape of the last two and
+  // a half cycles rather than a scroll of individual days.
+  const heatmap = useMemo(() => {
+    const weeks = 10;
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    // This week's Saturday first, then back up to the Sunday `weeks` earlier —
+    // computing the start from today directly double-counted today's own
+    // weekday offset and left the range ending before today.
+    const end = new Date(today);
+    end.setDate(end.getDate() + (6 - today.getDay()));
+    const start = new Date(end);
+    start.setDate(start.getDate() - (weeks * 7 - 1));
+
+    const byDay = new Map<string, StoredRecord[]>();
+    for (const entry of entries.items) {
+      const key = String(entry['entryDate']).slice(0, 10);
+      const bucket = byDay.get(key);
+      if (bucket) bucket.push(entry);
+      else byDay.set(key, [entry]);
+    }
+
+    const rows: string[] = [];
+    const values: number[][] = [];
+    const cursor = new Date(start);
+    for (let week = 0; week < weeks; week += 1) {
+      rows.push(`${cursor.getMonth() + 1}/${cursor.getDate()}`);
+      const rowValues: number[] = [];
+      for (let day = 0; day < 7; day += 1) {
+        const dayEntries = byDay.get(dayKey(cursor)) ?? [];
+        const hasStart = dayEntries.some((entry) => entry['eventType'] === 'start');
+        rowValues.push(hasStart ? 2 : dayEntries.length > 0 ? 1 : 0);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      values.push(rowValues);
+    }
+    return { rows, values };
+  }, [entries.items]);
 
   if (!settings.cycleEnabled) {
     return (
@@ -91,10 +141,33 @@ export default function Cycle(): JSX.Element {
         <Stat
           label="Average gap"
           value={cycles.averageGap ? `${cycles.averageGap} days` : '—'}
-          detail={cycles.starts.length < 2 ? 'Needs two starts to compare' : `from ${cycles.starts.length} starts`}
+          detail={
+            cycles.starts.length < 2 ? (
+              'Needs two starts to compare'
+            ) : (
+              <span className="row row--nowrap" style={{ gap: 6 }}>
+                {`from ${cycles.starts.length} starts`}
+                {cycles.gaps.length > 1 ? (
+                  <Sparkline values={cycles.gaps} label="Recent gap length between starts" />
+                ) : null}
+              </span>
+            )
+          }
         />
         <Stat label="Entries" value={entries.items.length} />
       </div>
+
+      <Card title="Last ten weeks" subtitle="Darker means a cycle start; a dot means something was logged" style={{ marginBottom: 'var(--space-4)' }}>
+        <Heatmap
+          title="Cycle activity"
+          rows={heatmap.rows}
+          columns={['S', 'M', 'T', 'W', 'T', 'F', 'S']}
+          values={heatmap.values}
+          valueLabel="Activity"
+          format={(value) => (value >= 2 ? 'Cycle start' : value === 1 ? 'Logged' : 'Nothing recorded')}
+          emptyMessage="Nothing recorded in the last ten weeks."
+        />
+      </Card>
 
       {phases.length > 0 ? (
         <Card title="Your phases" style={{ marginBottom: 'var(--space-4)' }}>
@@ -124,8 +197,20 @@ export default function Cycle(): JSX.Element {
         {(records) => (
           <Card flush>
             <div className="list">
-              {records.map((entry) => (
+              {records.map((entry) => {
+                const meta = EVENT_META[String(entry['eventType'] ?? 'none')] ?? EVENT_META['none']!;
+                return (
                 <div key={entry.id} className="list-row">
+                  <span
+                    className="list-row__icon"
+                    aria-hidden="true"
+                    style={{
+                      ['--row-icon-color' as never]: `color-mix(in srgb, ${meta.color} 15%, transparent)`,
+                      ['--row-icon-fg' as never]: meta.color,
+                    }}
+                  >
+                    <Icon name={meta.icon} size={16} />
+                  </span>
                   <span className="list-row__body">
                     <span className="list-row__title">
                       {dates.date(`${String(entry['entryDate'])}T12:00:00`)}
@@ -139,15 +224,25 @@ export default function Cycle(): JSX.Element {
                         <Chip key={symptom}>{symptom}</Chip>
                       ))}
                       {entry['energy'] ? <span className="faint">Energy {String(entry['energy'])}/10</span> : null}
+                      {entry['discomfort'] ? (
+                        <span className="faint">Discomfort {String(entry['discomfort'])}/10</span>
+                      ) : null}
                       {entry['mood'] ? <span className="faint">{String(entry['mood'])}</span> : null}
+                      {entry['remind'] === true ? <Chip>Reminder set</Chip> : null}
                     </span>
+                    {entry['note'] ? (
+                      <p className="tiny muted prose clamp-2" style={{ marginTop: 'var(--space-1)' }}>
+                        {String(entry['note'])}
+                      </p>
+                    ) : null}
                   </span>
                   <span className="list-row__trailing">
                     <IconButton icon="edit" label="Edit entry" variant="ghost" size="sm" onClick={() => editor.show(entry)} />
                     <IconButton icon="trash" label="Delete entry" variant="ghost" size="sm" onClick={() => confirm.show(entry)} />
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </Card>
         )}

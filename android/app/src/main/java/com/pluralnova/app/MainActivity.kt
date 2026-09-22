@@ -1,11 +1,13 @@
 package com.pluralnova.app
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -55,6 +57,13 @@ class MainActivity : AppCompatActivity() {
     private var downloadId: Long = -1L
     private var downloadWatcher: BroadcastReceiver? = null
 
+    private val requestNotifications =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            // Declined or granted, the page finds out the same way a browser tells
+            // it: by calling Notification.permission itself. Nothing here needs to
+            // react to the result directly.
+        }
+
     private val chooseFiles = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val callback = pendingFileChooser ?: return@registerForActivityResult
         pendingFileChooser = null
@@ -94,6 +103,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         configureWebView()
+        requestNotificationPermission()
         binding.retry.setOnClickListener { load() }
         binding.changeServer.setOnClickListener {
             ServerAddress.clear(this)
@@ -277,6 +287,15 @@ class MainActivity : AppCompatActivity() {
                 (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
             }
         })
+    }
+
+    // Below Android 13 a notification needs no runtime permission at all; asking
+    // there would only be a confusing dialog for nothing.
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun isOurServer(uri: Uri): Boolean {

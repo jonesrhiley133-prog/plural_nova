@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDuration } from '@pluralnova/shared';
 import { useFronting, FRONT_STATUS_META } from '../core/fronting.js';
@@ -5,7 +6,8 @@ import { useCollection } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, Status } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, ListRow, Status } from '../ui/primitives.js';
+import { SearchField, useDebounced } from '../ui/forms.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
 
@@ -23,6 +25,9 @@ export default function WhosThere(): JSX.Element {
   const toast = useToast();
   const { state, loading, error, reload, end, clear, removeCoFronter } = useFronting();
   const members = useCollection('members');
+  const [rawSearch, setRawSearch] = useState('');
+  const search = useDebounced(rawSearch);
+  const [rosterFilter, setRosterFilter] = useState<'all' | 'nearby' | 'favorites'>('all');
 
   if (loading) {
     return (
@@ -61,6 +66,12 @@ export default function WhosThere(): JSX.Element {
 
   const frontingIds = new Set(state.fronting.map((member) => member.id));
   const others = members.items.filter((member) => !frontingIds.has(member.id));
+  const visibleOthers = others.filter((member) => {
+    if (rosterFilter === 'nearby' && member['frontStatus'] !== 'nearby') return false;
+    if (rosterFilter === 'favorites' && member['isFavourite'] !== true) return false;
+    if (search && !String(member['name']).toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
 
   return (
     <>
@@ -210,42 +221,66 @@ export default function WhosThere(): JSX.Element {
       )}
 
       {others.length > 0 ? (
-        <Card
-          title={t('front.notFronting')}
-          subtitle={term('Everyone else in the {{system}} right now')}
-          style={{ marginTop: 'var(--space-4)' }}
-        >
-          <div className="grid" style={{ ['--grid-min' as never]: '150px' }}>
-            {others.map((member) => {
-              const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
-              return (
-                <button
-                  key={member.id}
-                  type="button"
-                  className="card card--interactive"
-                  style={{ padding: 'var(--space-3)', textAlign: 'left' }}
-                  onClick={() => navigate(`/members/${member.id}`)}
-                >
-                  <div className="row row--nowrap">
-                    <Avatar
-                      name={String(member['name'])}
-                      src={(member['avatarUrl'] as string) ?? null}
-                      color={(member['color'] as string) ?? null}
-                      icon={(member['icon'] as string) ?? null}
-                      size={34}
-                    />
-                    <div style={{ minWidth: 0 }}>
-                      <div className="truncate small" style={{ fontWeight: 'var(--weight-medium)' }}>
-                        {String(member['name'])}
-                      </div>
-                      <Status label={term(meta.label)} glyph={meta.glyph} color={meta.color} />
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+        <>
+          <div className="stack" style={{ marginTop: 'var(--space-4)' }}>
+            {others.length > 3 ? (
+              <SearchField
+                value={rawSearch}
+                onChange={setRawSearch}
+                placeholder={term('Search {{members}}…')}
+              />
+            ) : null}
+            <div className="row">
+              <Chip selected={rosterFilter === 'all'} onClick={() => setRosterFilter('all')}>
+                All
+              </Chip>
+              <Chip selected={rosterFilter === 'nearby'} onClick={() => setRosterFilter('nearby')}>
+                Nearby
+              </Chip>
+              <Chip selected={rosterFilter === 'favorites'} onClick={() => setRosterFilter('favorites')}>
+                Favourites
+              </Chip>
+            </div>
           </div>
-        </Card>
+
+          <Card
+            title={t('front.notFronting')}
+            subtitle={term('Everyone else in the {{system}} right now')}
+            flush
+            style={{ marginTop: 'var(--space-3)' }}
+          >
+            {visibleOthers.length > 0 ? (
+              <div className="list">
+                {visibleOthers.map((member) => {
+                  const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
+                  return (
+                    <ListRow
+                      key={member.id}
+                      leading={
+                        <Avatar
+                          name={String(member['name'])}
+                          src={(member['avatarUrl'] as string) ?? null}
+                          color={(member['color'] as string) ?? null}
+                          icon={(member['icon'] as string) ?? null}
+                          size={34}
+                          round
+                        />
+                      }
+                      title={String(member['name'])}
+                      meta={<Status label={term(meta.label)} glyph={meta.glyph} color={meta.color} />}
+                      trailing={<Icon name="chevronRight" size={14} />}
+                      onClick={() => navigate(`/members/${member.id}`)}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ padding: 'var(--space-4)' }}>
+                <p className="small muted">{t('list.noResultsBody')}</p>
+              </div>
+            )}
+          </Card>
+        </>
       ) : null}
 
       {state.recent.length > 0 ? (

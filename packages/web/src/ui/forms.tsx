@@ -9,8 +9,12 @@ import {
   type ReactNode,
 } from 'react';
 import { ACCENT_PRESETS, type FieldDef } from '@pluralnova/shared';
+import { api } from '../core/api.js';
+import { useCollection } from '../core/data.js';
+import { useToast } from '../core/toast.js';
 import { ColorPicker } from './ColorPicker.js';
 import { Icon } from './Icon.js';
+import { Dialog, useDialog } from './overlays.js';
 import { Button, Chip } from './primitives.js';
 
 /**
@@ -611,6 +615,147 @@ export function FileButton({
         {label}
       </Button>
     </>
+  );
+}
+
+/**
+ * A photo, uploaded or picked from the media library — never a URL typed in
+ * by hand. `accept="image/*"` is what hands the OS its own photo picker
+ * (Photos on iOS, the gallery on Android) instead of a bare file browser.
+ */
+export function ImageField({
+  label,
+  value,
+  onChange,
+  hint,
+  shape = 'square',
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  hint?: string;
+  shape?: 'avatar' | 'banner' | 'square';
+}): JSX.Element {
+  const toast = useToast();
+  const library = useDialog();
+  const media = useCollection('mediaItems', { filter: (item) => item['mediaType'] === 'image' });
+  const [uploading, setUploading] = useState(false);
+
+  const upload = async (file: File): Promise<void> => {
+    setUploading(true);
+    try {
+      const result = await api.post<{ url: string }>(
+        '/api/media/upload',
+        undefined,
+        {
+          raw: {
+            body: file,
+            contentType: file.type || 'application/octet-stream',
+            headers: { 'x-file-name': encodeURIComponent(file.name).slice(0, 180) },
+          },
+          timeoutMs: 120_000,
+        },
+      );
+      onChange(result.url);
+      void media.reload();
+      toast.success('Photo added');
+    } catch (cause) {
+      toast.fromError(cause, 'That photo did not upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const banner = shape === 'banner';
+  const previewSize = banner ? { width: '100%', height: 96 } : { width: 72, height: 72 };
+  const previewRadius = shape === 'avatar' ? '999px' : 'var(--radius-sm)';
+
+  const preview = value ? (
+    <img
+      src={value}
+      alt=""
+      style={{ ...previewSize, borderRadius: previewRadius, objectFit: 'cover', flexShrink: 0 }}
+    />
+  ) : (
+    <span
+      style={{
+        ...previewSize,
+        borderRadius: previewRadius,
+        display: 'grid',
+        placeItems: 'center',
+        background: 'var(--surface-sunken)',
+        color: 'var(--text-faint)',
+        flexShrink: 0,
+      }}
+      aria-hidden="true"
+    >
+      <Icon name="media" size={20} />
+    </span>
+  );
+
+  const actions = (
+    <div className="row" style={{ flexWrap: 'wrap' }}>
+      <FileButton
+        label={uploading ? 'Uploading…' : value ? 'Change photo' : 'Add a photo'}
+        accept="image/*"
+        onFile={(file) => void upload(file)}
+        variant="secondary"
+      />
+      <Button variant="ghost" size="sm" onClick={() => library.show()}>
+        Choose existing
+      </Button>
+      {value ? (
+        <Button variant="ghost" size="sm" onClick={() => onChange('')}>
+          Remove
+        </Button>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div className="field">
+      <span className="field__label">{label}</span>
+      {banner ? (
+        <div className="stack stack--tight">
+          {preview}
+          {actions}
+        </div>
+      ) : (
+        <div className="row row--nowrap" style={{ alignItems: 'center' }}>
+          {preview}
+          {actions}
+        </div>
+      )}
+      {hint ? <p className="field__hint">{hint}</p> : null}
+
+      <Dialog open={library.open} onClose={library.hide} title="Choose a photo">
+        {media.items.length === 0 ? (
+          <p className="small muted">Nothing in your media library yet — add a photo instead.</p>
+        ) : (
+          <div className="grid grid--tight" style={{ ['--grid-min' as never]: '90px' }}>
+            {media.items.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="card card--interactive card--flush"
+                style={{ aspectRatio: '1', overflow: 'hidden', padding: 0 }}
+                onClick={() => {
+                  onChange(String(item['url']));
+                  library.hide();
+                }}
+              >
+                <img
+                  src={String(item['url'])}
+                  alt={String(item['title'] ?? '')}
+                  loading="lazy"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </button>
+            ))}
+          </div>
+        )}
+      </Dialog>
+    </div>
   );
 }
 

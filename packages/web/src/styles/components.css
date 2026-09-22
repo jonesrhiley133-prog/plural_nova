@@ -751,6 +751,8 @@
 .banner-profile__avatar {
   position: relative;
   z-index: 2;
+  display: inline-block;
+  border-radius: 999px;
   margin-top: calc(var(--avatar-size, 88px) / -2);
   margin-left: var(--space-4);
   box-shadow: 0 0 0 3px var(--bg);
@@ -826,6 +828,23 @@
   gap: var(--space-2);
   color: var(--text-faint);
   font-size: var(--size-xs);
+}
+
+/*
+ * A small tinted square for a row's leading icon — a quick action, a task's
+ * category, a settings entry. Defaults to the accent at low opacity; a row
+ * that wants its own colour (a task's category, say) sets --row-icon-color
+ * rather than this needing its own variant per caller.
+ */
+.list-row__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--row-icon-color, var(--accent-soft));
+  color: var(--row-icon-fg, var(--accent));
 }
 
 /*

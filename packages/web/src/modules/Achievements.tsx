@@ -7,7 +7,7 @@ import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Meter, SectionHeading, Stat } from '../ui/primitives.js';
 import { SwitchRow } from '../ui/forms.js';
-import { SkeletonCards } from '../ui/feedback.js';
+import { ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 
 /**
  * Achievements.
@@ -43,6 +43,15 @@ export default function Achievements(): JSX.Element {
       <>
         <PageHeader title="Achievements" />
         <SkeletonCards count={6} />
+      </>
+    );
+  }
+
+  if (unlocked.error) {
+    return (
+      <>
+        <PageHeader title="Achievements" />
+        <ErrorPanel message={unlocked.error} onRetry={unlocked.reload} />
       </>
     );
   }

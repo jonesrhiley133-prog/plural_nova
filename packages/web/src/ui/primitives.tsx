@@ -522,3 +522,40 @@ export function ListRow({ title, meta, leading, trailing, onClick }: ListRowProp
 export function ModuleIcon({ name, size = 18 }: { name: string; size?: number }): JSX.Element {
   return <Icon name={iconOr(name)} size={size} />;
 }
+
+/**
+ * A compact label/value list for a record's optional fields — the density a
+ * detail view needs without the weight of a `Stat` tile per field. Blank
+ * fields are dropped rather than shown as "—", since on a record where
+ * everything is optional a blank is the ordinary case, not a gap to flag.
+ */
+export function FieldList({ rows }: { rows: [string, unknown][] }): JSX.Element {
+  const filled = rows.filter(([, value]) => value !== null && value !== undefined && value !== '');
+  if (filled.length === 0) {
+    return (
+      <p className="small faint">Nothing filled in here. Every field is optional — a blank one is not a gap.</p>
+    );
+  }
+  return (
+    <dl className="stack stack--tight" style={{ margin: 0 }}>
+      {filled.map(([label, value]) => (
+        <div key={label} className="row row--between" style={{ alignItems: 'flex-start' }}>
+          <dt className="small muted" style={{ minWidth: 120 }}>
+            {label}
+          </dt>
+          <dd style={{ margin: 0, textAlign: 'right', flex: 1 }}>
+            {Array.isArray(value) ? (
+              <span className="row" style={{ justifyContent: 'flex-end' }}>
+                {value.map((item) => (
+                  <Chip key={String(item)}>{String(item)}</Chip>
+                ))}
+              </span>
+            ) : (
+              String(value)
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}

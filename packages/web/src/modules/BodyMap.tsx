@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
-import { BODY_REGIONS, SENSATION_WORDS, intensityLabel } from '@pluralnova/shared';
+import { BODY_REGIONS, SENSATION_WORDS, intensityLabel, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useActiveMemberId } from '../core/auth.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, Meter } from '../ui/primitives.js';
+import { Button, Card, Chip, IconButton, Meter } from '../ui/primitives.js';
 import { TextField } from '../ui/forms.js';
 import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
-import { Dialog, useDialog } from '../ui/overlays.js';
+import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { magnitudeColor } from '../charts/palette.js';
 
 /**
@@ -50,7 +50,8 @@ export default function BodyMap(): JSX.Element {
   const members = useRecordMap('members');
   const entries = useCollection('bodySensations');
 
-  const editor = useDialog<string>();
+  const editor = useDialog<{ region: string; record: StoredRecord | null }>();
+  const confirm = useDialog<StoredRecord>();
 
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -91,14 +92,14 @@ export default function BodyMap(): JSX.Element {
                     strokeWidth={0.8}
                     opacity={count > 0 ? 0.9 : 0.55}
                     style={{ cursor: 'pointer' }}
-                    onClick={() => editor.show(region.id)}
+                    onClick={() => editor.show({ region: region.id, record: null })}
                     role="button"
                     tabIndex={0}
                     aria-label={`${region.label}${count > 0 ? `, ${count} logged` : ''}`}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
-                        editor.show(region.id);
+                        editor.show({ region: region.id, record: null });
                       }
                     }}
                   />
@@ -111,7 +112,7 @@ export default function BodyMap(): JSX.Element {
             {BODY_REGIONS.filter(
               (region) => !FIGURE.some((shape) => shape.id === region.id),
             ).map((region) => (
-              <Chip key={region.id} onClick={() => editor.show(region.id)}>
+              <Chip key={region.id} onClick={() => editor.show({ region: region.id, record: null })}>
                 {region.label}
               </Chip>
             ))}
@@ -137,12 +138,16 @@ export default function BodyMap(): JSX.Element {
                     const region = BODY_REGIONS.find((item) => item.id === entry['region']);
                     const member = entry['memberId'] ? members.get(String(entry['memberId'])) : null;
                     const intensity = Number(entry['intensity'] ?? 3);
+                    const side = String(entry['side'] ?? 'both');
                     return (
                       <div key={entry.id} className="list-row">
                         <span className="list-row__body">
                           <span className="list-row__title">
                             {String(entry['sensation'])}
                             <span className="faint"> · {region?.label ?? String(entry['region'])}</span>
+                            {side !== 'both' ? (
+                              <span className="faint"> · {side[0]!.toUpperCase() + side.slice(1)}</span>
+                            ) : null}
                           </span>
                           <span className="list-row__meta">
                             <span>{dates.relative(String(entry['recordedAt']))}</span>
@@ -152,10 +157,27 @@ export default function BodyMap(): JSX.Element {
                                 {String(member['name'])}
                               </Chip>
                             ) : null}
+                            {entry['note'] ? (
+                              <span className="faint truncate">{String(entry['note'])}</span>
+                            ) : null}
                           </span>
                         </span>
-                        <span className="list-row__trailing" style={{ width: 48 }}>
+                        <span className="list-row__trailing">
                           <Meter value={intensity} max={5} label={`Intensity ${intensity} of 5`} />
+                          <IconButton
+                            icon="edit"
+                            label="Edit entry"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => editor.show({ region: String(entry['region']), record: entry })}
+                          />
+                          <IconButton
+                            icon="trash"
+                            label="Delete entry"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => confirm.show(entry)}
+                          />
                         </span>
                       </div>
                     );
@@ -179,6 +201,22 @@ export default function BodyMap(): JSX.Element {
           await entries.create({ ...values, memberId: activeMemberId });
           toast.success('Recorded');
         }}
+        onUpdate={async (id, values) => {
+          await entries.update(id, values);
+          toast.success('Saved');
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirm.open}
+        onClose={confirm.hide}
+        title="Delete this entry?"
+        body="It is removed from the list and from the figure's tally."
+        onConfirm={async () => {
+          if (!confirm.value) return;
+          await entries.remove(confirm.value.id);
+          toast.success('Deleted');
+        }}
       />
     </>
   );
@@ -187,33 +225,46 @@ export default function BodyMap(): JSX.Element {
 function SensationDialog({
   dialog,
   onSave,
+  onUpdate,
 }: {
-  dialog: ReturnType<typeof useDialog<string>>;
+  dialog: ReturnType<typeof useDialog<{ region: string; record: StoredRecord | null }>>;
   onSave: (values: Record<string, unknown>) => Promise<void>;
+  onUpdate: (id: string, values: Record<string, unknown>) => Promise<void>;
 }): JSX.Element {
   const [sensation, setSensation] = useState('');
   const [intensity, setIntensity] = useState(3);
   const [side, setSide] = useState('both');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
-  const region = BODY_REGIONS.find((item) => item.id === dialog.value);
+  const record = dialog.value?.record ?? null;
+  const region = BODY_REGIONS.find((item) => item.id === dialog.value?.region);
+  const key = record ? record.id : (dialog.value?.region ?? null);
+
+  if (dialog.open && loadedKey !== key) {
+    setLoadedKey(key);
+    setSensation(record ? String(record['sensation'] ?? '') : '');
+    setIntensity(record ? Number(record['intensity'] ?? 3) : 3);
+    setSide(record ? String(record['side'] ?? 'both') : 'both');
+    setNote(record ? String(record['note'] ?? '') : '');
+  }
+  if (!dialog.open && loadedKey !== null) setLoadedKey(null);
 
   const save = async (): Promise<void> => {
     if (!sensation.trim() || !dialog.value) return;
     setSaving(true);
     try {
-      await onSave({
-        region: dialog.value,
+      const payload = {
+        region: dialog.value.region,
         sensation: sensation.trim(),
         intensity,
         side,
         note,
-        recordedAt: new Date().toISOString(),
-      });
-      setSensation('');
-      setNote('');
-      setIntensity(3);
+        ...(record ? {} : { recordedAt: new Date().toISOString() }),
+      };
+      if (record) await onUpdate(record.id, payload);
+      else await onSave(payload);
       dialog.hide();
     } finally {
       setSaving(false);

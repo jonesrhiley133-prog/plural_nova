@@ -14,7 +14,7 @@ import {
   type ThemePreset,
 } from '@pluralnova/shared';
 import { api, messageFor } from '../core/api.js';
-import { useQuery } from '../core/data.js';
+import { useQuery, useRecord } from '../core/data.js';
 import { useAuth } from '../core/auth.js';
 import { useOptimisticSettings } from '../core/settings.js';
 import { useTheme } from '../core/theme.js';
@@ -24,11 +24,11 @@ import { disablePush, enablePush, isInstalled, pushStatus, pushSupported, sendTe
 import { syncEngine } from '../core/sync.js';
 import { offlineStorageProblem, storageEstimate } from '../core/localdb.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton, ListRow, Stat } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, ListRow, Stat } from '../ui/primitives.js';
 import { NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
 import { ColorPicker, ColorSwatch } from '../ui/ColorPicker.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
-import { DescriptiveNote } from '../ui/feedback.js';
+import { DescriptiveNote, ErrorLine, LoadingLine } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
 
 /**
@@ -61,6 +61,8 @@ export default function Settings(): JSX.Element {
   return (
     <>
       <PageHeader title="Settings" description={term('How PluralNova looks, what it calls things, and what it may do.')} />
+
+      <ProfileHeader />
 
       <div className="split">
         <nav aria-label="Settings sections">
@@ -99,6 +101,49 @@ export default function Settings(): JSX.Element {
         </div>
       </div>
     </>
+  );
+}
+
+/** Who this account is, at a glance, above the section list rather than buried in Account. */
+function ProfileHeader(): JSX.Element {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const activeMember = useRecord('members', user?.activeMemberId ?? undefined);
+  const roleLabel = user?.mode === 'singlet' ? 'Singlet' : 'System';
+
+  return (
+    <Card style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="row row--nowrap">
+        <Avatar
+          name={user?.displayName ?? 'You'}
+          src={(activeMember?.['avatarUrl'] as string) ?? null}
+          color={(activeMember?.['color'] as string) ?? null}
+          icon={(activeMember?.['icon'] as string) ?? null}
+          size={64}
+          round
+        />
+        <div style={{ minWidth: 0 }}>
+          <h2 className="truncate" style={{ fontSize: 'var(--size-lg)' }}>
+            {user?.displayName ?? 'You'}
+          </h2>
+          <p className="small muted">
+            {roleLabel}
+            {activeMember ? ` · Presenting as ${String(activeMember['name'])}` : ''}
+          </p>
+          {activeMember ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="edit"
+              onClick={() => navigate(`/members/${activeMember.id}`)}
+              style={{ marginTop: 'var(--space-2)' }}
+            >
+              Change avatar
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -896,12 +941,15 @@ function Account(): JSX.Element {
   const deleteDialog = useDialog();
 
   const [sessions, setSessions] = useState<{ id: string; userAgent: string | null; lastSeenAt: string; current: boolean }[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
 
   useEffect(() => {
     void api
       .get<{ id: string; userAgent: string | null; lastSeenAt: string; current: boolean }[]>('/api/auth/sessions')
       .then(setSessions)
-      .catch(() => setSessions([]));
+      .catch((cause: unknown) => setSessionsError(messageFor(cause)))
+      .finally(() => setSessionsLoading(false));
   }, []);
 
   return (
@@ -931,7 +979,15 @@ function Account(): JSX.Element {
         )}
       </Card>
 
-      {sessions.length > 0 ? (
+      {sessionsLoading ? (
+        <Card title="Signed in" subtitle="Everywhere this account is open">
+          <LoadingLine label="Loading sessions…" />
+        </Card>
+      ) : sessionsError ? (
+        <Card title="Signed in" subtitle="Everywhere this account is open">
+          <ErrorLine message={sessionsError} />
+        </Card>
+      ) : sessions.length > 0 ? (
         <Card title="Signed in" subtitle="Everywhere this account is open" flush>
           <div className="list">
             {sessions.map((session) => (

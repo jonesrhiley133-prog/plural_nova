@@ -179,7 +179,9 @@ export default function Tasks(): JSX.Element {
               {tasks.map((task) => {
                 const due = task['dueAt'] ? String(task['dueAt']) : null;
                 const overdue = due !== null && due < now && task['completed'] !== true;
-                const priority = OPTIONS.priority.find((option) => option.value === task['priority']);
+                const priority =
+                  OPTIONS.priority.find((option) => option.value === task['priority']) ??
+                  OPTIONS.priority.find((option) => option.value === 'normal')!;
                 const assignee = task['memberId'] ? members.get(String(task['memberId'])) : null;
                 const subtasks = (task['subtasks'] as { id: string; label: string; done: boolean }[]) ?? [];
 
@@ -192,6 +194,16 @@ export default function Tasks(): JSX.Element {
                       aria-label={`Mark ${String(task['title'])} ${task['completed'] === true ? 'incomplete' : 'complete'}`}
                       style={{ accentColor: 'var(--accent)', width: 18, height: 18 }}
                     />
+                    <span
+                      className="list-row__icon"
+                      aria-hidden="true"
+                      style={{
+                        ['--row-icon-color' as never]: `color-mix(in srgb, ${priority.color} 15%, transparent)`,
+                        ['--row-icon-fg' as never]: priority.color,
+                      }}
+                    >
+                      {priority.icon}
+                    </span>
                     <span className="list-row__body">
                       <span
                         className="list-row__title"
@@ -209,7 +221,7 @@ export default function Tasks(): JSX.Element {
                             {dates.dateTime(due)}
                           </span>
                         ) : null}
-                        {priority && priority.value !== 'normal' ? (
+                        {priority.value !== 'normal' ? (
                           <Chip color={priority.color}>
                             {priority.icon} {priority.label}
                           </Chip>
