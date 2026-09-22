@@ -135,8 +135,6 @@ pre {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  /* A ring plus a bloom: on a dark sky the outline alone is easy to lose. */
-  box-shadow: 0 0 0 5px var(--glow);
   border-radius: var(--radius-sm);
 }
 

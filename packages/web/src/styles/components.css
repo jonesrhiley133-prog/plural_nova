@@ -141,16 +141,10 @@
 .surface,
 .card {
   position: relative;
-  background:
-    linear-gradient(180deg, var(--glass-sheen), transparent 58%),
-    var(--surface);
+  background: var(--surface);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(var(--blur-surface)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--blur-surface)) saturate(var(--glass-saturate));
-  box-shadow:
-    inset 0 1px 0 0 var(--glass-edge),
-    var(--shadow);
+  box-shadow: var(--shadow);
 }
 
 .card {
@@ -163,12 +157,8 @@
 }
 
 .card--raised {
-  background:
-    linear-gradient(180deg, var(--glass-sheen), transparent 58%),
-    var(--surface-raised);
-  box-shadow:
-    inset 0 1px 0 0 var(--glass-edge),
-    var(--shadow-lift);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lift);
 }
 
 .card--interactive {
@@ -182,12 +172,8 @@
 
 .card--interactive:hover {
   border-color: var(--border-strong);
-  background:
-    linear-gradient(180deg, var(--glass-sheen), transparent 58%),
-    var(--surface-raised);
-  box-shadow:
-    inset 0 1px 0 0 var(--glass-edge),
-    var(--shadow-lift);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lift);
   transform: translateY(-1px);
 }
 
@@ -274,30 +260,15 @@
   background: var(--accent);
   color: var(--accent-text);
   font-weight: var(--weight-semibold);
-  box-shadow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.28),
-    0 6px 20px -8px var(--glow);
 }
 
 .button--primary:hover:not(:disabled) {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 80%, #ffffff),
-    color-mix(in srgb, var(--accent) 94%, #ffffff)
-  );
-  box-shadow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.32),
-    0 10px 28px -8px var(--glow);
+  background: color-mix(in srgb, var(--accent) 85%, #ffffff);
 }
 
 .button--secondary {
-  background:
-    linear-gradient(180deg, var(--glass-sheen), transparent 60%),
-    var(--surface-raised);
+  background: var(--surface-raised);
   border-color: var(--border);
-  backdrop-filter: blur(var(--blur-surface));
-  -webkit-backdrop-filter: blur(var(--blur-surface));
-  box-shadow: inset 0 1px 0 0 var(--glass-edge);
 }
 
 .button--secondary:hover:not(:disabled) {
@@ -402,15 +373,7 @@
 .select {
   width: 100%;
   padding: var(--space-3);
-  /*
-   * A field is a recess rather than a raised panel, so the light sits along
-   * the bottom edge instead of the top — the same trick as the cards, inverted.
-   */
-  background: linear-gradient(180deg, transparent 45%, var(--glass-sheen));
-  background-color: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
-  backdrop-filter: blur(var(--blur-surface));
-  -webkit-backdrop-filter: blur(var(--blur-surface));
-  box-shadow: inset 0 -1px 0 0 var(--glass-edge);
+  background: var(--surface-sunken);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
@@ -564,13 +527,8 @@
   gap: var(--space-1);
   padding: 4px var(--space-3);
   border-radius: var(--radius-pill);
-  /* Glass, like everything else on the page — a sunken well would read as a
-     hole punched in the panel it is sitting on. */
-  background:
-    linear-gradient(180deg, var(--glass-sheen), transparent 70%),
-    color-mix(in srgb, var(--surface-raised) 70%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
   border: var(--border-width) solid var(--border);
-  box-shadow: inset 0 1px 0 0 var(--glass-edge);
   font-size: var(--size-xs);
   color: var(--text-muted);
   white-space: nowrap;
@@ -1252,8 +1210,6 @@
   align-items: flex-end;
   justify-content: center;
   background: color-mix(in srgb, #000 62%, transparent);
-  backdrop-filter: blur(calc(var(--blur-surface) / 3));
-  -webkit-backdrop-filter: blur(calc(var(--blur-surface) / 3));
   animation: fade-in var(--duration) var(--ease);
 }
 
@@ -1400,8 +1356,6 @@
   border: var(--border-width) solid var(--border-strong);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(var(--blur-surface));
-  -webkit-backdrop-filter: blur(var(--blur-surface));
   pointer-events: auto;
   animation: toast-in var(--duration) var(--ease);
 }

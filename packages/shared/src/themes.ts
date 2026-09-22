@@ -82,7 +82,7 @@ export interface ThemeSettings {
   showStarfield: boolean;
 }
 
-export const DEFAULT_ACCENT = '#7aa2f7';
+export const DEFAULT_ACCENT = '#8b5cf6';
 
 export const DEFAULT_THEME: ThemeSettings = {
   base: 'dark',
@@ -111,37 +111,34 @@ export const DEFAULT_THEME: ThemeSettings = {
 };
 
 const DARK: ThemeTokens = {
-  bg: '#0b1020',
-  bgSubtle: '#111935',
-  surface: '#19223c',
-  surfaceRaised: '#212c4c',
-  surfaceSunken: '#0e142a',
-  border: '#2a3558',
-  borderStrong: '#3c4a76',
-  text: '#e7ecf8',
-  textMuted: '#c3cee6',
-  textFaint: '#b2bed7',
+  // PluralSpace-inspired: deep violet night, cozy charcoal panels, vibrant purple.
+  bg: '#13091f',
+  bgSubtle: '#1a0f2e',
+  surface: '#1e1430',
+  surfaceRaised: '#251a3d',
+  surfaceSunken: '#0f0818',
+  border: '#2d2042',
+  borderStrong: '#3d2d57',
+  text: '#f5f3ff',
+  textMuted: '#b8b0d0',
+  textFaint: '#8b80a8',
   accent: DEFAULT_ACCENT,
   accentText: '#04070f',
   accentSoft: '#7aa2f726',
   positive: '#5ec6a8',
   caution: '#f0a85a',
   critical: '#ec7392',
-  // #ec7392 only reaches 2.8:1 against white — a badge needs 4.5:1+, so its
-  // text is dark rather than the white every other filled surface here uses.
   criticalText: '#05070d',
   info: '#8bd5ff',
-  atmosphere: '#16224a',
+  atmosphere: '#1e0f3a',
   shadow: '0 18px 40px -24px rgba(0, 0, 0, 0.9)',
   glassEdge: 'rgba(200, 220, 255, 0.13)',
   glassSheen: 'rgba(160, 190, 255, 0.045)',
   shadowLift: '0 2px 6px -2px rgba(0, 0, 0, 0.6), 0 24px 56px -28px rgba(4, 10, 30, 0.95)',
   glow: 'rgba(122, 162, 247, 0.17)',
-  // Muted rather than saturated: these wash the background, and a vivid one
-  // reads as a galaxy wallpaper instead of a night sky.
-  nebulaCore: '#2b3d73',
-  nebulaDrift: '#5f4a8c',
-  nebulaDeep: '#1a4668',
+  nebulaCore: '#3d2660',
+  nebulaDrift: '#6b3fa0',
+  nebulaDeep: '#2a1a4e',
 };
 
 const AMOLED: ThemeTokens = {
@@ -234,8 +231,8 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
   {
     id: 'nebula',
     label: 'Nebula',
-    description: 'The default: deep navy, soft glass, quiet motion.',
-    settings: { base: 'dark', accent: '#7aa2f7', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
+    description: 'The default: deep violet, flat surfaces, quiet motion.',
+    settings: { base: 'dark', accent: '#8b5cf6', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
   },
   {
     id: 'void',
