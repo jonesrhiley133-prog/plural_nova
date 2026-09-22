@@ -14,6 +14,24 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   scrollbar-gutter: stable;
+  /*
+   * Every tappable surface already has its own :active press state (see
+   * motion.css), so the browser's default tap highlight — a flat grey-blue
+   * flash with none of this app's shape or timing — is a second, uglier
+   * answer to a question already answered.
+   */
+  -webkit-tap-highlight-color: transparent;
+}
+
+a,
+button,
+input,
+textarea,
+select,
+summary,
+[role='button'],
+[tabindex] {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
