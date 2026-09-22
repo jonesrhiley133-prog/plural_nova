@@ -1,5 +1,5 @@
 import { DEFAULT_THEME } from '@pluralnova/shared';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp, registerUser, type TestClient } from './harness.js';
 
 describe('records, settings, backup and sync', () => {
@@ -287,6 +287,281 @@ describe('records, settings, backup and sync', () => {
 
     const after = await client.request('GET', '/api/records/members', { token });
     expect(after.body.data.total).toBe(before.body.data.total);
+  });
+
+  it('imports PluralKit switches as front history from a file export', async () => {
+    const result = await client.request('POST', '/api/data/import', {
+      token,
+      body: {
+        source: 'pluralkit',
+        payload: {
+          members: [
+            { id: 'aaaaa', name: 'Switch One' },
+            { id: 'bbbbb', name: 'Switch Two' },
+          ],
+          switches: [
+            { timestamp: '2026-01-01T00:00:00.000Z', members: ['aaaaa'] },
+            { timestamp: '2026-01-01T01:30:00.000Z', members: ['bbbbb'] },
+          ],
+        },
+      },
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.data.report.imported).toBe(4); // 2 members + 2 front periods (the last stays open)
+
+    const members = await client.request('GET', '/api/records/members?search=Switch%20', { token });
+    const memberIds = members.body.data.items.map((row: any) => row.id);
+    expect(memberIds).toHaveLength(2);
+
+    const fronts = await client.request('GET', '/api/records/frontEvents', { token });
+    const created = fronts.body.data.items.filter((row: any) => memberIds.includes(row.memberId));
+    expect(created).toHaveLength(2);
+    expect(created.find((row: any) => row.durationMinutes === 90)).toBeTruthy();
+    expect(created.find((row: any) => row.endedAt === null)).toBeTruthy();
+  });
+
+  describe('PluralKit token import', () => {
+    const realFetch = globalThis.fetch;
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+    });
+
+    it('pulls members and switches from PluralKit using a token', async () => {
+      globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+        const url = String(args[0]);
+        if (!url.includes('api.pluralkit.me')) return realFetch(...args);
+        if (url.includes('/switches')) {
+          return new Response(
+            JSON.stringify([
+              { timestamp: '2026-02-01T00:00:00.000Z', members: ['ccccc'] },
+              { timestamp: '2026-02-01T02:00:00.000Z', members: ['ddddd'] },
+            ]),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify([
+            { id: 'ccccc', name: 'Token One', pronouns: 'she/her', color: '5ec6a8' },
+            { id: 'ddddd', pronouns: 'they/them' },
+          ]),
+          { status: 200 },
+        );
+      }) as typeof fetch;
+
+      const result = await client.request('POST', '/api/data/import', {
+        token,
+        body: { source: 'pluralkit-token', payload: { token: 'pk_test_token' } },
+      });
+      expect(result.status).toBe(200);
+      expect(result.body.data.report.imported).toBe(2); // 1 named member + 1 front period
+      expect(result.body.data.problems).toHaveLength(1);
+
+      const members = await client.request('GET', '/api/records/members?search=Token%20One', { token });
+      expect(members.body.data.items[0].color).toBe('#5ec6a8');
+    });
+
+    it('reports a token PluralKit does not accept', async () => {
+      globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+        const url = String(args[0]);
+        if (!url.includes('api.pluralkit.me')) return realFetch(...args);
+        return new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+      }) as typeof fetch;
+
+      const result = await client.request('POST', '/api/data/import', {
+        token,
+        body: { source: 'pluralkit-token', payload: { token: 'not-a-real-token' } },
+      });
+      expect(result.status).toBe(200);
+      expect(result.body.data.report.imported).toBe(0);
+      expect(result.body.data.problems[0].reason).toContain('not accepted');
+    });
+  });
+
+  it('imports an Octocon export', async () => {
+    const result = await client.request('POST', '/api/data/import', {
+      token,
+      body: {
+        source: 'octocon',
+        payload: {
+          alters: [
+            {
+              id: 1,
+              name: 'Octo One',
+              pronouns: 'it/its',
+              description: 'From Octocon.',
+              color: '#818cf8',
+              avatar_url: 'https://example.com/octo.png',
+            },
+            { id: 2, pronouns: 'she/her' },
+          ],
+        },
+      },
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.data.report.imported).toBe(1);
+    expect(result.body.data.problems).toHaveLength(1);
+
+    const members = await client.request('GET', '/api/records/members?search=Octo%20One', { token });
+    expect(members.body.data.items[0].pronouns).toBe('it/its');
+    expect(members.body.data.items[0].avatarUrl).toBe('https://example.com/octo.png');
+  });
+
+  it('imports a Sheaf export including fronting history', async () => {
+    const result = await client.request('POST', '/api/data/import', {
+      token,
+      body: {
+        source: 'sheaf',
+        payload: {
+          version: '2',
+          members: [
+            { id: 'sh-1', name: 'Sheaf One', pronouns: 'she/her', description: 'Note here.', color: '#5ec6a8' },
+          ],
+          fronts: [
+            {
+              member_id: 'sh-1',
+              started_at: '2026-01-01T00:00:00Z',
+              ended_at: '2026-01-01T02:00:00Z',
+              note: 'sheaf-fixture-marker',
+            },
+            { member_id: 'unknown-id', started_at: '2026-01-02T00:00:00Z' },
+          ],
+        },
+      },
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.data.report.imported).toBe(2);
+    expect(result.body.data.problems).toHaveLength(1);
+    expect(result.body.data.problems[0].reason).toContain('did not match a member');
+
+    const fronts = await client.request('GET', '/api/records/frontEvents?search=sheaf-fixture-marker', { token });
+    expect(fronts.body.data.items).toHaveLength(1);
+    expect(fronts.body.data.items[0].durationMinutes).toBe(120);
+  });
+
+  it('imports a Plural Star export', async () => {
+    const result = await client.request('POST', '/api/data/import', {
+      token,
+      body: {
+        source: 'plural-star',
+        payload: {
+          _meta: { version: '1.2', app: 'Plural Star' },
+          members: [
+            { id: 'ps-1', name: 'Star One', pronouns: 'they/them', role: ['Host'], color: 'f0a05a', tags: ['fixture'] },
+          ],
+        },
+      },
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.data.report.imported).toBe(1);
+
+    const members = await client.request('GET', '/api/records/members?search=Star%20One', { token });
+    expect(members.body.data.items[0].roles).toEqual(['Host']);
+    expect(members.body.data.items[0].color).toBe('#f0a05a');
+  });
+
+  it('imports a PluralSpace export', async () => {
+    const result = await client.request('POST', '/api/data/import', {
+      token,
+      body: {
+        source: 'pluralspace',
+        payload: {
+          members: [
+            {
+              id: 1523074,
+              name: 'Space One',
+              pronouns: 'xe/xem',
+              description: 'From PluralSpace.',
+              color: '#818cf8',
+              role: ['Host', 'Core'],
+              is_archived: false,
+            },
+          ],
+        },
+      },
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.data.report.imported).toBe(1);
+
+    const members = await client.request('GET', '/api/records/members?search=Space%20One', { token });
+    expect(members.body.data.items[0].roles).toEqual(['Host', 'Core']);
+  });
+
+  it('imports an Open Plural export and resolves asset references', async () => {
+    const result = await client.request('POST', '/api/data/import', {
+      token,
+      body: {
+        source: 'openplural',
+        payload: {
+          openplural_version: '0.1',
+          members: [
+            {
+              id: 'op-1',
+              name: 'Plural One',
+              pronouns: 'she/they',
+              description: 'Ported.',
+              color: '#a78bfa',
+              avatar_asset_id: 'asset-1',
+            },
+          ],
+          assets: [{ id: 'asset-1', url: 'https://example.com/op-1.png' }],
+          front_periods: [],
+        },
+      },
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.data.report.imported).toBe(1);
+
+    const members = await client.request('GET', '/api/records/members?search=Plural%20One', { token });
+    expect(members.body.data.items[0].avatarUrl).toBe('https://example.com/op-1.png');
+  });
+
+  it('explains why Ampersand and Prism Plural exports cannot be read', async () => {
+    const ampersandResult = await client.request('POST', '/api/data/import', {
+      token,
+      body: { source: 'ampersand', payload: {} },
+    });
+    expect(ampersandResult.body.data.report.imported).toBe(0);
+    expect(ampersandResult.body.data.problems[0].reason).toContain('Ampersand');
+
+    const prismResult = await client.request('POST', '/api/data/import', {
+      token,
+      body: { source: 'prism-plural', payload: {} },
+    });
+    expect(prismResult.body.data.report.imported).toBe(0);
+    expect(prismResult.body.data.problems[0].reason).toContain('encrypted');
+  });
+
+  it('round-trips a member through the Open Plural export and import', async () => {
+    const created = await client.request('POST', '/api/records/members', {
+      token,
+      body: { name: 'Round Trip', pronouns: 'ey/em', bio: 'Round-trip fixture.', color: '#e06c93' },
+    });
+    expect(created.status).toBe(201);
+
+    const exported = await client.request('GET', '/api/data/export/openplural', { token });
+    expect(exported.status).toBe(200);
+    const file = exported.body;
+    expect(file.openplural_version).toBe('0.1');
+    expect(file.members.some((row: any) => row.name === 'Round Trip')).toBe(true);
+
+    const second = await registerUser(client, { email: `roundtrip-${Date.now()}@example.com` });
+    const imported = await client.request('POST', '/api/data/import', {
+      token: second.token,
+      body: { source: 'openplural', payload: file },
+    });
+    expect(imported.status).toBe(200);
+    // The account this file came from has accumulated members from every test
+    // above, so the whole file comes across — the point here is that this one
+    // member's fields survived the round trip intact, not the total count.
+    expect(imported.body.data.report.imported).toBeGreaterThanOrEqual(1);
+
+    const reimported = await client.request('GET', '/api/records/members?search=Round%20Trip', {
+      token: second.token,
+    });
+    expect(reimported.body.data.items).toHaveLength(1);
+    expect(reimported.body.data.items[0].pronouns).toBe('ey/em');
+    expect(reimported.body.data.items[0].bio).toBe('Round-trip fixture.');
+    expect(reimported.body.data.items[0].color).toBe('#e06c93');
   });
 
   it('pulls only what changed since a cursor', async () => {

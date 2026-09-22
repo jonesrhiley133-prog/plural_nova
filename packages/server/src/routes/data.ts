@@ -23,6 +23,7 @@ import { refreshMemberCount } from '../services/systems.js';
 import { historyPhrases, recordHistory } from '../services/history.js';
 import { checkAchievements } from '../services/achievements.js';
 import { importFromExternal, listImportSources } from '../services/importers.js';
+import { buildOpenPluralExport } from '../services/exporters.js';
 
 /**
  * Backup, restore, import and export.
@@ -164,6 +165,22 @@ dataRouter.post(
   }),
 );
 
+/**
+ * The same data, in the shared Open Plural (PluralPort) format rather than
+ * PluralNova's own backup shape — for moving to, or keeping a copy readable
+ * by, any other tracker that speaks it.
+ */
+dataRouter.get(
+  '/export/openplural',
+  handler((req, res) => {
+    const context = auth(req);
+    const file = buildOpenPluralExport(context.scope, context.user.displayName, APP_VERSION);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="pluralnova-openplural.json"');
+    res.send(JSON.stringify(file, null, 2));
+  }),
+);
+
 dataRouter.get(
   '/export/:collection',
   handler((req, res) => {
@@ -224,7 +241,7 @@ dataRouter.post(
     if (!source) throw badRequest('Choose what the file came from.');
     if (payload === undefined) throw badRequest('No file contents were received.');
 
-    const result = importFromExternal(source, payload, context.scope);
+    const result = await importFromExternal(source, payload, context.scope);
     if (result.records && Object.keys(result.records).length > 0) {
       const report = restoreCollections(
         context.scope,

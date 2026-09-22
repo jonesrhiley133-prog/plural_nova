@@ -7,7 +7,7 @@ import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, Stat } from '../ui/primitives.js';
-import { FileButton, SelectField } from '../ui/forms.js';
+import { FileButton, SelectField, TextField } from '../ui/forms.js';
 import { ErrorPanel } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
 
@@ -23,7 +23,7 @@ interface ImportSource {
   id: string;
   label: string;
   description: string;
-  accepts: 'json' | 'csv';
+  accepts: 'json' | 'csv' | 'token';
   instructions: string;
   collections: string[];
 }
@@ -52,6 +52,7 @@ export default function ImportCentre(): JSX.Element {
   const [fileName, setFileName] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [strategy, setStrategy] = useState<ConflictStrategy>('skipExisting');
+  const [token, setToken] = useState('');
 
   const [csvColumns, setCsvColumns] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
@@ -111,9 +112,11 @@ export default function ImportCentre(): JSX.Element {
     setReport(null);
     try {
       const body =
-        csvRows.length > 0
-          ? { source: 'csv', payload: { collection: csvCollection, mapping, rows: csvRows }, strategy }
-          : { source, payload, strategy };
+        active?.accepts === 'token'
+          ? { source, payload: { token: token.trim() }, strategy }
+          : csvRows.length > 0
+            ? { source: 'csv', payload: { collection: csvCollection, mapping, rows: csvRows }, strategy }
+            : { source, payload, strategy };
 
       const result = await api.post<{ report: ImportReport; problems: Problem[]; sourceLabel: string }>(
         '/api/data/import',
@@ -140,7 +143,8 @@ export default function ImportCentre(): JSX.Element {
     }
   };
 
-  const ready = payload !== null || csvRows.length > 0;
+  const ready =
+    active?.accepts === 'token' ? token.trim().length > 0 : payload !== null || csvRows.length > 0;
 
   return (
     <>
@@ -163,6 +167,7 @@ export default function ImportCentre(): JSX.Element {
               setCsvRows([]);
               setFileName(null);
               setReport(null);
+              setToken('');
             }}
           >
             <div className="card__title">{candidate.label}</div>
@@ -185,12 +190,23 @@ export default function ImportCentre(): JSX.Element {
             {active.instructions}
           </p>
 
-          <FileButton
-            label={fileName ? `Chosen: ${fileName}` : 'Choose a file'}
-            accept={active.accepts === 'csv' ? '.csv,text/csv' : 'application/json,.json'}
-            onFile={(file) => void readFile(file)}
-            variant="secondary"
-          />
+          {active.accepts === 'token' ? (
+            <TextField
+              label="System token"
+              type="password"
+              autoComplete="off"
+              value={token}
+              onChange={setToken}
+              placeholder="Paste the token here"
+            />
+          ) : (
+            <FileButton
+              label={fileName ? `Chosen: ${fileName}` : 'Choose a file'}
+              accept={active.accepts === 'csv' ? '.csv,text/csv' : 'application/json,.json'}
+              onFile={(file) => void readFile(file)}
+              variant="secondary"
+            />
+          )}
 
           {parseError ? (
             <div style={{ marginTop: 'var(--space-4)' }}>
@@ -264,7 +280,7 @@ export default function ImportCentre(): JSX.Element {
             />
 
             <Button variant="primary" icon="import" disabled={!ready} loading={running} onClick={() => void run()}>
-              Import
+              {active.accepts === 'token' ? 'Connect and import' : 'Import'}
             </Button>
           </div>
         </Card>
