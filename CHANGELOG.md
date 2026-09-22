@@ -10,6 +10,32 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-09-22
+
+Import and export, taken seriously: a live PluralKit connection, six new
+readers for trackers this community has actually been migrating from, and a
+second export format meant to outlive any one of them.
+
+### Added
+
+- **Connect PluralKit with a token, not a file.** Paste a system token and
+  PluralNova pulls members and recent switch history straight from
+  PluralKit's own API — nothing to export by hand first, and the token is
+  used once and never stored. The file-based `pk;export` import is still
+  there for anyone who prefers it, and now carries switch history across too,
+  not just members.
+- **Six new import sources**, each reading that app's own export shape rather
+  than a generic guess: Sheaf, Octocon, Plural Star, PluralSpace, Pluralis
+  and PluralConnect.
+- **Open Plural (PluralPort) import and export.** PluralNova can now both
+  read and write the shared, app-independent format a growing number of
+  trackers — Sheaf among them — speak directly, so a copy of a system's data
+  stays readable even if PluralNova is not involved.
+- **Honesty about what cannot be read yet.** Prism Plural's export is
+  encrypted and Ampersand's is not a portable format; rather than pretend
+  otherwise, the import screen says so and points at PluralKit when the same
+  members exist there too.
+
 ## [1.0.1] — 2026-09-21
 
 A design pass, and the bugs it turned up.

@@ -50,6 +50,7 @@ export default function Backup(): JSX.Element {
   const [history, setHistory] = useState<BackupRow[]>([]);
   const [summary, setSummary] = useState<AccountSummary | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingOpenPlural, setExportingOpenPlural] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [file, setFile] = useState<unknown | null>(null);
@@ -103,6 +104,28 @@ export default function Backup(): JSX.Element {
       toast.error('The export did not finish', messageFor(cause));
     } finally {
       setExporting(false);
+    }
+  };
+
+  const exportOpenPlural = async (): Promise<void> => {
+    setExportingOpenPlural(true);
+    try {
+      const response = await fetch('/api/data/export/openplural', {
+        headers: { authorization: `Bearer ${getToken() ?? ''}` },
+      });
+      if (!response.ok) throw new Error('The export could not be prepared.');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'pluralnova-openplural.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('Open Plural file downloaded');
+    } catch (cause) {
+      toast.error('The export did not finish', messageFor(cause));
+    } finally {
+      setExportingOpenPlural(false);
     }
   };
 
@@ -178,6 +201,17 @@ export default function Backup(): JSX.Element {
             Export everything
           </Button>
 
+          <Button
+            variant="secondary"
+            icon="download"
+            onClick={() => void exportOpenPlural()}
+            loading={exportingOpenPlural}
+            block
+            style={{ marginTop: 'var(--space-3)' }}
+          >
+            Export as Open Plural
+          </Button>
+
           {summary && Object.keys(summary.counts).length > 0 ? (
             <details style={{ marginTop: 'var(--space-4)' }}>
               <summary className="small muted" style={{ cursor: 'pointer' }}>
@@ -197,8 +231,10 @@ export default function Backup(): JSX.Element {
 
           <div style={{ marginTop: 'var(--space-4)' }}>
             <DescriptiveNote>
-              The file is plain JSON with a version number and a checksum. It can be read by anything,
+              "Export everything" is the file to keep — plain JSON with a version number and a checksum,
               and restoring it into a future version of PluralNova migrates it forward automatically.
+              "Export as Open Plural" is a second copy in the shared PluralPort format, for moving members
+              and front history to another tracker that reads it.
             </DescriptiveNote>
           </div>
         </Card>
