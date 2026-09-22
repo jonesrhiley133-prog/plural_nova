@@ -8,7 +8,16 @@ import { useToast } from '../core/toast.js';
 import { useCollection } from '../core/data.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, SectionHeading } from '../ui/primitives.js';
-import { ColorField, NumberField, SearchField, SelectField, SwitchRow, TextField, useDebounced } from '../ui/forms.js';
+import {
+  ColorField,
+  ImageField,
+  NumberField,
+  SearchField,
+  SelectField,
+  SwitchRow,
+  TextField,
+  useDebounced,
+} from '../ui/forms.js';
 import { EmptyState, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
@@ -317,8 +326,8 @@ function ProfileEditor({
         onChange={(value) => set('systemType', value)}
         hint="Only if you want it shown. Nothing is assumed."
       />
-      <TextField label="Avatar link" value={String(draft.avatarUrl ?? '')} onChange={(value) => set('avatarUrl', value)} />
-      <TextField label="Banner link" value={String(draft.bannerUrl ?? '')} onChange={(value) => set('bannerUrl', value)} />
+      <ImageField label="Avatar" value={String(draft.avatarUrl ?? '')} onChange={(value) => set('avatarUrl', value)} shape="avatar" />
+      <ImageField label="Banner" value={String(draft.bannerUrl ?? '')} onChange={(value) => set('bannerUrl', value)} shape="banner" />
       <ColorField label="Accent" value={String(draft.accent ?? '')} onChange={(value) => set('accent', value)} />
 
       <h3 className="section-heading__label" style={{ margin: 'var(--space-5) 0 var(--space-3)' }}>

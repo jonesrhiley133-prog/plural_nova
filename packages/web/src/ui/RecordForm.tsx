@@ -14,6 +14,7 @@ import { useSettings, useSystemMode, useActiveMemberId } from '../core/auth.js';
 import {
   ColorField,
   DateTimeField,
+  ImageField,
   NumberField,
   ReferenceField,
   SelectField,
@@ -238,7 +239,7 @@ export function RecordForm(props: RecordFormProps): JSX.Element {
   );
 }
 
-function visibilityLabel(level: Visibility, term: (text: string) => string): string {
+export function visibilityLabel(level: Visibility, term: (text: string) => string): string {
   switch (level) {
     case 'private':
       return 'Only me';
@@ -375,8 +376,19 @@ export function RecordField({
       );
     case 'color':
       return <ColorField {...common} value={String(value ?? '')} onChange={onChange} />;
-    case 'url':
     case 'image':
+      return (
+        <ImageField
+          label={field.label}
+          {...(field.hint ? { hint: field.hint } : {})}
+          value={String(value ?? '')}
+          onChange={onChange}
+          shape={
+            /avatar|photo/i.test(field.name) ? 'avatar' : /banner|cover/i.test(field.name) ? 'banner' : 'square'
+          }
+        />
+      );
+    case 'url':
       return (
         <TextField
           {...common}
