@@ -1,14 +1,29 @@
 import { useMemo, useState } from 'react';
-import { formatDuration, type StoredRecord } from '@pluralnova/shared';
-import { useCollection, useQuery } from '../core/data.js';
+import { formatDuration, requireCollection, type StoredRecord } from '@pluralnova/shared';
+import { useCollection, useQuery, useRecordMap } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton, Stat } from '../ui/primitives.js';
-import { DateTimeField, NumberField, SwitchRow, TextField } from '../ui/forms.js';
+import { Button, Card, Chip, FieldList, IconButton, Stat } from '../ui/primitives.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { RecordForm } from '../ui/RecordForm.js';
 import { ColumnChart } from '../charts/index.js';
+
+/** Looks up an enum field's label for a stored value, rather than duplicating the option list. */
+function enumLabel(collection: string, field: string, value: unknown): string | null {
+  if (!value) return null;
+  const definition = requireCollection(collection).fields.find((candidate) => candidate.name === field);
+  return definition?.options?.find((option) => option.value === value)?.label ?? String(value);
+}
+
+/** A reasonable default for "when did you fall asleep" when logging last night's sleep just now. */
+function lastNight(): string {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  date.setHours(23, 0, 0, 0);
+  return date.toISOString();
+}
 
 /**
  * Sleep.
@@ -22,9 +37,11 @@ export default function Sleep(): JSX.Element {
   const dates = useDateFormat();
   const toast = useToast();
   const entries = useCollection('sleepEntries');
+  const members = useRecordMap('members');
   const editor = useDialog<StoredRecord>();
   const confirm = useDialog<StoredRecord>();
   const [creating, setCreating] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const overview = useQuery<{
     sleep: {
@@ -93,65 +110,184 @@ export default function Sleep(): JSX.Element {
         {(records) => (
           <Card flush>
             <div className="list">
-              {records.map((entry) => (
-                <div key={entry.id} className="list-row">
-                  <span className="list-row__body">
-                    <span className="list-row__title">
-                      {formatDuration(Number(entry['durationMinutes'] ?? 0))}
-                      {entry['isNap'] === true ? <span className="faint"> · nap</span> : null}
-                    </span>
-                    <span className="list-row__meta">
-                      <span>
-                        {dates.dateTime(String(entry['startedAt']))}
-                        {entry['endedAt'] ? ` → ${dates.time(String(entry['endedAt']))}` : ''}
+              {records.map((entry) => {
+                const isOpen = expanded === entry.id;
+                const wokeMember = entry['frontingMemberId']
+                  ? members.get(String(entry['frontingMemberId']))
+                  : null;
+                const flags = [
+                  entry['nightmares'] === true ? 'Nightmares' : null,
+                  entry['sleepwalking'] === true ? 'Sleepwalking' : null,
+                  entry['sleepTalking'] === true ? 'Sleep talking' : null,
+                ].filter((flag): flag is string => flag !== null);
+                const medications = Array.isArray(entry['medications']) ? (entry['medications'] as string[]) : [];
+                const hasDetail =
+                  Boolean(entry['bedtime']) ||
+                  Boolean(entry['outOfBedAt']) ||
+                  Boolean(entry['latencyMinutes']) ||
+                  flags.length > 0 ||
+                  Boolean(entry['moodBefore']) ||
+                  Boolean(entry['stress']) ||
+                  Boolean(entry['location']) ||
+                  Boolean(entry['noise']) ||
+                  Boolean(entry['lightLevel']) ||
+                  Boolean(entry['temperature']) ||
+                  entry['caffeine'] === true ||
+                  entry['exercised'] === true ||
+                  medications.length > 0 ||
+                  Boolean(entry['dreamNotes']) ||
+                  Boolean(entry['note']) ||
+                  Boolean(wokeMember);
+
+                return (
+                  <div key={entry.id}>
+                    <div className="list-row">
+                      <span className="list-row__body">
+                        <span className="list-row__title">
+                          {formatDuration(Number(entry['durationMinutes'] ?? 0))}
+                          {entry['isNap'] === true ? <span className="faint"> · nap</span> : null}
+                        </span>
+                        <span className="list-row__meta">
+                          <span>
+                            {dates.dateTime(String(entry['startedAt']))}
+                            {entry['endedAt'] ? ` → ${dates.time(String(entry['endedAt']))}` : ''}
+                          </span>
+                          {entry['quality'] ? <Chip>Quality {String(entry['quality'])}/5</Chip> : null}
+                          {entry['mood'] ? <Chip>{String(entry['mood'])}</Chip> : null}
+                          {Number(entry['awakenings'] ?? 0) > 0 ? (
+                            <span className="faint">{String(entry['awakenings'])} × awake</span>
+                          ) : null}
+                          {flags.map((flag) => (
+                            <Chip key={flag}>{flag}</Chip>
+                          ))}
+                        </span>
+                        {hasDetail ? (
+                          <Button variant="ghost" size="sm" onClick={() => setExpanded(isOpen ? null : entry.id)}>
+                            {isOpen ? 'Show less' : 'Show more detail'}
+                          </Button>
+                        ) : null}
                       </span>
-                      {entry['quality'] ? <Chip>Quality {String(entry['quality'])}/5</Chip> : null}
-                      {entry['mood'] ? <Chip>{String(entry['mood'])}</Chip> : null}
-                      {Number(entry['awakenings'] ?? 0) > 0 ? (
-                        <span className="faint">{String(entry['awakenings'])} × awake</span>
-                      ) : null}
-                    </span>
-                  </span>
-                  <span className="list-row__trailing">
-                    <IconButton
-                      icon="edit"
-                      label="Edit sleep entry"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => editor.show(entry)}
-                    />
-                    <IconButton
-                      icon="trash"
-                      label="Delete sleep entry"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => confirm.show(entry)}
-                    />
-                  </span>
-                </div>
-              ))}
+                      <span className="list-row__trailing">
+                        <IconButton
+                          icon="edit"
+                          label="Edit sleep entry"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => editor.show(entry)}
+                        />
+                        <IconButton
+                          icon="trash"
+                          label="Delete sleep entry"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => confirm.show(entry)}
+                        />
+                      </span>
+                    </div>
+                    {isOpen ? (
+                      <div style={{ padding: '0 var(--space-4) var(--space-4)' }}>
+                        <FieldList
+                          rows={[
+                            ['Went to bed', entry['bedtime'] ? dates.time(String(entry['bedtime'])) : null],
+                            [
+                              'Time to fall asleep',
+                              entry['latencyMinutes'] ? `${String(entry['latencyMinutes'])} min` : null,
+                            ],
+                            ['Got up', entry['outOfBedAt'] ? dates.time(String(entry['outOfBedAt'])) : null],
+                            ['Who woke up', wokeMember ? String(wokeMember['name']) : null],
+                            ['Mood before sleep', entry['moodBefore'] ? `${String(entry['moodBefore'])}/10` : null],
+                            ['Stress', entry['stress'] ? `${String(entry['stress'])}/5` : null],
+                            ['Caffeine that day', entry['caffeine'] === true ? 'Yes' : null],
+                            ['Exercised that day', entry['exercised'] === true ? 'Yes' : null],
+                            ['Medications', medications.length > 0 ? medications : null],
+                            ['Where', entry['location'] ? String(entry['location']) : null],
+                            ['Noise', enumLabel('sleepEntries', 'noise', entry['noise'])],
+                            ['Light', enumLabel('sleepEntries', 'lightLevel', entry['lightLevel'])],
+                            ['Temperature', enumLabel('sleepEntries', 'temperature', entry['temperature'])],
+                          ]}
+                        />
+                        {entry['dreamNotes'] ? (
+                          <p className="small muted prose" style={{ marginTop: 'var(--space-3)' }}>
+                            {String(entry['dreamNotes'])}
+                          </p>
+                        ) : null}
+                        {entry['note'] ? (
+                          <p className="small muted prose" style={{ marginTop: 'var(--space-2)' }}>
+                            {String(entry['note'])}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </Card>
         )}
       </AsyncContent>
 
-      <SleepDialog
+      <Dialog
         open={creating || editor.open}
-        record={editor.value}
         onClose={() => {
           setCreating(false);
           editor.hide();
         }}
-        onSave={async (values) => {
-          if (editor.value) {
-            await entries.update(editor.value.id, values);
-            toast.success('Saved');
-          } else {
-            await entries.create(values);
-            toast.success('Sleep logged');
-          }
-        }}
-      />
+        title={editor.value ? 'Edit sleep' : 'Log sleep'}
+        wide
+      >
+        <RecordForm
+          collection="sleepEntries"
+          record={editor.value}
+          initial={{ startedAt: lastNight(), endedAt: new Date().toISOString() }}
+          omit={['durationMinutes']}
+          onSubmit={async (values) => {
+            const startedAt = String(values['startedAt']);
+            const endedAt = values['endedAt'] ? String(values['endedAt']) : null;
+            if (endedAt && Date.parse(endedAt) < Date.parse(startedAt)) {
+              const error = new Error(
+                'Waking up before falling asleep is not something PluralNova can record.',
+              ) as Error & { fieldErrors?: Record<string, string> };
+              error.fieldErrors = { endedAt: 'Must be after falling asleep.' };
+              throw error;
+            }
+
+            const durationMinutes = endedAt
+              ? Math.max(0, Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 60000))
+              : 0;
+
+            // Filled in from bedtime and fell-asleep, exactly as the field's own
+            // hint promises, rather than asking for a number that is really a
+            // subtraction of two things already on the form.
+            let latencyMinutes = values['latencyMinutes'];
+            if ((latencyMinutes === '' || latencyMinutes === null || latencyMinutes === undefined) && values['bedtime']) {
+              const bedtime = Date.parse(String(values['bedtime']));
+              if (!Number.isNaN(bedtime)) {
+                latencyMinutes = Math.max(0, Math.round((Date.parse(startedAt) - bedtime) / 60000));
+              }
+            }
+
+            const payload = {
+              ...values,
+              durationMinutes,
+              ...(latencyMinutes !== undefined ? { latencyMinutes } : {}),
+            };
+
+            if (editor.value) {
+              await entries.update(editor.value.id, payload);
+              toast.success('Saved');
+              editor.hide();
+            } else {
+              await entries.create(payload);
+              toast.success('Sleep logged');
+              setCreating(false);
+            }
+          }}
+          onCancel={() => {
+            setCreating(false);
+            editor.hide();
+          }}
+        />
+      </Dialog>
 
       <ConfirmDialog
         open={confirm.open}
@@ -165,128 +301,5 @@ export default function Sleep(): JSX.Element {
         }}
       />
     </>
-  );
-}
-
-function SleepDialog({
-  open,
-  record,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  record: StoredRecord | null;
-  onClose: () => void;
-  onSave: (values: Record<string, unknown>) => Promise<void>;
-}): JSX.Element {
-  const [startedAt, setStartedAt] = useState<string | null>(null);
-  const [endedAt, setEndedAt] = useState<string | null>(null);
-  const [quality, setQuality] = useState<number | null>(3);
-  const [awakenings, setAwakenings] = useState<number | null>(0);
-  const [isNap, setIsNap] = useState(false);
-  const [mood, setMood] = useState('');
-  const [dreamNotes, setDreamNotes] = useState('');
-  const [note, setNote] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loadedId, setLoadedId] = useState<string | null>(null);
-
-  // Loading the record into local state once per record, rather than on every
-  // render, so typing is never overwritten mid-edit.
-  const targetId = record?.id ?? 'new';
-  if (open && loadedId !== targetId) {
-    setLoadedId(targetId);
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(23, 0, 0, 0);
-    setStartedAt(record ? String(record['startedAt']) : yesterday.toISOString());
-    setEndedAt(record ? ((record['endedAt'] as string) ?? null) : new Date().toISOString());
-    setQuality(record ? ((record['quality'] as number) ?? null) : 3);
-    setAwakenings(record ? ((record['awakenings'] as number) ?? 0) : 0);
-    setIsNap(record ? record['isNap'] === true : false);
-    setMood(record ? String(record['mood'] ?? '') : '');
-    setDreamNotes(record ? String(record['dreamNotes'] ?? '') : '');
-    setNote(record ? String(record['note'] ?? '') : '');
-    setError(null);
-  }
-  if (!open && loadedId !== null) setLoadedId(null);
-
-  const duration =
-    startedAt && endedAt
-      ? Math.max(0, Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 60000))
-      : 0;
-
-  const save = async (): Promise<void> => {
-    if (!startedAt) {
-      setError('Say when the sleep started.');
-      return;
-    }
-    if (endedAt && Date.parse(endedAt) < Date.parse(startedAt)) {
-      setError('Waking up before falling asleep is not something PluralNova can record.');
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    try {
-      await onSave({
-        startedAt,
-        endedAt,
-        durationMinutes: duration,
-        quality,
-        awakenings,
-        isNap,
-        mood,
-        dreamNotes,
-        note,
-      });
-      onClose();
-    } catch (cause) {
-      // The dialog stays open with the message, so nothing typed is lost to a
-      // failed save.
-      setError(cause instanceof Error ? cause.message : 'That could not be saved. Nothing was changed.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={record ? 'Edit sleep' : 'Log sleep'}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={() => void save()} loading={saving}>
-            Save
-          </Button>
-        </>
-      }
-    >
-      <DateTimeField label="Fell asleep" value={startedAt} onChange={setStartedAt} required />
-      <DateTimeField label="Woke up" value={endedAt} onChange={setEndedAt} />
-
-      {duration > 0 ? (
-        <p className="small muted" style={{ marginBottom: 'var(--space-4)' }}>
-          That is {formatDuration(duration)}.
-        </p>
-      ) : null}
-
-      <NumberField label="Quality (1–5)" value={quality} onChange={setQuality} min={1} max={5} />
-      <NumberField label="Times awake" value={awakenings} onChange={setAwakenings} min={0} max={50} />
-      <SwitchRow label="This was a nap" checked={isNap} onChange={setIsNap} />
-      <TextField label="Mood on waking" value={mood} onChange={setMood} />
-      <TextField label="Dreams" value={dreamNotes} onChange={setDreamNotes} multiline rows={2} />
-      <TextField label="Note" value={note} onChange={setNote} multiline rows={2} />
-
-      {error ? (
-        <p className="field__error" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </Dialog>
   );
 }

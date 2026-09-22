@@ -139,8 +139,17 @@ export default function Cycle(): JSX.Element {
                         <Chip key={symptom}>{symptom}</Chip>
                       ))}
                       {entry['energy'] ? <span className="faint">Energy {String(entry['energy'])}/10</span> : null}
+                      {entry['discomfort'] ? (
+                        <span className="faint">Discomfort {String(entry['discomfort'])}/10</span>
+                      ) : null}
                       {entry['mood'] ? <span className="faint">{String(entry['mood'])}</span> : null}
+                      {entry['remind'] === true ? <Chip>Reminder set</Chip> : null}
                     </span>
+                    {entry['note'] ? (
+                      <p className="tiny muted prose clamp-2" style={{ marginTop: 'var(--space-1)' }}>
+                        {String(entry['note'])}
+                      </p>
+                    ) : null}
                   </span>
                   <span className="list-row__trailing">
                     <IconButton icon="edit" label="Edit entry" variant="ghost" size="sm" onClick={() => editor.show(entry)} />

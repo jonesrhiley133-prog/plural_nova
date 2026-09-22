@@ -6,7 +6,7 @@ import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { FRONT_STATUS_META } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, FieldList, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -220,39 +220,6 @@ export default function MemberProfile(): JSX.Element {
       </div>
     );
   }
-}
-
-function FieldList({ rows }: { rows: [string, unknown][] }): JSX.Element {
-  const filled = rows.filter(([, value]) => value !== null && value !== undefined && value !== '');
-  if (filled.length === 0) {
-    return (
-      <p className="small faint">
-        Nothing filled in here. Every field is optional — a blank one is not a gap.
-      </p>
-    );
-  }
-  return (
-    <dl className="stack stack--tight" style={{ margin: 0 }}>
-      {filled.map(([label, value]) => (
-        <div key={label} className="row row--between" style={{ alignItems: 'flex-start' }}>
-          <dt className="small muted" style={{ minWidth: 120 }}>
-            {label}
-          </dt>
-          <dd style={{ margin: 0, textAlign: 'right', flex: 1 }}>
-            {Array.isArray(value) ? (
-              <span className="row" style={{ justifyContent: 'flex-end' }}>
-                {value.map((item) => (
-                  <Chip key={String(item)}>{String(item)}</Chip>
-                ))}
-              </span>
-            ) : (
-              String(value)
-            )}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
 }
 
 function Identity({ member }: { member: StoredRecord }): JSX.Element {
