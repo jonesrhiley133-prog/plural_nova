@@ -30,6 +30,7 @@
             root.dataset.base = theme.base || 'dark';
             root.dataset.effects = theme.effects || 'full';
             root.dataset.surface = theme.surfaceStyle || 'glass';
+            root.dataset.font = theme.font || 'lexend';
             if (theme.tokens) {
               for (var key in theme.tokens) {
                 root.style.setProperty('--' + key, theme.tokens[key]);

@@ -6,7 +6,7 @@ import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { FRONT_STATUS_META } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, SegmentedControl, Status } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl, Status } from '../ui/primitives.js';
 import { SearchField, useDebounced } from '../ui/forms.js';
 import { AsyncContent, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
@@ -179,6 +179,7 @@ export default function Members(): JSX.Element {
                     key={member.id}
                     member={member}
                     onOpen={() => navigate(`/members/${member.id}`)}
+                    onQuickFront={() => navigate(`/quick-front?member=${member.id}`)}
                   />
                 ))}
               </div>
@@ -207,20 +208,30 @@ export default function Members(): JSX.Element {
 function MemberCard({
   member,
   onOpen,
+  onQuickFront,
 }: {
   member: StoredRecord;
   onOpen: () => void;
+  onQuickFront: () => void;
 }): JSX.Element {
   const { term } = useI18n();
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
   const minutes = Number(member['frontMinutes'] ?? 0);
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={String(member['name'])}
       onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
       className="card card--interactive card--flush"
-      style={{ textAlign: 'left', overflow: 'hidden' }}
+      style={{ textAlign: 'left', overflow: 'hidden', cursor: 'pointer' }}
     >
       <div
         style={{
@@ -233,6 +244,17 @@ function MemberCard({
               } 32%, var(--bg-subtle)), var(--bg-subtle))`,
         }}
       >
+        <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 1 }}>
+          <IconButton
+            icon="bolt"
+            label={term('Quick {{front}}')}
+            size="sm"
+            onClick={(event) => {
+              event.stopPropagation();
+              onQuickFront();
+            }}
+          />
+        </span>
         {member['avatarUrl'] ? (
           <img
             src={String(member['avatarUrl'])}
@@ -283,7 +305,7 @@ function MemberCard({
           </div>
         ) : null}
       </div>
-    </button>
+    </div>
   );
 }
 

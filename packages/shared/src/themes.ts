@@ -64,11 +64,14 @@ export interface ThemeTokens {
   nebulaDeep: string;
 }
 
+export type FontChoice = 'lexend' | 'system' | 'serif';
+
 export interface ThemeSettings {
   base: ThemeBase;
   accent: string;
   surfaceStyle: SurfaceStyle;
   effects: EffectLevel;
+  fontFamily: FontChoice;
   /** 0–100; how translucent glass surfaces are. */
   surfaceOpacity: number;
   highContrast: boolean;
@@ -100,6 +103,7 @@ export const DEFAULT_THEME: ThemeSettings = {
    */
   surfaceStyle: 'solid',
   effects: 'balanced',
+  fontFamily: 'lexend',
   surfaceOpacity: 100,
   highContrast: false,
   reducedMotion: false,
@@ -546,6 +550,7 @@ export function normaliseThemeSettings(input: Partial<ThemeSettings> | null | un
   if (!['dark', 'amoled', 'light'].includes(merged.base)) merged.base = 'dark';
   if (!['glass', 'solid', 'clear'].includes(merged.surfaceStyle)) merged.surfaceStyle = 'glass';
   if (!['full', 'balanced', 'performance'].includes(merged.effects)) merged.effects = 'full';
+  if (!['lexend', 'system', 'serif'].includes(merged.fontFamily)) merged.fontFamily = 'lexend';
   return merged;
 }
 

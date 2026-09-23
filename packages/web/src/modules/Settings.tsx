@@ -399,6 +399,21 @@ function Appearance(): JSX.Element {
         />
       </Card>
 
+      <Card title="Typeface">
+        <SelectField
+          label="Font"
+          value={theme.fontFamily}
+          options={[
+            { value: 'lexend', label: 'Lexend — the default' },
+            { value: 'system', label: "System default — your device's own font" },
+            { value: 'serif', label: 'Serif' },
+          ]}
+          onChange={(value) => void update({ fontFamily: value as 'lexend' | 'system' | 'serif' })}
+          placeholder="Lexend"
+          hint="Lexend is designed to be easier to read; it ships with the app rather than being fetched from anywhere."
+        />
+      </Card>
+
       <Card title="Start over">
         <p className="small muted prose" style={{ marginBottom: 'var(--space-3)' }}>
           Puts every appearance setting back to the default. Nothing else is affected.

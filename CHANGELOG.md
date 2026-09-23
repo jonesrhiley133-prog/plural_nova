@@ -10,6 +10,55 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.4] — 2026-09-23
+
+A pass through the app's rough edges: layout bugs users could actually see,
+a navigation bar that finally answers to the user, and a fronting flow that
+no longer forces a full switch just to add someone.
+
+### Added
+
+- **Choose which tabs show up.** The navigation bar — sidebar and bottom bar
+  alike — is now built from a checklist in Settings, so a system can hide
+  whatever it doesn't use instead of scrolling past it forever.
+- **Every editing page's Save button lives top-right now**, not in a footer
+  you have to scroll to find. This is a change to the one shared form
+  component every record editor is built on, so it applies everywhere at
+  once rather than screen by screen.
+- **Member and contact pickers are a real picker.** Fields that used to want
+  a free-typed name or a pasted ID are now a tap-to-open dialog listing who
+  is actually in the system.
+- **Random relationships**, for systems that want their relationship map
+  seeded rather than built one link at a time. It reads whatever ages are
+  already on file and keeps its suggestions age-appropriate.
+- **A clearer way to add someone to the front** instead of always replacing
+  whoever is already there — Quick Front now offers both, plus a
+  lightning-bolt shortcut on every member's card on the Members page.
+- **Lexend, and a choice of it.** The app ships the font itself rather than
+  fetching it from Google at runtime, and Settings → Appearance now has a
+  Typeface picker for anyone who prefers something else.
+- **Change your display name** from Settings → Account. The server has
+  supported this for a while; there was just never a button for it.
+
+### Fixed
+
+- Long member names on the Quick Front page no longer spill past the edge
+  of their tile.
+- The 4- and 5-column layouts on the Members page actually render that many
+  columns on a phone now, instead of silently collapsing to fewer.
+- The stray accent-colored glow in the top-left corner on mobile — a
+  leftover from the glass-era background — is gone now that surfaces
+  default to solid.
+- The "category" field on editing pages, which nothing downstream ever
+  read, has been removed from those forms.
+- A member's profile-picture ring now uses that member's own colour and
+  sits centered instead of off to one side; flags attached to a profile
+  show in the same row as its other tags instead of going missing; the
+  whole profile page now picks up a soft tint of the member's colour.
+- A member card's accessible name no longer absorbs its quick-front
+  button's label, so screen readers announce each control on its own
+  instead of one run-together string.
+
 ## [1.0.3] — 2026-09-22
 
 Import and export, taken seriously: a live PluralKit connection, six new
