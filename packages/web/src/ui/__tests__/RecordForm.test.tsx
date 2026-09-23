@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { defaultSettings, requireCollection } from '@pluralnova/shared';
+import { defaultSettings, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { RecordForm } from '../RecordForm.js';
 
 const SETTINGS = defaultSettings('singlet');
@@ -102,5 +102,51 @@ describe('RecordForm', () => {
 
     expect(await screen.findByText('The server said no.')).toBeInTheDocument();
     expect(screen.getByLabelText(/Title/)).toHaveValue('A long fic');
+  });
+});
+
+/**
+ * A collection with grouped fields — sleepEntries groups "Went to bed" under
+ * "Times" — gets those groups collapsed by default, so a form with a dozen
+ * optional fields opens as short as the handful someone usually fills in.
+ */
+describe('RecordForm — grouped fields', () => {
+  function renderGrouped(record?: StoredRecord) {
+    const onSubmit = vi.fn(async (_values: Record<string, unknown>) => undefined);
+    render(
+      <RecordForm
+        collection="sleepEntries"
+        fields={['startedAt', 'bedtime']}
+        record={record ?? null}
+        onSubmit={onSubmit}
+      />,
+    );
+    return { onSubmit, user: userEvent.setup() };
+  }
+
+  it('keeps a named group closed until it is opened', async () => {
+    const { user } = renderGrouped();
+    expect(screen.queryByLabelText(/Went to bed/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Times/i }));
+    expect(screen.getByLabelText(/Went to bed/)).toBeInTheDocument();
+  });
+
+  it('opens a group on its own when the record being edited already has a value in it', () => {
+    const record: StoredRecord = {
+      id: 'sleep_1',
+      userId: 'user_1',
+      systemId: 'system_1',
+      memberId: null,
+      visibility: 'private',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      deletedAt: null,
+      version: 1,
+      startedAt: '2024-01-01T23:00:00.000Z',
+      bedtime: '2024-01-01T22:30:00.000Z',
+    };
+    renderGrouped(record);
+    expect(screen.getByLabelText(/Went to bed/)).toBeInTheDocument();
   });
 });

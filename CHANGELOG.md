@@ -10,6 +10,19 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.6] — 2026-09-23
+
+### Changed
+
+- **Long forms open short.** A field's `group` — already there on collections
+  like sleep, fitness and calendar events — now decides what shows up front
+  and what waits behind a fold. The first fields a collection lists (already
+  the ones that matter most of the time) are always visible; a named group of
+  more particular detail stays collapsed until it is opened, or until the
+  record being edited already has something in it, so existing detail is
+  never hidden by accident. Calendar's new-event form in particular goes from
+  fifteen fields to seven before anyone touches "Repeats" or "Reminders."
+
 ## [1.0.5] — 2026-09-23
 
 ### Added

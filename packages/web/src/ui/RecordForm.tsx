@@ -23,6 +23,7 @@ import {
   TextField,
 } from './forms.js';
 import { Button } from './primitives.js';
+import { Icon } from './Icon.js';
 import { useDialogHeaderActions } from './overlays.js';
 
 /**
@@ -91,6 +92,29 @@ function initialValues(
   return values;
 }
 
+function hasMeaningfulValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === '' || value === false) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+}
+
+/**
+ * Named groups start collapsed — the fields above them are the ones a
+ * collection lists first, which is already where the essentials live. A
+ * group opens on its own when the record being edited has something in it,
+ * so existing detail is never hidden behind a fold nobody thinks to check.
+ */
+function initialOpenGroups(fields: FieldDef[], record: StoredRecord | null | undefined): Set<string> {
+  const open = new Set<string>();
+  if (!record) return open;
+  for (const field of fields) {
+    if (field.group && !open.has(field.group) && hasMeaningfulValue(record[field.name])) {
+      open.add(field.group);
+    }
+  }
+  return open;
+}
+
 export function RecordForm(props: RecordFormProps): JSX.Element {
   const definition = requireCollection(props.collection);
   const fields = useMemo(() => visibleFields(definition, props), [definition, props]);
@@ -105,6 +129,7 @@ export function RecordForm(props: RecordFormProps): JSX.Element {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [openGroups, setOpenGroups] = useState(() => initialOpenGroups(fields, props.record));
 
   // Reopening the form on a different record loads that record rather than
   // keeping whatever was half-typed for the previous one.
@@ -112,6 +137,7 @@ export function RecordForm(props: RecordFormProps): JSX.Element {
     setValues(initialValues(definition, fields, props.record, props.initial));
     setErrors({});
     setSubmitError(null);
+    setOpenGroups(initialOpenGroups(fields, props.record));
   }, [props.record?.id, definition.name]);
 
   const set = useCallback((name: string, value: unknown) => {
@@ -123,12 +149,27 @@ export function RecordForm(props: RecordFormProps): JSX.Element {
     });
   }, []);
 
+  // A field with an error might be inside a collapsed group — opening it is
+  // what makes the error (and the scroll to it) visible at all.
+  const revealErrors = useCallback(
+    (fieldErrors: Record<string, string>) => {
+      const groups = fields
+        .filter((field) => fieldErrors[field.name] && field.group)
+        .map((field) => field.group!);
+      if (groups.length > 0) setOpenGroups((current) => new Set([...current, ...groups]));
+      const firstField = Object.keys(fieldErrors)[0];
+      requestAnimationFrame(() => {
+        document.getElementById(`field-${firstField}`)?.scrollIntoView({ block: 'center' });
+      });
+    },
+    [fields],
+  );
+
   const submit = useCallback(async () => {
     const result = validateRecord(definition, values, { partial: Boolean(props.record) });
     if (!result.ok) {
       setErrors(result.errors);
-      const firstField = Object.keys(result.errors)[0];
-      document.getElementById(`field-${firstField}`)?.scrollIntoView({ block: 'center' });
+      revealErrors(result.errors);
       return;
     }
 
@@ -147,14 +188,17 @@ export function RecordForm(props: RecordFormProps): JSX.Element {
       await props.onSubmit(payload);
     } catch (error) {
       const fieldErrors = (error as { fieldErrors?: Record<string, string> }).fieldErrors;
-      if (fieldErrors && Object.keys(fieldErrors).length > 0) setErrors(fieldErrors);
+      if (fieldErrors && Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors);
+        revealErrors(fieldErrors);
+      }
       setSubmitError(
         error instanceof Error ? error.message : 'That could not be saved. Nothing was changed.',
       );
     } finally {
       setSaving(false);
     }
-  }, [definition, values, props, settings.privacy.defaultVisibility, activeMemberId]);
+  }, [definition, values, props, settings.privacy.defaultVisibility, activeMemberId, revealErrors]);
 
   const inDialogHeader = useDialogHeaderActions(
     props.bare ? null : (
@@ -191,26 +235,53 @@ export function RecordForm(props: RecordFormProps): JSX.Element {
       }}
       noValidate
     >
-      {grouped.map(([group, groupFields]) => (
-        <fieldset key={group || 'main'} style={{ border: 'none', padding: 0, margin: 0 }}>
-          {group ? (
-            <legend className="section-heading__label" style={{ marginBottom: 'var(--space-3)' }}>
-              {group}
-            </legend>
-          ) : null}
-          {groupFields.map((field) => (
-            <div key={field.name} id={`field-${field.name}`}>
-              <RecordField
-                collection={props.collection}
-                field={field}
-                value={values[field.name]}
-                error={errors[field.name]}
-                onChange={(value) => set(field.name, value)}
-              />
+      {grouped.map(([group, groupFields]) => {
+        const fieldRows = groupFields.map((field) => (
+          <div key={field.name} id={`field-${field.name}`}>
+            <RecordField
+              collection={props.collection}
+              field={field}
+              value={values[field.name]}
+              error={errors[field.name]}
+              onChange={(value) => set(field.name, value)}
+            />
+          </div>
+        ));
+
+        if (!group) {
+          return (
+            <div key="main" style={{ marginBottom: 'var(--space-2)' }}>
+              {fieldRows}
             </div>
-          ))}
-        </fieldset>
-      ))}
+          );
+        }
+
+        // Collapsed until there is a reason to look: the fields listed first
+        // in a collection are already the ones that matter most of the time,
+        // so the rest waits behind a fold instead of stretching the form.
+        const isOpen = openGroups.has(group);
+        return (
+          <div key={group} style={{ margin: 'var(--space-4) 0' }}>
+            <button
+              type="button"
+              className="row row--between disclosure-toggle"
+              aria-expanded={isOpen}
+              onClick={() =>
+                setOpenGroups((current) => {
+                  const next = new Set(current);
+                  if (next.has(group)) next.delete(group);
+                  else next.add(group);
+                  return next;
+                })
+              }
+            >
+              <span className="section-heading__label">{group}</span>
+              <Icon name={isOpen ? 'chevronUp' : 'chevronDown'} size={16} />
+            </button>
+            {isOpen ? <div style={{ marginTop: 'var(--space-3)' }}>{fieldRows}</div> : null}
+          </div>
+        );
+      })}
 
       {systemMode && definition.memberScoped ? (
         <MemberPicker
