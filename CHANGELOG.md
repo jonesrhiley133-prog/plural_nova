@@ -10,6 +10,16 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.5] — 2026-09-23
+
+### Added
+
+- **Start, and it counts itself.** Sleep and Work can now be tracked live —
+  tap Start when you fall asleep or clock in, and the header counts the time
+  as it passes instead of asking you to remember and type it in later.
+  Waking up or clocking out closes the count and opens the same detail form
+  as before, in case there is more worth adding.
+
 ## [1.0.4] — 2026-09-23
 
 A pass through the app's rough edges: layout bugs users could actually see,

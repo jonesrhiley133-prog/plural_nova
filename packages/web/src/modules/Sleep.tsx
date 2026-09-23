@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { formatDuration, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useQuery, useRecordMap } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
+import { useLiveSession } from '../core/liveSession.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, FieldList, IconButton, Stat } from '../ui/primitives.js';
@@ -42,6 +43,21 @@ export default function Sleep(): JSX.Element {
   const confirm = useDialog<StoredRecord>();
   const [creating, setCreating] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const session = useLiveSession(entries, 'startedAt', 'endedAt');
+
+  const wake = async (): Promise<void> => {
+    if (!session.active) return;
+    const durationMinutes = Math.max(
+      0,
+      Math.round((Date.now() - Date.parse(String(session.active['startedAt']))) / 60000),
+    );
+    try {
+      const stopped = await session.stop({ durationMinutes });
+      if (stopped) editor.show(stopped);
+    } catch (cause) {
+      toast.fromError(cause, 'Could not record waking up');
+    }
+  };
 
   const overview = useQuery<{
     sleep: {
@@ -58,11 +74,26 @@ export default function Sleep(): JSX.Element {
     <>
       <PageHeader
         title="Sleep"
-        description="When you slept, how long, and how it went."
+        description={
+          session.active
+            ? `Asleep for ${formatDuration(session.elapsedMinutes)} so far.`
+            : 'When you slept, how long, and how it went.'
+        }
         actions={
-          <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
-            Log sleep
-          </Button>
+          session.active ? (
+            <Button variant="primary" icon="pause" onClick={() => void wake()}>
+              Wake up
+            </Button>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => setCreating(true)}>
+                Log a past night
+              </Button>
+              <Button variant="primary" icon="play" onClick={() => void session.start()}>
+                Start
+              </Button>
+            </>
+          )
         }
       />
 
