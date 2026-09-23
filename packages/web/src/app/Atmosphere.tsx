@@ -116,9 +116,16 @@ export function Atmosphere(): JSX.Element | null {
     [],
   );
 
-  // The fields are the expensive layer, so they follow the effect tier rather
-  // than the starfield switch — someone can turn the stars off and keep the sky.
-  const fields = settings.effects !== 'performance';
+  /*
+   * The fields exist to be refracted by translucent panels — the doc comment
+   * above is not decorative, it is the reason this layer exists. A solid
+   * surface has nothing to refract them, so on the default (solid) theme they
+   * were just a blurred colour patch with a hard-edged falloff, most visible
+   * in the top-left corner on a narrow viewport where the fixed blur radius
+   * is large relative to the field. They still draw for anyone who picks a
+   * glass or clear theme, where they do what they were built for.
+   */
+  const fields = settings.effects !== 'performance' && settings.surfaceStyle !== 'solid';
 
   return (
     <div className="atmosphere" aria-hidden="true">

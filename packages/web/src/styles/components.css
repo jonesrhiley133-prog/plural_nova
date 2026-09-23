@@ -582,6 +582,13 @@
   color: var(--accent);
 }
 
+/** An identity flag on a profile — its own colour, not the accent everyone shares. */
+.chip--flag {
+  background: color-mix(in srgb, var(--flag-color, var(--accent)) 16%, var(--surface-raised));
+  border: var(--border-width) solid color-mix(in srgb, var(--flag-color, var(--accent)) 40%, transparent);
+  color: var(--flag-color, var(--accent));
+}
+
 .chip--interactive {
   cursor: pointer;
 }
@@ -762,6 +769,19 @@
   position: relative;
   z-index: 1;
   padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+/*
+ * The banner already tints toward the member's colour; this carries that same
+ * wash down through the rest of their profile, fading out well before the
+ * page would otherwise end, so the whole visit feels like it is theirs.
+ */
+.member-tint {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--member-color, var(--accent)) 6%, transparent),
+    transparent 640px
+  );
 }
 
 /* ── Lists ──────────────────────────────────────────────────────────────── */
@@ -1040,11 +1060,12 @@
  * cards too small to read.
  */
 .grid--columns {
+  --grid-columns-floor: 92px;
   grid-template-columns: repeat(
     auto-fill,
     minmax(
       max(
-        92px,
+        var(--grid-columns-floor),
         calc(
           (100% - (var(--grid-columns, 3) - 1) * var(--space-3)) / var(--grid-columns, 3) - 1px
         )
@@ -1052,6 +1073,19 @@
       1fr
     )
   );
+}
+
+/*
+ * At 92px, a phone-width container can rarely fit more than three of these
+ * regardless of the count chosen — so picking 4 or 5 looked like it did
+ * nothing. The floor only needs to come down enough for auto-fill to honour
+ * them; 5 can still collapse toward 4 on the narrowest phones, which is the
+ * same graceful degradation the floor already does at every other count.
+ */
+@media (max-width: 767px) {
+  .grid--columns {
+    --grid-columns-floor: 78px;
+  }
 }
 
 .stack {
@@ -1527,6 +1561,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /*
+   * A flex or grid child defaults to `min-width: auto`, which for nowrap text
+   * resolves to the text's full unwrapped width — overriding any max-width
+   * and quietly cancelling the ellipsis. This is what actually makes
+   * truncation work inside a flex/grid layout, not the properties above.
+   */
+  min-width: 0;
 }
 
 .clamp-2 {

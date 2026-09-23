@@ -1,5 +1,17 @@
 import { f, OPTIONS, type CollectionDef } from './schema.js';
 
+const HISTORY_CATEGORIES = [
+  { value: 'settings', label: 'Settings' },
+  { value: 'theme', label: 'Theme' },
+  { value: 'system', label: 'System' },
+  { value: 'life', label: 'Life' },
+  { value: 'social', label: 'Social' },
+  { value: 'creative', label: 'Creative' },
+  { value: 'work', label: 'Work' },
+  { value: 'data', label: 'Data' },
+  { value: 'other', label: 'Other' },
+] as const;
+
 const FRONT_STATUS = [
   { value: 'fronting', label: 'Fronting', color: '#8bd5ff', icon: '●' },
   { value: 'cofronting', label: 'Co-fronting', color: '#a78bfa', icon: '◐' },
@@ -370,12 +382,23 @@ export const systemHistory: CollectionDef = {
   fields: [
     f.text('eventType', 'Event type', { required: true, inList: true, searchable: true }),
     f.text('summary', 'Summary', { required: true, inList: true, searchable: true }),
+    f.enumOf('category', 'Category', HISTORY_CATEGORIES, { defaultValue: 'other', inList: true }),
     f.text('entityType', 'Record type'),
     f.text('entityId', 'Record id'),
     f.datetime('occurredAt', 'Occurred', { required: true, inList: true }),
     f.long('note', 'Note', { searchable: true }),
     f.json('meta', 'Details'),
     f.bool('automatic', 'Recorded automatically', { defaultValue: true }),
+    /*
+     * A change worth being able to undo records what it was and what it
+     * became, not just that it happened. Both are serialised JSON of
+     * whatever the field actually holds, so a restore can put the same
+     * shape back rather than guessing at it from a sentence.
+     */
+    f.long('previousValue', 'Previous value'),
+    f.long('newValue', 'New value'),
+    f.text('location', 'Where this happened'),
+    f.bool('restorable', 'Can be restored', { defaultValue: false }),
   ],
 };
 
@@ -778,4 +801,4 @@ export const SYSTEM_COLLECTIONS = [
   tags,
 ] as const;
 
-export { FRONT_STATUS, OPTIONS };
+export { FRONT_STATUS, HISTORY_CATEGORIES, OPTIONS };

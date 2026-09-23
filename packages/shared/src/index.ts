@@ -14,6 +14,7 @@ export * from './validation.js';
 export * from './analytics.js';
 export * from './strings.js';
 export * from './demo.js';
+export * from './customFields.js';
 
 export const APP_NAME = 'PluralNova';
 /**

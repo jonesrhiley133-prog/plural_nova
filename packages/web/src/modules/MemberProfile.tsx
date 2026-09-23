@@ -50,6 +50,19 @@ export default function MemberProfile(): JSX.Element {
   const editor = useDialog();
   const confirm = useDialog();
 
+  const flags = useCollection('flags');
+  const flagAssignments = useCollection('flagAssignments', {
+    filter: (record) => record['targetType'] === 'member' && record['targetId'] === id,
+  });
+  const flagById = useMemo(() => new Map(flags.items.map((flag) => [flag.id, flag])), [flags.items]);
+  const attachedFlags = useMemo(
+    () =>
+      flagAssignments.items
+        .map((assignment) => flagById.get(String(assignment['flagId'])))
+        .filter((flag): flag is StoredRecord => Boolean(flag)),
+    [flagAssignments.items, flagById],
+  );
+
   if (loading && !member) return <SkeletonList rows={4} />;
 
   if (!member) {
@@ -68,8 +81,10 @@ export default function MemberProfile(): JSX.Element {
   const color = (member['color'] as string) || 'var(--accent)';
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
 
+  const flagsVisible = member['flagDisplayEnabled'] !== false && attachedFlags.length > 0;
+
   return (
-    <>
+    <div className="member-tint" style={{ ['--member-color' as never]: color }}>
       <Card flush style={{ marginBottom: 'var(--space-4)', overflow: 'visible' }}>
         <div className="banner" style={{ ['--member-color' as never]: color, borderRadius: 'var(--radius) var(--radius) 0 0' }}>
           {member['bannerUrl'] ? (
@@ -87,6 +102,7 @@ export default function MemberProfile(): JSX.Element {
               icon={(member['icon'] as string) ?? null}
               size={88}
               round
+              ring
             />
           </div>
 
@@ -110,8 +126,24 @@ export default function MemberProfile(): JSX.Element {
               </div>
             </div>
 
-            {Array.isArray(member['roles']) && member['roles'].length > 0 ? (
+            {flagsVisible ? (
               <div className="row" style={{ marginTop: 'var(--space-3)' }}>
+                {attachedFlags.map((flag) => (
+                  <span
+                    key={flag.id}
+                    className="chip chip--flag"
+                    style={{ ['--flag-color' as never]: (flag['color'] as string) || 'var(--accent)' }}
+                    title={String(flag['name'])}
+                  >
+                    {flag['icon'] ? `${String(flag['icon'])} ` : ''}
+                    {String(flag['name'])}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            {Array.isArray(member['roles']) && member['roles'].length > 0 ? (
+              <div className="row" style={{ marginTop: flagsVisible ? 'var(--space-2)' : 'var(--space-3)' }}>
                 {(member['roles'] as string[]).map((role) => (
                   <Chip key={role} accent>
                     {role}
@@ -166,7 +198,7 @@ export default function MemberProfile(): JSX.Element {
           navigate('/members');
         }}
       />
-    </>
+    </div>
   );
 
   function tabLabel(value: Tab): string {

@@ -34,6 +34,8 @@ import { auth, requireAuth } from './middleware.js';
 import { createSystem, ensureActiveSystem, listSystems, refreshMemberCount } from '../services/systems.js';
 import { restoreCollections } from '../services/restore.js';
 import { getDb } from '../db/index.js';
+import { requireRecord, updateRecord } from '../db/repository.js';
+import { historyPhrases, recordHistory, type HistoryCategory } from '../services/history.js';
 
 export const authRouter: Router = Router();
 
@@ -418,6 +420,28 @@ authRouter.patch(
   }),
 );
 
+/**
+ * Settings worth a history entry when they change, with enough to both label
+ * the entry and put the old value back. Everything else in `AppSettings`
+ * (feature toggles, bookkeeping like `lastBackupAt`) still saves normally —
+ * it is just not interesting enough to log or offer to undo.
+ */
+const LOGGABLE_SETTINGS: Record<string, { label: string; category: HistoryCategory }> = {
+  theme: { label: 'Theme', category: 'theme' },
+  terminology: { label: 'Terminology', category: 'settings' },
+  notifications: { label: 'Notification preferences', category: 'settings' },
+  notificationsEnabled: { label: 'Notifications', category: 'settings' },
+  quietHours: { label: 'Quiet hours', category: 'settings' },
+  privacy: { label: 'Privacy defaults', category: 'settings' },
+  mode: { label: 'Mode', category: 'settings' },
+  weekStart: { label: 'Week start', category: 'settings' },
+  timeFormat: { label: 'Time format', category: 'settings' },
+  currency: { label: 'Currency', category: 'settings' },
+  widgets: { label: 'Dashboard layout', category: 'settings' },
+  mobileTabs: { label: 'Navigation tabs', category: 'settings' },
+  hiddenModules: { label: 'Visible modules', category: 'settings' },
+};
+
 authRouter.put(
   '/settings',
   requireAuth,
@@ -425,8 +449,64 @@ authRouter.put(
     const context = auth(req);
     // Settings are merged, never replaced wholesale, so a client that posts a
     // partial object cannot wipe fields it did not know about.
+    const before = context.settings as unknown as Record<string, unknown>;
     const merged = mergeSettings({ ...context.settings, ...(req.body as Partial<AppSettings>) });
+    const after = merged as unknown as Record<string, unknown>;
     const updated = writeSettings(context.user, merged);
+
+    for (const [key, meta] of Object.entries(LOGGABLE_SETTINGS)) {
+      if (!Object.prototype.hasOwnProperty.call(req.body as object, key)) continue;
+      const previous = before[key];
+      const next = after[key];
+      if (JSON.stringify(previous) === JSON.stringify(next)) continue;
+      recordHistory(context.scope, {
+        eventType: `settings.${key}`,
+        summary: historyPhrases.settingChanged(meta.label),
+        category: meta.category,
+        entityType: 'settings',
+        entityId: key,
+        previousValue: JSON.stringify(previous ?? null),
+        newValue: JSON.stringify(next ?? null),
+        restorable: true,
+      });
+    }
+
+    ok(res, { settings: readSettings(updated), user: toPublicUser(updated) });
+  }),
+);
+
+/** Puts one setting back to what a restorable history entry says it was. */
+authRouter.post(
+  '/history/:id/restore',
+  requireAuth,
+  handler((req, res) => {
+    const context = auth(req);
+    const entry = requireRecord('systemHistory', context.scope, String(req.params['id']));
+    if (!entry['restorable']) throw badRequest('That change cannot be restored.');
+    if (entry['entityType'] !== 'settings') {
+      throw badRequest('Only settings changes can be restored right now.');
+    }
+    const key = String(entry['entityId']);
+    const meta = LOGGABLE_SETTINGS[key];
+    if (!meta) throw badRequest('That setting is no longer restorable.');
+
+    const current = (context.settings as unknown as Record<string, unknown>)[key];
+    const previous: unknown = entry['previousValue'] ? JSON.parse(String(entry['previousValue'])) : null;
+    const merged = mergeSettings({ ...context.settings, [key]: previous });
+    const updated = writeSettings(context.user, merged);
+
+    updateRecord('systemHistory', context.scope, entry.id, { restorable: false });
+    recordHistory(context.scope, {
+      eventType: `settings.${key}`,
+      summary: `${meta.label} was restored to an earlier value`,
+      category: meta.category,
+      entityType: 'settings',
+      entityId: key,
+      previousValue: JSON.stringify(current ?? null),
+      newValue: JSON.stringify(previous),
+      restorable: true,
+    });
+
     ok(res, { settings: readSettings(updated), user: toPublicUser(updated) });
   }),
 );
