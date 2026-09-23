@@ -7,6 +7,8 @@ import {
   TERMS,
   THEME_PRESETS,
   ALL_NAV_ITEMS,
+  ALWAYS_VISIBLE_NAV_IDS,
+  categoriesForMode,
   createCustomPreset,
   sanitizeImportedPreset,
   type NotificationCategory,
@@ -928,6 +930,32 @@ function Navigation(): JSX.Element {
           />
         ))}
       </Card>
+
+      <Card title="Sidebar &amp; menu" subtitle="Turn off anything you never use — nothing about it is deleted">
+        {categoriesForMode(settings.mode).map((category) => (
+          <div key={category.id} style={{ marginBottom: 'var(--space-3)' }}>
+            <p className="tiny faint" style={{ marginBottom: 'var(--space-1)' }}>
+              {term(category.label)}
+            </p>
+            {category.items
+              .filter((item) => !ALWAYS_VISIBLE_NAV_IDS.includes(item.id))
+              .map((item) => (
+                <SwitchRow
+                  key={item.id}
+                  label={term(item.label)}
+                  checked={!settings.hiddenModules.includes(item.id)}
+                  onChange={(visible) =>
+                    update({
+                      hiddenModules: visible
+                        ? settings.hiddenModules.filter((id) => id !== item.id)
+                        : [...settings.hiddenModules, item.id],
+                    })
+                  }
+                />
+              ))}
+          </div>
+        ))}
+      </Card>
     </>
   );
 }
@@ -939,6 +967,7 @@ function Account(): JSX.Element {
   const passwordDialog = useDialog();
   const claimDialog = useDialog();
   const deleteDialog = useDialog();
+  const nameDialog = useDialog();
 
   const [sessions, setSessions] = useState<{ id: string; userAgent: string | null; lastSeenAt: string; current: boolean }[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -972,6 +1001,9 @@ function Account(): JSX.Element {
           </div>
         ) : (
           <div className="row" style={{ marginTop: 'var(--space-4)' }}>
+            <Button variant="secondary" onClick={() => nameDialog.show()}>
+              Change name
+            </Button>
             <Button variant="secondary" onClick={() => passwordDialog.show()}>
               Change password
             </Button>
@@ -1045,6 +1077,7 @@ function Account(): JSX.Element {
         </p>
       </Card>
 
+      <NameDialog dialog={nameDialog} currentName={user?.displayName ?? ''} onDone={() => void refresh()} />
       <PasswordDialog dialog={passwordDialog} />
       <ClaimDialog dialog={claimDialog} onDone={() => void refresh()} />
 
@@ -1062,6 +1095,63 @@ function Account(): JSX.Element {
         }}
       />
     </>
+  );
+}
+
+function NameDialog({
+  dialog,
+  currentName,
+  onDone,
+}: {
+  dialog: ReturnType<typeof useDialog<true>>;
+  currentName: string;
+  onDone: () => void;
+}): JSX.Element {
+  const toast = useToast();
+  const [name, setName] = useState(currentName);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (dialog.open) setName(currentName);
+  }, [dialog.open, currentName]);
+
+  const save = async (): Promise<void> => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error('Give it a name', 'It cannot be blank.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.patch('/api/auth/me', { displayName: trimmed });
+      onDone();
+      toast.success('Name changed');
+      dialog.hide();
+    } catch (cause) {
+      toast.fromError(cause, 'That did not save');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={dialog.open}
+      onClose={dialog.hide}
+      title="Change name"
+      footer={
+        <>
+          <Button variant="ghost" onClick={dialog.hide}>
+            Cancel
+          </Button>
+          <Button variant="primary" loading={busy} onClick={() => void save()}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <TextField label="Name" value={name} onChange={setName} autoFocus />
+    </Dialog>
   );
 }
 

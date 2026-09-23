@@ -23,6 +23,7 @@ import {
   TextField,
 } from './forms.js';
 import { Button } from './primitives.js';
+import { useDialogHeaderActions } from './overlays.js';
 
 /**
  * A form built from the collection registry.
@@ -155,6 +156,21 @@ export function RecordForm(props: RecordFormProps): JSX.Element {
     }
   }, [definition, values, props, settings.privacy.defaultVisibility, activeMemberId]);
 
+  const inDialogHeader = useDialogHeaderActions(
+    props.bare ? null : (
+      <>
+        {props.onCancel ? (
+          <Button variant="ghost" size="sm" onClick={props.onCancel} disabled={saving}>
+            {t('action.cancel')}
+          </Button>
+        ) : null}
+        <Button variant="primary" size="sm" loading={saving} onClick={() => void submit()}>
+          {props.submitLabel ?? t('action.save')}
+        </Button>
+      </>
+    ),
+  );
+
   const grouped = useMemo(() => {
     const groups = new Map<string, FieldDef[]>();
     for (const field of fields) {
@@ -222,7 +238,7 @@ export function RecordForm(props: RecordFormProps): JSX.Element {
         </p>
       ) : null}
 
-      {props.bare ? null : (
+      {props.bare || inDialogHeader ? null : (
         <div className="row" style={{ marginTop: 'var(--space-4)' }}>
           {props.onCancel ? (
             <Button variant="ghost" onClick={props.onCancel} disabled={saving}>

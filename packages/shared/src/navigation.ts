@@ -143,9 +143,22 @@ export function navItemsForMode(mode: AppMode): NavItem[] {
   return ALL_NAV_ITEMS.filter((item) => mode === 'system' || !item.systemOnly);
 }
 
-export function categoriesForMode(mode: AppMode): NavCategory[] {
+/**
+ * Nav items a system never sees `hiddenModules` hide, because there would be
+ * no way back: `dashboard` is the app's own index route, and `settings` is
+ * where `hiddenModules` itself is edited.
+ */
+export const ALWAYS_VISIBLE_NAV_IDS: readonly string[] = ['dashboard', 'settings'];
+
+export function categoriesForMode(mode: AppMode, hidden: readonly string[] = []): NavCategory[] {
+  const hiddenSet = new Set(hidden);
   return NAVIGATION.filter((c) => mode === 'system' || !c.systemOnly)
-    .map((c) => ({ ...c, items: c.items.filter((i) => mode === 'system' || !i.systemOnly) }))
+    .map((c) => ({
+      ...c,
+      items: c.items.filter(
+        (i) => (mode === 'system' || !i.systemOnly) && (!hiddenSet.has(i.id) || ALWAYS_VISIBLE_NAV_IDS.includes(i.id)),
+      ),
+    }))
     .filter((c) => c.items.length > 0);
 }
 

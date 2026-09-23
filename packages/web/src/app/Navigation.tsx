@@ -29,7 +29,10 @@ export function SidebarNav(): JSX.Element {
   const { settings, user } = useAuth();
   const { term } = useI18n();
   const badges = useBadges();
-  const categories = useMemo(() => categoriesForMode(settings.mode), [settings.mode]);
+  const categories = useMemo(
+    () => categoriesForMode(settings.mode, settings.hiddenModules),
+    [settings.mode, settings.hiddenModules],
+  );
   const location = useLocation();
 
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -127,12 +130,14 @@ export function BottomNav(): JSX.Element {
       : settings.mode === 'system'
         ? DEFAULT_MOBILE_TABS
         : DEFAULT_SINGLET_TABS;
+    const hidden = new Set(settings.hiddenModules);
     return configured
       .map((id) => (id === 'more' ? MORE_TAB : findNavItem(id)))
       .filter((item): item is (typeof ALL_NAV_ITEMS)[number] => Boolean(item))
       .filter((item) => settings.mode === 'system' || !item.systemOnly)
+      .filter((item) => item.id === 'more' || !hidden.has(item.id))
       .slice(0, 5);
-  }, [settings.mobileTabs, settings.mode]);
+  }, [settings.mobileTabs, settings.mode, settings.hiddenModules]);
 
   return (
     <nav className="app-bottom-nav" aria-label="Main" data-keyboard-open={keyboardOpen}>

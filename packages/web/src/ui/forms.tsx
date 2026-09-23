@@ -448,7 +448,13 @@ export function ColorField({
   );
 }
 
-/** Choose one or several records from a collection — members, playlists, folders. */
+/**
+ * Choose one or several records from a collection — members, playlists,
+ * folders. A tappable summary opens the actual picker in its own dialog
+ * rather than laying every option out inline, which is what turned a form
+ * with a big member list into a page-length wall of chips before you had
+ * typed a word into it.
+ */
 export function ReferenceField({
   label,
   value,
@@ -466,7 +472,10 @@ export function ReferenceField({
   hint?: string;
   emptyLabel?: string;
 }): JSX.Element {
+  const picker = useDialog();
+  const [query, setQuery] = useState('');
   const selected = multiple ? ((value as string[]) ?? []) : value ? [value as string] : [];
+  const chosen = options.filter((option) => selected.includes(option.id));
 
   const toggle = (id: string): void => {
     if (multiple) {
@@ -476,33 +485,88 @@ export function ReferenceField({
       onChange(next);
     } else {
       onChange(selected.includes(id) ? null : id);
+      picker.hide();
     }
   };
 
+  const filtered = query.trim()
+    ? options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
+
   return (
     <Field label={label} {...(hint ? { hint } : {})}>
-      {() =>
+      {({ id, describedBy }) =>
         options.length === 0 ? (
           <p className="small faint">Nothing to choose from yet.</p>
         ) : (
-          <div className="row" role="group" aria-label={label}>
-            {!multiple ? (
-              <Chip selected={selected.length === 0} onClick={() => onChange(null)}>
-                {emptyLabel}
-              </Chip>
-            ) : null}
-            {options.map((option) => (
-              <Chip
-                key={option.id}
-                selected={selected.includes(option.id)}
-                onClick={() => toggle(option.id)}
-                color={option.color ?? null}
+          <>
+            <button
+              type="button"
+              id={id}
+              className="input reference-field__trigger"
+              aria-describedby={describedBy}
+              onClick={() => {
+                setQuery('');
+                picker.show();
+              }}
+            >
+              {chosen.length > 0 ? (
+                <span className="row" style={{ flexWrap: 'wrap' }}>
+                  {chosen.map((option) => (
+                    <Chip key={option.id} color={option.color ?? null}>
+                      {option.icon ? `${option.icon} ` : ''}
+                      {option.label}
+                    </Chip>
+                  ))}
+                </span>
+              ) : (
+                <span className="muted">{emptyLabel}</span>
+              )}
+              <Icon name="chevronRight" size={15} />
+            </button>
+
+            <Dialog open={picker.open} onClose={picker.hide} title={`Choose ${label.toLowerCase()}`}>
+              {options.length > 8 ? (
+                <SearchField value={query} onChange={setQuery} placeholder="Find…" />
+              ) : null}
+              <div
+                className="row"
+                role="group"
+                aria-label={label}
+                style={{ marginTop: options.length > 8 ? 'var(--space-3)' : 0 }}
               >
-                {option.icon ? `${option.icon} ` : ''}
-                {option.label}
-              </Chip>
-            ))}
-          </div>
+                {!multiple ? (
+                  <Chip
+                    selected={selected.length === 0}
+                    onClick={() => {
+                      onChange(null);
+                      picker.hide();
+                    }}
+                  >
+                    {emptyLabel}
+                  </Chip>
+                ) : null}
+                {filtered.map((option) => (
+                  <Chip
+                    key={option.id}
+                    selected={selected.includes(option.id)}
+                    onClick={() => toggle(option.id)}
+                    color={option.color ?? null}
+                  >
+                    {option.icon ? `${option.icon} ` : ''}
+                    {option.label}
+                  </Chip>
+                ))}
+              </div>
+              {multiple ? (
+                <div className="row" style={{ marginTop: 'var(--space-4)', justifyContent: 'flex-end' }}>
+                  <Button variant="primary" size="sm" onClick={picker.hide}>
+                    Done
+                  </Button>
+                </div>
+              ) : null}
+            </Dialog>
+          </>
         )
       }
     </Field>
