@@ -1,7 +1,7 @@
 {
   "name": "pluralnova",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "PluralNova \u2014 a private operating system for a plural system.",
   "license": "UNLICENSED",
   "type": "module",

@@ -10,6 +10,16 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.8] — 2026-09-24
+
+### Added
+
+- **Four ways to browse the member directory.** Squares (the original photo
+  tile) and Circles are grid layouts with a column-count picker; Slim
+  banners and Thick banners are single-column rows instead, the thick one
+  with room for a line or two of bio. All four carry the ringed-avatar
+  fronting indicator and the quick-front shortcut.
+
 ## [1.0.7] — 2026-09-24
 
 ### Added
