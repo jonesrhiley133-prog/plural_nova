@@ -16,6 +16,11 @@ import { Atmosphere } from './app/Atmosphere.js';
 import { AppUpdate } from './app/AppUpdate.js';
 import { AuthScreens } from './modules/auth/AuthScreens.js';
 import { Onboarding } from './modules/auth/Onboarding.js';
+// Not code-split like the rest: a dynamic import() of a route nobody has
+// opened yet has no way to succeed once the connection is already gone
+// (confirmed live — the browser never even asks the service worker for it),
+// and search is exactly the screen someone reaches for first with no signal.
+import Search from './modules/Search.js';
 
 /**
  * Routes.
@@ -84,7 +89,6 @@ const Backup = load(() => import('./modules/Backup.js'));
 const Settings = load(() => import('./modules/Settings.js'));
 const Help = load(() => import('./modules/Help.js'));
 const Features = load(() => import('./modules/Features.js'));
-const Search = load(() => import('./modules/Search.js'));
 const More = load(() => import('./modules/More.js'));
 const NotFound = load(() => import('./modules/NotFound.js'));
 

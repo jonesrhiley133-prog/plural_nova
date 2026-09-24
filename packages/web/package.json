@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build": "tsc -p tsconfig.json --noEmit && vite build && node tools/build-sw-manifest.mjs",
     "preview": "vite preview",
     "icons": "node tools/build-icons.mjs",
     "icons:android": "node tools/build-android-icons.mjs",

@@ -15,17 +15,24 @@
  *                  offline.
  *   everything   → cache first, revalidated in the background, so a second
  *   else           launch paints immediately even on a slow connection.
+ *
+ * Every route's code is loaded lazily, so without a precache step a route
+ * nobody has opened yet has no cached copy of its own script to run offline.
+ * `precache-manifest.json` is written by `tools/build-sw-manifest.mjs` right
+ * after `vite build`, listing that build's hashed files by name, so this file
+ * never has to.
  */
 
 const VERSION = 'v1';
 const SHELL = `pluralnova-shell-${VERSION}`;
 const ASSETS = `pluralnova-assets-${VERSION}`;
 const OFFLINE_URL = '/offline.html';
+const PRECACHE_MANIFEST_URL = '/precache-manifest.json';
 
 /**
  * Only files that exist under a stable name belong here. Vite fingerprints the
- * scripts and styles, so those are picked up by the runtime cache on first use
- * instead of being listed and going stale.
+ * scripts and styles, so those come from the build's own manifest instead of
+ * being listed by hand and going stale.
  */
 const SHELL_URLS = [
   '/',
@@ -36,17 +43,56 @@ const SHELL_URLS = [
   '/icons/icon-512.png',
 ];
 
+async function buildAssetUrls() {
+  try {
+    const response = await fetch(PRECACHE_MANIFEST_URL, { cache: 'reload' });
+    if (!response.ok) return [];
+    const list = await response.json();
+    return Array.isArray(list) ? list.filter((url) => typeof url === 'string') : [];
+  } catch {
+    // No manifest (e.g. `vite dev`, or a build that predates this file) — the
+    // runtime cache in `handleAsset` still covers whatever gets visited.
+    return [];
+  }
+}
+
+/**
+ * The same "only a plain, same-origin, non-redirected response is safe to
+ * hand back later" check `handleAsset` already relies on below — `cache.add`
+ * skips it and stores whatever comes back, and a response that isn't
+ * `basic` can read as an ordinary 200 to `fetch` while still being refused
+ * by a script/module load, which is exactly what a precached route needs to
+ * survive.
+ */
+async function precacheOne(cache, url) {
+  try {
+    const response = await fetch(url, { cache: 'reload' });
+    if (response.ok && response.type === 'basic') await cache.put(url, response);
+  } catch {
+    // Best-effort — handleAsset's runtime cache still covers this on first visit.
+  }
+}
+
+/**
+ * A handful at a time rather than every file at once — this is exactly the
+ * slow-connection, weak-device situation the caching is meant to survive, and
+ * firing dozens of requests in one burst is the kind of thing that competes
+ * with itself for the connection a phone on bad signal can least afford.
+ */
+async function cacheInBatches(cache, urls, batchSize = 8) {
+  for (let start = 0; start < urls.length; start += batchSize) {
+    await Promise.all(urls.slice(start, start + batchSize).map((url) => precacheOne(cache, url)));
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(SHELL);
-      // Added one at a time: a single missing file must not fail the install and
-      // leave the app with no worker at all.
-      await Promise.all(
-        SHELL_URLS.map((url) =>
-          cache.add(new Request(url, { cache: 'reload' })).catch(() => undefined),
-        ),
-      );
+      const shell = await caches.open(SHELL);
+      await cacheInBatches(shell, SHELL_URLS);
+
+      const assets = await caches.open(ASSETS);
+      await cacheInBatches(assets, await buildAssetUrls());
     })(),
   );
 });
@@ -103,15 +149,24 @@ async function handleNavigation(event) {
 async function handleAsset(request) {
   const cache = await caches.open(ASSETS);
   const cached = await cache.match(request);
-  const network = fetch(request)
-    .then((response) => {
-      if (response.ok && response.type === 'basic') cache.put(request, response.clone());
-      return response;
-    })
-    .catch(() => undefined);
-  // A fingerprinted file never changes under its name, so the cached copy is
-  // always correct to serve; the refetch is only for files that can change.
-  return cached || (await network) || Response.error();
+  // A fingerprinted file never changes under its name, so a hit is always
+  // correct to serve — and it has to be the *only* thing that happens: Chrome
+  // has a real, open bug (crbug.com/1169568) where a request stalls or a
+  // module import is refused when a service worker reads a Cache Storage
+  // entry that something else is writing to at the same time. Every visible
+  // property of the cached response here has checked out fine on its own;
+  // what never got tried until now was this file's own previous behaviour of
+  // firing a background refetch-and-`cache.put` on *every* hit, racing its
+  // own read on the exact entry it had just served.
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(request);
+    if (response.ok && response.type === 'basic') cache.put(request, response.clone());
+    return response;
+  } catch {
+    return Response.error();
+  }
 }
 
 self.addEventListener('fetch', (event) => {
