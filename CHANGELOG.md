@@ -10,6 +10,39 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.13] — 2026-09-24
+
+### Added
+
+- **Body sensations gets an actual stats view.** Total logged, average
+  intensity, the most common area and word, and a ranked breakdown of the
+  words that come up most over the last 90 days — the figure's shading
+  already showed this at a glance, but there was nowhere to see the numbers
+  behind it.
+- **Sleep now surfaces what it was already collecting.** Average time to
+  fall asleep and a count of nightmare nights (and sleepwalking, when it
+  happens) join the existing averages — fields the log form has always had
+  but the stats never looked at.
+- **Finances shows where income came from, not just where it went.**
+  A second ranked breakdown, by category, mirroring the spending one that
+  was already there.
+- **Work turns hours into pay**, when a workplace has an hourly rate on
+  file: an Earnings total alongside hours worked, and a per-workplace figure
+  in the workplace breakdown. Two workplaces paying in different currencies
+  never get added together into one meaningless total — each keeps its own
+  figure, and the combined one only appears when there is exactly one
+  currency to combine.
+
+### A note on fitness tracking
+
+Syncing steps or workouts from Google Fit, Health Connect or Apple Health
+was looked at and set aside for now: those are native platform APIs a
+browser cannot reach, so real integration would mean a from-scratch
+Android-only feature (Health Connect) with no equivalent path on iOS at
+all, rather than an extension of the app that already exists everywhere
+else. Fitness entries stay something you log by hand, honestly, rather than
+a sync button that would only half work.
+
 ## [1.0.12] — 2026-09-24
 
 ### Fixed

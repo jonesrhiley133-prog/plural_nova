@@ -64,6 +64,9 @@ export default function Sleep(): JSX.Element {
       entries: number;
       averageMinutes: number;
       averageQuality: number;
+      averageLatencyMinutes: number;
+      nightmareNights: number;
+      sleepwalkingNights: number;
       byDay: { label: string; value: number; key: string }[];
     };
   }>('/api/stats/overview', { days: 30 });
@@ -109,6 +112,15 @@ export default function Sleep(): JSX.Element {
         />
         <Stat label="Nights logged" value={overview.data?.sleep.entries ?? 0} />
         <Stat label="Naps" value={naps} />
+        {overview.data?.sleep.averageLatencyMinutes ? (
+          <Stat label="Time to fall asleep" value={`${overview.data.sleep.averageLatencyMinutes} min`} detail="average" />
+        ) : null}
+        {overview.data?.sleep.nightmareNights ? (
+          <Stat label="Nightmares" value={overview.data.sleep.nightmareNights} detail="last 30 days" />
+        ) : null}
+        {overview.data?.sleep.sleepwalkingNights ? (
+          <Stat label="Sleepwalking" value={overview.data.sleep.sleepwalkingNights} detail="last 30 days" />
+        ) : null}
       </div>
 
       <Card style={{ marginBottom: 'var(--space-4)' }}>

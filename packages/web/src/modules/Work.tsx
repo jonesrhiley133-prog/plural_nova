@@ -27,9 +27,11 @@ interface WorkStats {
   shiftCount: number;
   totalMinutes: number;
   averageShiftMinutes: number;
+  earnings: number | null;
+  earningsCurrency: string | null;
   byDay: { label: string; value: number; key: string }[];
   byWeekday: { label: string; value: number }[];
-  workplaces: { id: string; name: string; minutes: number }[];
+  workplaces: { id: string; name: string; minutes: number; earnings: number | null; currency: string | null }[];
   tasks: { open: number; completed: number };
 }
 
@@ -131,6 +133,17 @@ export default function Work(): JSX.Element {
               value={stats.data?.tasks.open ?? 0}
               detail={stats.data?.tasks.completed ? `${stats.data.tasks.completed} done` : undefined}
             />
+            {stats.data?.earnings !== null && stats.data?.earnings !== undefined ? (
+              <Stat
+                label="Earnings"
+                value={new Intl.NumberFormat(undefined, {
+                  style: 'currency',
+                  currency: stats.data.earningsCurrency ?? 'USD',
+                  maximumFractionDigits: 0,
+                }).format(stats.data.earnings)}
+                detail="last 8 weeks, from hourly rate"
+              />
+            ) : null}
           </div>
 
           <Card>
@@ -169,7 +182,14 @@ export default function Work(): JSX.Element {
                   id: workplace.id,
                   label: workplace.name,
                   value: workplace.minutes,
-                  detail: formatDuration(workplace.minutes),
+                  detail:
+                    workplace.earnings !== null
+                      ? `${formatDuration(workplace.minutes)} · ${new Intl.NumberFormat(undefined, {
+                          style: 'currency',
+                          currency: workplace.currency ?? 'USD',
+                          maximumFractionDigits: 0,
+                        }).format(workplace.earnings)}`
+                      : formatDuration(workplace.minutes),
                 }))}
                 format={(value) => formatDuration(value)}
                 emptyMessage="No workplaces set up yet."

@@ -60,6 +60,10 @@ statsRouter.get(
       limit: 365,
       range: { field: 'startedAt', from },
     }).items;
+    const sensations = listRecords('bodySensations', context.scope, {
+      limit: 500,
+      range: { field: 'recordedAt', from },
+    }).items;
     const journal = listRecords('journalEntries', context.scope, {
       limit: 500,
       range: { field: 'entryDate', from },
@@ -105,8 +109,24 @@ statsRouter.get(
         averageMinutes: Math.round(average(sleep.map((s) => Number(s['durationMinutes'] ?? 0)))),
         averageQuality:
           Math.round(average(sleep.map((s) => Number(s['quality'] ?? 0)).filter((q) => q > 0)) * 10) / 10,
+        averageLatencyMinutes: Math.round(
+          average(sleep.map((s) => Number(s['latencyMinutes'] ?? 0)).filter((n) => n > 0)),
+        ),
+        nightmareNights: sleep.filter((s) => s['nightmares'] === true).length,
+        sleepwalkingNights: sleep.filter((s) => s['sleepwalking'] === true).length,
         byDay: bucketByDay(
           sleep.map((s) => ({ at: String(s['startedAt']), value: Number(s['durationMinutes'] ?? 0) })),
+          Math.min(days, 90),
+        ),
+      },
+      sensations: {
+        entries: sensations.length,
+        averageIntensity:
+          Math.round(average(sensations.map((s) => Number(s['intensity'] ?? 0)).filter((n) => n > 0)) * 10) / 10,
+        topSensations: topEntries(countBy(sensations, (s) => String(s['sensation'] ?? '')), 8),
+        topRegions: topEntries(countBy(sensations, (s) => String(s['region'] ?? '')), 8),
+        byDay: bucketByDay(
+          sensations.map((s) => ({ at: String(s['recordedAt']) })),
           Math.min(days, 90),
         ),
       },
@@ -365,6 +385,12 @@ statsRouter.get(
       spendingByCategory.set(key, (spendingByCategory.get(key) ?? 0) + Math.abs(Number(transaction['amount'])));
     }
 
+    const incomeByCategory = new Map<string, number>();
+    for (const transaction of income) {
+      const key = String(transaction['category'] ?? 'Uncategorised');
+      incomeByCategory.set(key, (incomeByCategory.get(key) ?? 0) + Number(transaction['amount']));
+    }
+
     ok(res, {
       months,
       balances,
@@ -376,6 +402,9 @@ statsRouter.get(
         months,
       ),
       byCategory: [...spendingByCategory.entries()]
+        .map(([category, amount]) => ({ category, amount }))
+        .sort((a, b) => b.amount - a.amount),
+      incomeByCategory: [...incomeByCategory.entries()]
         .map(([category, amount]) => ({ category, amount }))
         .sort((a, b) => b.amount - a.amount),
       budgets: budgets.map((budget) => {
@@ -423,11 +452,40 @@ statsRouter.get(
 
     const totalMinutes = shifts.reduce((sum, shift) => sum + minutesOf(shift), 0);
 
+    /*
+     * A workplace's own hourly rate turns logged hours into pay, but summing
+     * across workplaces that pay in different currencies would add pounds to
+     * dollars. Each workplace's own earnings are always shown; the combined
+     * total is only ever offered when every rated workplace shares a currency.
+     */
+    const workplaceStats = workplaces.map((workplace) => {
+      const minutes = shifts
+        .filter((shift) => shift['workplaceId'] === workplace.id)
+        .reduce((sum, shift) => sum + minutesOf(shift), 0);
+      const rate = Number(workplace['hourlyRate'] ?? 0);
+      const currency = String(workplace['currency'] || 'USD');
+      return {
+        id: workplace.id,
+        name: workplace['name'],
+        minutes,
+        earnings: rate > 0 ? Math.round((minutes / 60) * rate * 100) / 100 : null,
+        currency: rate > 0 ? currency : null,
+      };
+    });
+    const currencies = new Set(
+      workplaceStats.filter((w) => w.earnings !== null).map((w) => w.currency),
+    );
+    const singleCurrency = currencies.size === 1 ? [...currencies][0]! : null;
+
     ok(res, {
       weeks,
       shiftCount: shifts.length,
       totalMinutes,
       averageShiftMinutes: shifts.length ? Math.round(totalMinutes / shifts.length) : 0,
+      earnings: singleCurrency
+        ? Math.round(workplaceStats.reduce((sum, w) => sum + (w.earnings ?? 0), 0) * 100) / 100
+        : null,
+      earningsCurrency: singleCurrency,
       byDay: bucketByDay(
         shifts.map((shift) => ({ at: String(shift['startsAt']), value: minutesOf(shift) })),
         Math.min(weeks * 7, 90),
@@ -435,13 +493,7 @@ statsRouter.get(
       byWeekday: bucketByWeekday(
         shifts.map((shift) => ({ at: String(shift['startsAt']), value: minutesOf(shift) })),
       ),
-      workplaces: workplaces.map((workplace) => ({
-        id: workplace.id,
-        name: workplace['name'],
-        minutes: shifts
-          .filter((shift) => shift['workplaceId'] === workplace.id)
-          .reduce((sum, shift) => sum + minutesOf(shift), 0),
-      })),
+      workplaces: workplaceStats,
       tasks: {
         open: tasks.filter((task) => task['completed'] !== true).length,
         completed: tasks.filter((task) => task['completed'] === true).length,
