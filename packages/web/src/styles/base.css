@@ -209,7 +209,15 @@ pre {
   border: 0;
 }
 
-/* The first thing a keyboard user reaches on every page. */
+/*
+ * The first thing a keyboard user reaches on every page — hidden the rest of
+ * the time by a fixed pixel offset, not a percentage of its own height.
+ * A percentage was the bug: on a phone, --safe-top pushes the link's resting
+ * position down by as much as its own height, so moving it "-200%" of that
+ * height no longer clears the top of the screen, and a sliver of it stays
+ * permanently visible. A fixed offset comfortably larger than any safe-top
+ * plus the link's height always clears it, on every device.
+ */
 .skip-link {
   position: absolute;
   top: calc(var(--safe-top) + var(--space-2));
@@ -220,7 +228,7 @@ pre {
   color: var(--accent-text);
   border-radius: var(--radius);
   font-weight: var(--weight-semibold);
-  transform: translateY(-200%);
+  transform: translateY(-150px);
   transition: transform var(--duration) var(--ease);
 }
 
