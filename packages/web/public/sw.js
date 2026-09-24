@@ -15,17 +15,24 @@
  *                  offline.
  *   everything   → cache first, revalidated in the background, so a second
  *   else           launch paints immediately even on a slow connection.
+ *
+ * Every route's code is loaded lazily, so without a precache step a route
+ * nobody has opened yet has no cached copy of its own script to run offline.
+ * `precache-manifest.json` is written by `tools/build-sw-manifest.mjs` right
+ * after `vite build`, listing that build's hashed files by name, so this file
+ * never has to.
  */
 
 const VERSION = 'v1';
 const SHELL = `pluralnova-shell-${VERSION}`;
 const ASSETS = `pluralnova-assets-${VERSION}`;
 const OFFLINE_URL = '/offline.html';
+const PRECACHE_MANIFEST_URL = '/precache-manifest.json';
 
 /**
  * Only files that exist under a stable name belong here. Vite fingerprints the
- * scripts and styles, so those are picked up by the runtime cache on first use
- * instead of being listed and going stale.
+ * scripts and styles, so those come from the build's own manifest instead of
+ * being listed by hand and going stale.
  */
 const SHELL_URLS = [
   '/',
@@ -36,15 +43,35 @@ const SHELL_URLS = [
   '/icons/icon-512.png',
 ];
 
+async function buildAssetUrls() {
+  try {
+    const response = await fetch(PRECACHE_MANIFEST_URL, { cache: 'reload' });
+    if (!response.ok) return [];
+    const list = await response.json();
+    return Array.isArray(list) ? list.filter((url) => typeof url === 'string') : [];
+  } catch {
+    // No manifest (e.g. `vite dev`, or a build that predates this file) — the
+    // runtime cache in `handleAsset` still covers whatever gets visited.
+    return [];
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(SHELL);
+      const shell = await caches.open(SHELL);
       // Added one at a time: a single missing file must not fail the install and
       // leave the app with no worker at all.
       await Promise.all(
         SHELL_URLS.map((url) =>
-          cache.add(new Request(url, { cache: 'reload' })).catch(() => undefined),
+          shell.add(new Request(url, { cache: 'reload' })).catch(() => undefined),
+        ),
+      );
+
+      const assets = await caches.open(ASSETS);
+      await Promise.all(
+        (await buildAssetUrls()).map((url) =>
+          assets.add(new Request(url, { cache: 'reload' })).catch(() => undefined),
         ),
       );
     })(),
