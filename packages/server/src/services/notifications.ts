@@ -1,7 +1,9 @@
 import {
+  applyTerminology,
   newId,
   notificationAllowed,
   now,
+  resolveTerminology,
   type NotificationCategory,
   type StoredRecord,
 } from '@pluralnova/shared';
@@ -40,6 +42,13 @@ export async function notify(input: NotifyInput): Promise<StoredRecord | null> {
 
   if (!notificationAllowed(settings, input.category, 'inApp')) return null;
 
+  // Titles and bodies are authored with {{tokens}} exactly like client-side
+  // strings, so a switch/journal/etc. mention lands in the account's own
+  // words even though it never passes through a React render.
+  const terms = resolveTerminology(settings.terminology);
+  const title = applyTerminology(input.title, terms);
+  const body = input.body ? applyTerminology(input.body, terms) : input.body;
+
   const timestamp = now();
   const id = newId('ntf');
   getDb()
@@ -58,8 +67,8 @@ export async function notify(input: NotifyInput): Promise<StoredRecord | null> {
       timestamp,
       timestamp,
       input.kind,
-      input.title,
-      (input.body ?? '').slice(0, 500),
+      title,
+      (body ?? '').slice(0, 500),
       input.category,
       input.link ?? '',
       input.meta ? JSON.stringify(input.meta) : null,
@@ -75,8 +84,8 @@ export async function notify(input: NotifyInput): Promise<StoredRecord | null> {
     // showing what it said.
     const showPreview = settings.privacy.showMessagePreviews && !input.private;
     await sendPush(input.userId, {
-      title: input.title,
-      body: showPreview ? input.body ?? '' : 'Open PluralNova to read it.',
+      title,
+      body: showPreview ? body ?? '' : 'Open PluralNova to read it.',
       link: input.link ?? '/notifications',
       tag: input.kind,
       category: input.category,

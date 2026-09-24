@@ -25,8 +25,18 @@
   gap: var(--space-2);
   height: calc(var(--header-height) + var(--safe-top));
   padding: var(--safe-top) var(--space-4) 0;
-  background: var(--bg);
-  border-bottom: var(--border-width) solid var(--border);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 96%, transparent),
+    color-mix(in srgb, var(--bg) 82%, transparent)
+  );
+  backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));
+  /*
+   * A hairline, not a bar. A solid top border here is the thing that makes a
+   * desktop web app look like a page rather than an application.
+   */
+  border-bottom: var(--border-width) solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
 .app-header__title {
@@ -102,10 +112,16 @@
    * read as glass, it reads as a rendering fault, and it made the bar look
    * like it was covering content it was only passing over.
    */
-  background: color-mix(in srgb, var(--bg-subtle) 94%, transparent);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 65%),
+    color-mix(in srgb, var(--bg-subtle) 94%, transparent);
   border: var(--border-width) solid var(--border-strong);
   border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-lift);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    var(--shadow-lift);
+  backdrop-filter: blur(calc(var(--blur-surface) * 1.4)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(calc(var(--blur-surface) * 1.4)) saturate(var(--glass-saturate));
 }
 
 /*
@@ -211,23 +227,13 @@
     padding-top: calc(var(--safe-top) + var(--space-4));
     padding-left: max(var(--space-3), var(--safe-left));
     border-right: var(--border-width) solid var(--border);
-    background: var(--bg-subtle);
+    background: color-mix(in srgb, var(--bg-subtle) 55%, transparent);
+    backdrop-filter: blur(var(--blur-surface));
+    -webkit-backdrop-filter: blur(var(--blur-surface));
     overflow-y: auto;
     overscroll-behavior: contain;
   }
 
-}
-
-/* Category-coloured group labels — a dot of the category's own colour. */
-.app-nav__group-label::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--cat-color, var(--accent));
-  flex-shrink: 0;
-  margin-right: var(--space-2);
-  opacity: 0.7;
 }
 
 .app-nav__brand {
@@ -266,7 +272,18 @@
   gap: var(--space-2);
 }
 
-.app-nav__group-label > :nth-child(2) {
+/* A dot of the category's own colour ahead of its label. */
+.app-nav__group-label::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cat-color, var(--accent));
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.app-nav__group-label > :last-child {
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -467,68 +484,8 @@
 
 /* ── Auth screens ───────────────────────────────────────────────────────── */
 
-/*
- * PluralSpace-inspired split layout: a cozy branding panel on the left and a
- * dark form panel on the right. On a phone the branding panel collapses and
- * only the form shows.
- */
 .auth-screen {
   min-height: 100dvh;
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-}
-
-.auth-screen__branding {
-  display: none;
-  flex: 1;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: var(--space-10) var(--space-10);
-  background:
-    radial-gradient(120% 80% at 30% 20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
-    linear-gradient(160deg, var(--bg-subtle), var(--bg) 70%);
-  position: relative;
-  overflow: hidden;
-}
-
-.auth-screen__branding::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(1px 1px at 20% 30%, var(--text-faint), transparent),
-    radial-gradient(1px 1px at 60% 70%, var(--text-faint), transparent),
-    radial-gradient(1px 1px at 80% 20%, var(--text-faint), transparent),
-    radial-gradient(1px 1px at 40% 80%, var(--text-faint), transparent),
-    radial-gradient(1px 1px at 70% 50%, var(--text-faint), transparent),
-    radial-gradient(1px 1px at 15% 60%, var(--text-faint), transparent),
-    radial-gradient(1px 1px at 90% 85%, var(--text-faint), transparent),
-    radial-gradient(1px 1px at 50% 15%, var(--text-faint), transparent);
-  opacity: 0.3;
-}
-
-.auth-screen__branding-content {
-  position: relative;
-  z-index: 1;
-}
-
-.auth-screen__branding-title {
-  font-size: var(--size-2xl);
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.02em;
-  margin-bottom: var(--space-3);
-}
-
-.auth-screen__branding-body {
-  font-size: var(--size-base);
-  color: var(--text-muted);
-  line-height: var(--leading-relaxed);
-  max-width: 36ch;
-}
-
-.auth-screen__form-side {
-  flex: 0 0 440px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -536,40 +493,27 @@
   padding: var(--space-6) var(--space-4);
   padding-top: calc(var(--safe-top) + var(--space-6));
   padding-bottom: calc(var(--safe-bottom) + var(--space-6));
-  background: var(--bg);
-}
-
-@media (max-width: 899px) {
-  .auth-screen {
-    flex-direction: column;
-  }
-
-  .auth-screen__form-side {
-    flex: 1;
-  }
-}
-
-@media (min-width: 900px) {
-  .auth-screen__branding {
-    display: flex;
-  }
 }
 
 .auth-card {
   width: 100%;
-  max-width: 380px;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  padding: 0;
-  box-shadow: none;
+  max-width: 420px;
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+  padding: var(--space-6);
+  box-shadow: var(--shadow);
 }
 
 .auth-card__brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-5);
+  text-align: center;
 }
 
 .auth-card__title {
@@ -613,6 +557,8 @@
   background: var(--surface-raised);
   border: var(--border-width) solid var(--border-strong);
   box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
   color: var(--text);
   font-size: var(--size-sm);
 }

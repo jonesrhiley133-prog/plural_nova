@@ -35,6 +35,85 @@ const STRENGTH_WIDTH: Record<string, number> = {
   inseparable: 3.4,
 };
 
+/*
+ * Random relationships, kept deliberately light.
+ *
+ * The pool sticks to warm, ordinary labels rather than plurality-specific
+ * clinical terms (persecutor, gatekeeper, and the like) — those carry real
+ * weight for an actual system, and a coin flip is the wrong way to assign
+ * one to somebody. Age only ever narrows the pool, never assigns an age.
+ */
+type AgeBand = 'child' | 'teen' | 'adult';
+const AGE_RANK: Record<AgeBand, number> = { child: 0, teen: 1, adult: 2 };
+
+/** Free text ("27", "teen", "ageless", "somewhere around 8") to a rough band. Unreadable text is treated as adult. */
+function ageBand(raw: unknown): AgeBand {
+  const text = String(raw ?? '').trim().toLowerCase();
+  const match = text.match(/\d+/);
+  if (!match) return 'adult';
+  const value = Number(match[0]);
+  if (!Number.isFinite(value)) return 'adult';
+  if (value < 13) return 'child';
+  if (value < 18) return 'teen';
+  return 'adult';
+}
+
+interface RelationshipTemplate {
+  label: string;
+  reverseLabel?: string;
+  strength: string;
+  /** `from` is the age band of whoever ends up in the `fromId` slot. */
+  allowed: (from: AgeBand, to: AgeBand) => boolean;
+}
+
+const RANDOM_TEMPLATES: RelationshipTemplate[] = [
+  { label: 'Friend', strength: 'close', allowed: () => true },
+  { label: 'Best friend', strength: 'inseparable', allowed: () => true },
+  { label: 'Sibling', reverseLabel: 'Sibling', strength: 'close', allowed: () => true },
+  { label: 'Confidant', strength: 'close', allowed: () => true },
+  { label: 'Housemate', strength: 'neutral', allowed: () => true },
+  { label: 'Rival', strength: 'distant', allowed: () => true },
+  { label: 'Partner in crime', strength: 'inseparable', allowed: () => true },
+  { label: 'Twin', reverseLabel: 'Twin', strength: 'inseparable', allowed: (a, b) => a === b },
+  {
+    label: 'Protector',
+    reverseLabel: 'Protected by',
+    strength: 'close',
+    allowed: (a, b) => AGE_RANK[a] >= AGE_RANK[b],
+  },
+  {
+    label: 'Caretaker',
+    reverseLabel: 'Cared for by',
+    strength: 'close',
+    allowed: (a, b) => AGE_RANK[a] >= AGE_RANK[b],
+  },
+  {
+    label: 'Parent-figure',
+    reverseLabel: 'Child-figure',
+    strength: 'close',
+    allowed: (a, b) => a === 'adult' && b !== 'adult',
+  },
+  {
+    label: 'Mentor',
+    reverseLabel: 'Mentee',
+    strength: 'close',
+    allowed: (a, b) => AGE_RANK[a] >= AGE_RANK[b] && a !== b,
+  },
+];
+
+/** Every template that could plausibly connect these two, in either direction. */
+function optionsFor(
+  bandA: AgeBand,
+  bandB: AgeBand,
+): { template: RelationshipTemplate; aIsFrom: boolean }[] {
+  const options: { template: RelationshipTemplate; aIsFrom: boolean }[] = [];
+  for (const template of RANDOM_TEMPLATES) {
+    if (template.allowed(bandA, bandB)) options.push({ template, aIsFrom: true });
+    if (bandA !== bandB && template.allowed(bandB, bandA)) options.push({ template, aIsFrom: false });
+  }
+  return options;
+}
+
 export default function Relationships(): JSX.Element {
   const { t, term } = useI18n();
   const toast = useToast();
@@ -46,8 +125,58 @@ export default function Relationships(): JSX.Element {
   const [focus, setFocus] = useState<string | null>(null);
   const editor = useDialog<StoredRecord>();
   const confirm = useDialog<StoredRecord>();
+  const randomDialog = useDialog();
   const [creating, setCreating] = useState(false);
   const svg = useRef<SVGSVGElement>(null);
+
+  const randomCount = Math.min(8, Math.max(0, Math.round([...members.values()].length * 0.75)));
+
+  // Left to throw: ConfirmDialog shows the failure inline and keeps itself
+  // open, which matters here since a partial run should not look finished.
+  const generateRandom = async (): Promise<void> => {
+    const people = [...members.values()];
+    const already = new Set(
+      relationships.items
+        .filter((r) => r['fromType'] === 'member' && r['toType'] === 'member')
+        .map((r) => [String(r['fromId']), String(r['toId'])].sort().join('|')),
+    );
+
+    const candidates: [StoredRecord, StoredRecord][] = [];
+    for (let i = 0; i < people.length; i += 1) {
+      for (let j = i + 1; j < people.length; j += 1) {
+        const key = [people[i]!.id, people[j]!.id].sort().join('|');
+        if (!already.has(key)) candidates.push([people[i]!, people[j]!]);
+      }
+    }
+    for (let i = candidates.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j]!, candidates[i]!];
+    }
+
+    let created = 0;
+    for (const [a, b] of candidates.slice(0, randomCount)) {
+      const options = optionsFor(ageBand(a['age']), ageBand(b['age']));
+      if (options.length === 0) continue;
+      const choice = options[Math.floor(Math.random() * options.length)]!;
+      const [from, to] = choice.aIsFrom ? [a, b] : [b, a];
+      await relationships.create({
+        fromType: 'member',
+        fromId: from.id,
+        toType: 'member',
+        toId: to.id,
+        label: choice.template.label,
+        reverseLabel: choice.template.reverseLabel ?? choice.template.label,
+        strength: choice.template.strength,
+        mutual: !choice.template.reverseLabel,
+        showOnMap: true,
+      });
+      created += 1;
+    }
+    toast.success(
+      created > 0 ? `Added ${created} relationship${created === 1 ? '' : 's'}` : 'Nothing to add',
+      created === 0 ? 'Everyone who could be paired already has a recorded relationship.' : undefined,
+    );
+  };
 
   const nodes = useMemo(() => {
     const people = [...members.values()];
@@ -99,11 +228,27 @@ export default function Relationships(): JSX.Element {
                 { value: 'list', label: 'List' },
               ]}
             />
+            {[...members.values()].length >= 2 ? (
+              <Button variant="secondary" icon="refresh" onClick={() => randomDialog.show()}>
+                Generate random relationships
+              </Button>
+            ) : null}
             <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
               Add a relationship
             </Button>
           </>
         }
+      />
+
+      <ConfirmDialog
+        open={randomDialog.open}
+        onClose={randomDialog.hide}
+        title="Generate random relationships?"
+        body={`Fills in up to ${randomCount} relationship${randomCount === 1 ? '' : 's'} between ${term('{{members}}')} who don't have one yet, choosing a type that fits their ages. Nothing already recorded is changed, and anything added can be edited or deleted afterward.`}
+        confirmLabel="Generate"
+        tone="primary"
+        recoverable
+        onConfirm={generateRandom}
       />
 
       {view === 'map' ? (

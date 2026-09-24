@@ -36,6 +36,7 @@ interface FinanceStats {
   spendingTotal: number;
   byMonth: { label: string; value: number; key: string }[];
   byCategory: { category: string; amount: number }[];
+  incomeByCategory: { category: string; amount: number }[];
   budgets: { id: string; category: string; limit: number; spent: number; remaining: number; share: number }[];
 }
 
@@ -143,6 +144,23 @@ export default function Finances(): JSX.Element {
               }))}
               format={money}
               emptyMessage="Nothing categorised yet."
+            />
+          </Card>
+
+          <Card>
+            <RankedBars
+              title="Where it came from"
+              subtitle="Income by category"
+              valueLabel="Amount"
+              items={(stats.data?.incomeByCategory ?? []).map((row) => ({
+                id: row.category,
+                label: row.category,
+                value: row.amount,
+                detail: money(row.amount),
+                color: null,
+              }))}
+              format={money}
+              emptyMessage="No income categorised yet."
             />
           </Card>
 

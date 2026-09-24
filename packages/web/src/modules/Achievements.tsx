@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { ACHIEVEMENTS } from '@pluralnova/shared';
 import { useOptimisticSettings } from '../core/settings.js';
 import { useCollection } from '../core/data.js';
-import { useDateFormat } from '../core/i18n.js';
+import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Meter, SectionHeading, Stat } from '../ui/primitives.js';
@@ -20,12 +20,13 @@ import { ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 const CATEGORIES = [
   { id: 'firsts', label: 'Firsts' },
   { id: 'habits', label: 'Kept up' },
-  { id: 'system', label: 'System' },
+  { id: 'system', label: '{{System}}' },
   { id: 'care', label: 'Looking after things' },
   { id: 'creative', label: 'Creative' },
 ] as const;
 
 export default function Achievements(): JSX.Element {
+  const { term } = useI18n();
   const { settings, update } = useOptimisticSettings();
   const dates = useDateFormat();
   const toast = useToast();
@@ -60,7 +61,7 @@ export default function Achievements(): JSX.Element {
     <>
       <PageHeader
         title="Achievements"
-        description="Small markers for using parts of the app. Nothing here measures how a system is doing."
+        description={term('Small markers for using parts of the app. Nothing here measures how a {{system}} is doing.')}
       />
 
       <div className="stat-grid" style={{ marginBottom: 'var(--space-4)' }}>
@@ -88,7 +89,7 @@ export default function Achievements(): JSX.Element {
           if (items.length === 0) return null;
           return (
             <section key={category.id}>
-              <SectionHeading label={category.label} />
+              <SectionHeading label={term(category.label)} />
               <div className="grid" style={{ ['--grid-min' as never]: '210px' }}>
                 {items.map((achievement) => {
                   const row = byKey.get(achievement.key);
@@ -113,9 +114,9 @@ export default function Achievements(): JSX.Element {
                           {achievement.icon}
                         </span>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 'var(--weight-medium)' }}>{achievement.label}</div>
+                          <div style={{ fontWeight: 'var(--weight-medium)' }}>{term(achievement.label)}</div>
                           <p className="small muted" style={{ marginTop: 2 }}>
-                            {achievement.description}
+                            {term(achievement.description)}
                           </p>
                           {row ? (
                             <p className="tiny faint" style={{ marginTop: 6 }}>

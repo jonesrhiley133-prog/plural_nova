@@ -101,7 +101,7 @@ export async function claimHandle(page, handle, displayName) {
 /** Every route the shell can reach without an id, which is what a smoke test wants. */
 export const ROUTES = [
   '',
-  'whos-there', 'quick-front', 'fronting', 'stats', 'members', 'profiles', 'organize',
+  'quick-front', 'fronting', 'stats', 'members', 'profiles', 'organize',
   'subsystems', 'system-history', 'relationships', 'headspace', 'system-chat', 'bulletin',
   'polls', 'journal', 'notes', 'tasks', 'calendar', 'media', 'flags', 'achievements',
   'daily-summary', 'wellbeing', 'emotions', 'body-map', 'emotion-insights', 'sleep',

@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import { BODY_REGIONS, SENSATION_WORDS, intensityLabel, type StoredRecord } from '@pluralnova/shared';
-import { useCollection, useRecordMap } from '../core/data.js';
+import { useCollection, useQuery, useRecordMap } from '../core/data.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useActiveMemberId } from '../core/auth.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton, Meter } from '../ui/primitives.js';
+import { Button, Card, Chip, IconButton, Meter, Stat } from '../ui/primitives.js';
 import { TextField } from '../ui/forms.js';
 import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { RankedBars } from '../charts/index.js';
 import { magnitudeColor } from '../charts/palette.js';
 
 /**
@@ -50,6 +51,15 @@ export default function BodyMap(): JSX.Element {
   const members = useRecordMap('members');
   const entries = useCollection('bodySensations');
 
+  const overview = useQuery<{
+    sensations: {
+      entries: number;
+      averageIntensity: number;
+      topSensations: { key: string; count: number }[];
+      topRegions: { key: string; count: number }[];
+    };
+  }>('/api/stats/overview', { days: 90 });
+
   const editor = useDialog<{ region: string; record: StoredRecord | null }>();
   const confirm = useDialog<StoredRecord>();
 
@@ -70,6 +80,23 @@ export default function BodyMap(): JSX.Element {
         title={t('body.title')}
         description="Tap where something is happening, then say what it feels like."
       />
+
+      {overview.data && overview.data.sensations.entries > 0 ? (
+        <div className="stat-grid" style={{ marginBottom: 'var(--space-4)' }}>
+          <Stat label="Logged" value={overview.data.sensations.entries} detail="last 90 days" />
+          <Stat label="Average intensity" value={`${overview.data.sensations.averageIntensity}/5`} />
+          <Stat
+            label="Most common area"
+            value={
+              (() => {
+                const key = overview.data.sensations.topRegions[0]?.key;
+                return key ? (BODY_REGIONS.find((region) => region.id === key)?.label ?? key) : '—';
+              })()
+            }
+          />
+          <Stat label="Most common word" value={overview.data.sensations.topSensations[0]?.key ?? '—'} />
+        </div>
+      ) : null}
 
       <div className="split">
         <Card title="Where" subtitle="Shaded areas are the ones logged most often">
@@ -120,6 +147,22 @@ export default function BodyMap(): JSX.Element {
         </Card>
 
         <div className="stack">
+          {overview.data && overview.data.sensations.topSensations.length > 0 ? (
+            <Card>
+              <RankedBars
+                title="Most often recorded"
+                subtitle="Simply the words that come up most, last 90 days"
+                valueLabel="Times logged"
+                items={overview.data.sensations.topSensations.map((entry) => ({
+                  id: entry.key,
+                  label: entry.key,
+                  value: entry.count,
+                  color: null,
+                }))}
+              />
+            </Card>
+          ) : null}
+
           <AsyncContent
             loading={entries.loading}
             error={entries.error}

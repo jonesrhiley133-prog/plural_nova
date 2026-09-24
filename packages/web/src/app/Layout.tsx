@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { findNavItemByPath } from '@pluralnova/shared';
-import { useAuth } from '../core/auth.js';
+import { useAuth, useSystemMode } from '../core/auth.js';
 import { useI18n } from '../core/i18n.js';
 import { useBadges } from '../core/badges.js';
 import { ErrorBoundary } from '../ui/feedback.js';
 import { Badge, IconButton } from '../ui/primitives.js';
 import { Atmosphere } from './Atmosphere.js';
 import { BarTitleContext } from './BarTitleContext.js';
+import { FrontingRitual } from './FrontingRitual.js';
 import { BottomNav, SidebarNav } from './Navigation.js';
 import { QuickActions } from './QuickActions.js';
 import { SyncIndicator } from './SyncIndicator.js';
@@ -23,6 +24,7 @@ export function Layout(): JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const systemMode = useSystemMode();
   const { term } = useI18n();
   const badges = useBadges();
 
@@ -99,6 +101,7 @@ export function Layout(): JSX.Element {
 
       <QuickActions />
       <BottomNav />
+      {systemMode ? <FrontingRitual /> : null}
     </>
   );
 }

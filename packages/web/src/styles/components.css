@@ -141,10 +141,16 @@
 .surface,
 .card {
   position: relative;
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 58%),
+    var(--surface);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--blur-surface)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--blur-surface)) saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    var(--shadow);
 }
 
 .card {
@@ -157,8 +163,12 @@
 }
 
 .card--raised {
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-lift);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 58%),
+    var(--surface-raised);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    var(--shadow-lift);
 }
 
 .card--interactive {
@@ -172,8 +182,12 @@
 
 .card--interactive:hover {
   border-color: var(--border-strong);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-lift);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 58%),
+    var(--surface-raised);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    var(--shadow-lift);
   transform: translateY(-1px);
 }
 
@@ -260,15 +274,30 @@
   background: var(--accent);
   color: var(--accent-text);
   font-weight: var(--weight-semibold);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.28),
+    0 6px 20px -8px var(--glow);
 }
 
 .button--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 85%, #ffffff);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 80%, #ffffff),
+    color-mix(in srgb, var(--accent) 94%, #ffffff)
+  );
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.32),
+    0 10px 28px -8px var(--glow);
 }
 
 .button--secondary {
-  background: var(--surface-raised);
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 60%),
+    var(--surface-raised);
   border-color: var(--border);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+  box-shadow: inset 0 1px 0 0 var(--glass-edge);
 }
 
 .button--secondary:hover:not(:disabled) {
@@ -373,7 +402,15 @@
 .select {
   width: 100%;
   padding: var(--space-3);
-  background: var(--surface-sunken);
+  /*
+   * A field is a recess rather than a raised panel, so the light sits along
+   * the bottom edge instead of the top — the same trick as the cards, inverted.
+   */
+  background: linear-gradient(180deg, transparent 45%, var(--glass-sheen));
+  background-color: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+  box-shadow: inset 0 -1px 0 0 var(--glass-edge);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
@@ -391,6 +428,18 @@
   .select {
     font-size: max(16px, var(--size-base));
   }
+}
+
+.reference-field__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 44px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-faint);
+  flex-shrink: 0;
 }
 
 .input:hover,
@@ -527,8 +576,13 @@
   gap: var(--space-1);
   padding: 4px var(--space-3);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+  /* Glass, like everything else on the page — a sunken well would read as a
+     hole punched in the panel it is sitting on. */
+  background:
+    linear-gradient(180deg, var(--glass-sheen), transparent 70%),
+    color-mix(in srgb, var(--surface-raised) 70%, transparent);
   border: var(--border-width) solid var(--border);
+  box-shadow: inset 0 1px 0 0 var(--glass-edge);
   font-size: var(--size-xs);
   color: var(--text-muted);
   white-space: nowrap;
@@ -538,6 +592,13 @@
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   color: var(--accent);
+}
+
+/** An identity flag on a profile — its own colour, not the accent everyone shares. */
+.chip--flag {
+  background: color-mix(in srgb, var(--flag-color, var(--accent)) 16%, var(--surface-raised));
+  border: var(--border-width) solid color-mix(in srgb, var(--flag-color, var(--accent)) 40%, transparent);
+  color: var(--flag-color, var(--accent));
 }
 
 .chip--interactive {
@@ -720,6 +781,71 @@
   position: relative;
   z-index: 1;
   padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+/*
+ * The banner already tints toward the member's colour; this carries that same
+ * wash down through the rest of their profile, fading out well before the
+ * page would otherwise end, so the whole visit feels like it is theirs.
+ */
+.member-tint {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--member-color, var(--accent)) 6%, transparent),
+    transparent 640px
+  );
+}
+
+/* ── Wellbeing games ────────────────────────────────────────────────────── */
+
+.bubble-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: var(--space-2);
+}
+
+.bubble {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: radial-gradient(
+    circle at 35% 28%,
+    color-mix(in srgb, var(--accent) 45%, white 20%),
+    color-mix(in srgb, var(--accent) 32%, transparent)
+  );
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.18),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.16);
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.bubble:hover {
+  transform: scale(1.05);
+}
+
+.bubble:active {
+  transform: scale(0.86);
+}
+
+.bubble--popped {
+  background: var(--surface-sunken);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
+  cursor: default;
+}
+
+.bubble--popped:hover {
+  transform: none;
+}
+
+.breath-circle {
+  width: 160px;
+  height: 160px;
+  margin: var(--space-2) auto var(--space-4);
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, transparent), transparent 72%);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 /* ── Lists ──────────────────────────────────────────────────────────────── */
@@ -998,11 +1124,12 @@
  * cards too small to read.
  */
 .grid--columns {
+  --grid-columns-floor: 92px;
   grid-template-columns: repeat(
     auto-fill,
     minmax(
       max(
-        92px,
+        var(--grid-columns-floor),
         calc(
           (100% - (var(--grid-columns, 3) - 1) * var(--space-3)) / var(--grid-columns, 3) - 1px
         )
@@ -1010,6 +1137,19 @@
       1fr
     )
   );
+}
+
+/*
+ * At 92px, a phone-width container can rarely fit more than three of these
+ * regardless of the count chosen — so picking 4 or 5 looked like it did
+ * nothing. The floor only needs to come down enough for auto-fill to honour
+ * them; 5 can still collapse toward 4 on the narrowest phones, which is the
+ * same graceful degradation the floor already does at every other count.
+ */
+@media (max-width: 767px) {
+  .grid--columns {
+    --grid-columns-floor: 78px;
+  }
 }
 
 .stack {
@@ -1210,6 +1350,8 @@
   align-items: flex-end;
   justify-content: center;
   background: color-mix(in srgb, #000 62%, transparent);
+  backdrop-filter: blur(calc(var(--blur-surface) / 3));
+  -webkit-backdrop-filter: blur(calc(var(--blur-surface) / 3));
   animation: fade-in var(--duration) var(--ease);
 }
 
@@ -1277,6 +1419,13 @@
 .dialog__title {
   font-size: var(--size-md);
   font-weight: var(--weight-semibold);
+}
+
+.dialog__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 .dialog__body {
@@ -1356,6 +1505,8 @@
   border: var(--border-width) solid var(--border-strong);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
   pointer-events: auto;
   animation: toast-in var(--duration) var(--ease);
 }
@@ -1481,6 +1632,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /*
+   * A flex or grid child defaults to `min-width: auto`, which for nowrap text
+   * resolves to the text's full unwrapped width — overriding any max-width
+   * and quietly cancelling the ellipsis. This is what actually makes
+   * truncation work inside a flex/grid layout, not the properties above.
+   */
+  min-width: 0;
 }
 
 .clamp-2 {

@@ -175,6 +175,20 @@ describe('theming', () => {
     }
   });
 
+  it('carries the accent into the page background itself, not just onto buttons', () => {
+    for (const base of ['dark', 'light'] as const) {
+      const blue = buildTheme(normaliseThemeSettings({ base, accent: '#3b82f6' }));
+      const green = buildTheme(normaliseThemeSettings({ base, accent: '#22c55e' }));
+      expect(blue.bg, `${base} bg`).not.toBe(green.bg);
+      expect(blue.bgSubtle, `${base} bgSubtle`).not.toBe(green.bgSubtle);
+    }
+  });
+
+  it('keeps AMOLED true black regardless of accent', () => {
+    const theme = buildTheme(normaliseThemeSettings({ base: 'amoled', accent: '#22c55e' }));
+    expect(theme.bg).toBe('#000000');
+  });
+
   it('raises contrast further in high-contrast mode', () => {
     const normal = buildTheme(normaliseThemeSettings({ base: 'dark' }));
     const high = buildTheme(normaliseThemeSettings({ base: 'dark', highContrast: true }));

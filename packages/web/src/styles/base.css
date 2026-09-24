@@ -1,5 +1,29 @@
 /* Reset and base element styling. Opinionated only where it saves repetition. */
 
+/*
+ * Self-hosted rather than linked from Google Fonts — a request for this
+ * file never leaves the server it is loaded from, which is the same reason
+ * everything else about this app avoids a third-party call it doesn't need.
+ * One variable-weight file covers 400–600, the only weights the design
+ * system uses.
+ */
+@font-face {
+  font-family: 'Lexend';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/Lexend-variable.woff2') format('woff2');
+}
+
+/* An account can opt out of Lexend entirely; see the `--font-sans` default in tokens.css. */
+:root[data-font='system'] {
+  --font-sans: var(--font-system);
+}
+
+:root[data-font='serif'] {
+  --font-sans: var(--font-serif);
+}
+
 *,
 *::before,
 *::after {
@@ -135,6 +159,8 @@ pre {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  /* A ring plus a bloom: on a dark sky the outline alone is easy to lose. */
+  box-shadow: 0 0 0 5px var(--glow);
   border-radius: var(--radius-sm);
 }
 

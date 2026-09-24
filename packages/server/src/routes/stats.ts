@@ -60,6 +60,10 @@ statsRouter.get(
       limit: 365,
       range: { field: 'startedAt', from },
     }).items;
+    const sensations = listRecords('bodySensations', context.scope, {
+      limit: 500,
+      range: { field: 'recordedAt', from },
+    }).items;
     const journal = listRecords('journalEntries', context.scope, {
       limit: 500,
       range: { field: 'entryDate', from },
@@ -105,8 +109,24 @@ statsRouter.get(
         averageMinutes: Math.round(average(sleep.map((s) => Number(s['durationMinutes'] ?? 0)))),
         averageQuality:
           Math.round(average(sleep.map((s) => Number(s['quality'] ?? 0)).filter((q) => q > 0)) * 10) / 10,
+        averageLatencyMinutes: Math.round(
+          average(sleep.map((s) => Number(s['latencyMinutes'] ?? 0)).filter((n) => n > 0)),
+        ),
+        nightmareNights: sleep.filter((s) => s['nightmares'] === true).length,
+        sleepwalkingNights: sleep.filter((s) => s['sleepwalking'] === true).length,
         byDay: bucketByDay(
           sleep.map((s) => ({ at: String(s['startedAt']), value: Number(s['durationMinutes'] ?? 0) })),
+          Math.min(days, 90),
+        ),
+      },
+      sensations: {
+        entries: sensations.length,
+        averageIntensity:
+          Math.round(average(sensations.map((s) => Number(s['intensity'] ?? 0)).filter((n) => n > 0)) * 10) / 10,
+        topSensations: topEntries(countBy(sensations, (s) => String(s['sensation'] ?? '')), 8),
+        topRegions: topEntries(countBy(sensations, (s) => String(s['region'] ?? '')), 8),
+        byDay: bucketByDay(
+          sensations.map((s) => ({ at: String(s['recordedAt']) })),
           Math.min(days, 90),
         ),
       },
@@ -145,20 +165,27 @@ statsRouter.get(
     const members = listRecords('members', context.scope, { limit: 500 }).items;
     const byId = new Map(members.map((m) => [m.id, m]));
 
+    const moods = inRange('moodEntries', 'recordedAt');
+    const emotions = inRange('emotionEntries', 'recordedAt');
+    const sensations = inRange('bodySensations', 'recordedAt');
+    const journal = inRange('journalEntries', 'entryDate');
+    const sleep = inRange('sleepEntries', 'startedAt', 20);
+
     ok(res, {
       date,
+      insights: dayInsights(context.scope, date, from, { moods, emotions, sensations, journal, sleep, fronts }),
       fronting: fronts.map((event) => ({
         ...event,
         minutes: eventMinutes(event),
         memberName: event.memberId ? ((byId.get(event.memberId)?.['name'] as string) ?? null) : null,
       })),
-      moods: inRange('moodEntries', 'recordedAt'),
-      emotions: inRange('emotionEntries', 'recordedAt').map((entry) => ({
+      moods,
+      emotions: emotions.map((entry) => ({
         ...entry,
         emotion: getEmotion(String(entry['emotionId'])) ?? null,
       })),
-      sensations: inRange('bodySensations', 'recordedAt'),
-      journal: inRange('journalEntries', 'entryDate'),
+      sensations,
+      journal,
       notes: listRecords('notes', context.scope, { limit: 50, range: { field: 'createdAt', from, to } }).items,
       tasks: listRecords('tasks', context.scope, { limit: 100, range: { field: 'dueAt', from, to } }).items,
       completedTasks: listRecords('tasks', context.scope, {
@@ -166,7 +193,7 @@ statsRouter.get(
         range: { field: 'completedAt', from, to },
       }).items,
       events: inRange('calendarEvents', 'startsAt'),
-      sleep: inRange('sleepEntries', 'startedAt', 20),
+      sleep,
       wellness: inRange('wellnessEntries', 'recordedAt', 20),
       fitness: inRange('fitnessEntries', 'performedAt', 50),
       locations: inRange('locationEntries', 'visitedAt', 50),
@@ -174,6 +201,104 @@ statsRouter.get(
     });
   }),
 );
+
+/**
+ * Observations for one day, each a plain comparison against a trailing
+ * fortnight ending the day before — never the day itself, so "today" is
+ * never folded into its own baseline. A category only appears once the
+ * baseline has at least three entries to compare against, so a quiet
+ * comparison never gets more confidence than three data points earn it.
+ * These are numbers next to other numbers, not conclusions about anyone.
+ */
+function dayInsights(
+  scope: Parameters<typeof listRecords>[1],
+  date: string,
+  from: string,
+  today: {
+    moods: ReturnType<typeof listRecords>['items'];
+    emotions: ReturnType<typeof listRecords>['items'];
+    sensations: ReturnType<typeof listRecords>['items'];
+    journal: ReturnType<typeof listRecords>['items'];
+    sleep: ReturnType<typeof listRecords>['items'];
+    fronts: FrontEventLike[];
+  },
+): {
+  mood: { today: number; baseline: number } | null;
+  emotions: { todayCount: number; baselineCountPerDay: number; todayAverage: number; baselineAverage: number } | null;
+  sensations: { todayCount: number; baselineCountPerDay: number } | null;
+  fronting: { todayMinutes: number; baselineMinutesPerDay: number } | null;
+  sleep: { todayMinutes: number; baselineMinutes: number } | null;
+  journalStreak: number;
+} {
+  const baselineDays = 14;
+  const baselineTo = from;
+  const baselineFrom = new Date(new Date(from).getTime() - baselineDays * 86_400_000).toISOString();
+  const baseline = (collection: string, field: string, limit = 500) =>
+    listRecords(collection, scope, { limit, range: { field, from: baselineFrom, to: baselineTo } }).items;
+
+  const baselineMoods = baseline('moodEntries', 'recordedAt');
+  const baselineEmotions = baseline('emotionEntries', 'recordedAt');
+  const baselineSensations = baseline('bodySensations', 'recordedAt');
+  const baselineJournal = baseline('journalEntries', 'entryDate');
+  const baselineSleep = baseline('sleepEntries', 'startedAt');
+  const baselineFronts = baseline('frontEvents', 'startedAt') as unknown as FrontEventLike[];
+
+  const scored = (rows: ReturnType<typeof listRecords>['items'], field: string) =>
+    rows.map((row) => Number(row[field] ?? 0)).filter((value) => value > 0);
+  const round1 = (value: number): number => Math.round(value * 10) / 10;
+
+  const todayMoodScores = scored(today.moods, 'score');
+  const baselineMoodScores = scored(baselineMoods, 'score');
+  const mood =
+    todayMoodScores.length > 0 && baselineMoodScores.length >= 3
+      ? { today: round1(average(todayMoodScores)), baseline: round1(average(baselineMoodScores)) }
+      : null;
+
+  const todayIntensities = scored(today.emotions, 'intensity');
+  const baselineIntensities = scored(baselineEmotions, 'intensity');
+  const emotionsInsight =
+    today.emotions.length > 0 && baselineEmotions.length >= 3
+      ? {
+          todayCount: today.emotions.length,
+          baselineCountPerDay: round1(baselineEmotions.length / baselineDays),
+          todayAverage: round1(average(todayIntensities)),
+          baselineAverage: round1(average(baselineIntensities)),
+        }
+      : null;
+
+  const sensationsInsight =
+    baselineSensations.length >= 3
+      ? { todayCount: today.sensations.length, baselineCountPerDay: round1(baselineSensations.length / baselineDays) }
+      : null;
+
+  const todayFrontMinutes = today.fronts.reduce((sum, event) => sum + eventMinutes(event), 0);
+  const baselineFrontMinutes = baselineFronts.reduce((sum, event) => sum + eventMinutes(event), 0);
+  const fronting =
+    baselineFronts.length >= 3
+      ? { todayMinutes: todayFrontMinutes, baselineMinutesPerDay: Math.round(baselineFrontMinutes / baselineDays) }
+      : null;
+
+  const todaySleepMinutes = today.sleep.reduce((sum, entry) => sum + Number(entry['durationMinutes'] ?? 0), 0);
+  const baselineSleepMinutes = scored(baselineSleep, 'durationMinutes');
+  const sleepInsight =
+    today.sleep.length > 0 && baselineSleepMinutes.length >= 3
+      ? { todayMinutes: todaySleepMinutes, baselineMinutes: Math.round(average(baselineSleepMinutes)) }
+      : null;
+
+  const journalStreak = currentStreak(
+    [...baselineJournal, ...today.journal].map((entry) => String(entry['entryDate'])),
+    new Date(`${date}T12:00:00`),
+  );
+
+  return {
+    mood,
+    emotions: emotionsInsight,
+    sensations: sensationsInsight,
+    fronting,
+    sleep: sleepInsight,
+    journalStreak,
+  };
+}
 
 /**
  * Emotion insights: which emotions recur, when, and alongside what. Presented
@@ -260,6 +385,12 @@ statsRouter.get(
       spendingByCategory.set(key, (spendingByCategory.get(key) ?? 0) + Math.abs(Number(transaction['amount'])));
     }
 
+    const incomeByCategory = new Map<string, number>();
+    for (const transaction of income) {
+      const key = String(transaction['category'] ?? 'Uncategorised');
+      incomeByCategory.set(key, (incomeByCategory.get(key) ?? 0) + Number(transaction['amount']));
+    }
+
     ok(res, {
       months,
       balances,
@@ -271,6 +402,9 @@ statsRouter.get(
         months,
       ),
       byCategory: [...spendingByCategory.entries()]
+        .map(([category, amount]) => ({ category, amount }))
+        .sort((a, b) => b.amount - a.amount),
+      incomeByCategory: [...incomeByCategory.entries()]
         .map(([category, amount]) => ({ category, amount }))
         .sort((a, b) => b.amount - a.amount),
       budgets: budgets.map((budget) => {
@@ -318,11 +452,40 @@ statsRouter.get(
 
     const totalMinutes = shifts.reduce((sum, shift) => sum + minutesOf(shift), 0);
 
+    /*
+     * A workplace's own hourly rate turns logged hours into pay, but summing
+     * across workplaces that pay in different currencies would add pounds to
+     * dollars. Each workplace's own earnings are always shown; the combined
+     * total is only ever offered when every rated workplace shares a currency.
+     */
+    const workplaceStats = workplaces.map((workplace) => {
+      const minutes = shifts
+        .filter((shift) => shift['workplaceId'] === workplace.id)
+        .reduce((sum, shift) => sum + minutesOf(shift), 0);
+      const rate = Number(workplace['hourlyRate'] ?? 0);
+      const currency = String(workplace['currency'] || 'USD');
+      return {
+        id: workplace.id,
+        name: workplace['name'],
+        minutes,
+        earnings: rate > 0 ? Math.round((minutes / 60) * rate * 100) / 100 : null,
+        currency: rate > 0 ? currency : null,
+      };
+    });
+    const currencies = new Set(
+      workplaceStats.filter((w) => w.earnings !== null).map((w) => w.currency),
+    );
+    const singleCurrency = currencies.size === 1 ? [...currencies][0]! : null;
+
     ok(res, {
       weeks,
       shiftCount: shifts.length,
       totalMinutes,
       averageShiftMinutes: shifts.length ? Math.round(totalMinutes / shifts.length) : 0,
+      earnings: singleCurrency
+        ? Math.round(workplaceStats.reduce((sum, w) => sum + (w.earnings ?? 0), 0) * 100) / 100
+        : null,
+      earningsCurrency: singleCurrency,
       byDay: bucketByDay(
         shifts.map((shift) => ({ at: String(shift['startsAt']), value: minutesOf(shift) })),
         Math.min(weeks * 7, 90),
@@ -330,13 +493,7 @@ statsRouter.get(
       byWeekday: bucketByWeekday(
         shifts.map((shift) => ({ at: String(shift['startsAt']), value: minutesOf(shift) })),
       ),
-      workplaces: workplaces.map((workplace) => ({
-        id: workplace.id,
-        name: workplace['name'],
-        minutes: shifts
-          .filter((shift) => shift['workplaceId'] === workplace.id)
-          .reduce((sum, shift) => sum + minutesOf(shift), 0),
-      })),
+      workplaces: workplaceStats,
       tasks: {
         open: tasks.filter((task) => task['completed'] !== true).length,
         completed: tasks.filter((task) => task['completed'] === true).length,
@@ -380,6 +537,7 @@ statsRouter.get(
     const limit = Math.min(200, Math.max(1, Number(req.query['limit'] ?? 60)));
     const memberId = typeof req.query['memberId'] === 'string' ? req.query['memberId'] : undefined;
     const eventType = typeof req.query['eventType'] === 'string' ? req.query['eventType'] : undefined;
+    const category = typeof req.query['category'] === 'string' ? req.query['category'] : undefined;
     const from = typeof req.query['from'] === 'string' ? req.query['from'] : undefined;
 
     const history = listRecords('systemHistory', context.scope, {
@@ -387,7 +545,7 @@ statsRouter.get(
       sortField: 'occurredAt',
       sortDir: 'desc',
       ...(memberId ? { memberId } : {}),
-      filters: eventType ? { eventType } : {},
+      filters: { ...(eventType ? { eventType } : {}), ...(category ? { category } : {}) },
       ...(from ? { range: { field: 'occurredAt', from } } : {}),
     });
 
@@ -395,6 +553,7 @@ statsRouter.get(
     ok(res, {
       ...history,
       eventTypes: topEntries(countBy(types, (row) => String(row['eventType'] ?? '')), 30),
+      categories: topEntries(countBy(types, (row) => String(row['category'] ?? 'other')), 9),
     });
   }),
 );

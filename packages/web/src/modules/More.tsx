@@ -19,7 +19,7 @@ export default function More(): JSX.Element {
   const { term } = useI18n();
   const badges = useBadges();
 
-  const categories = categoriesForMode(settings.mode);
+  const categories = categoriesForMode(settings.mode, settings.hiddenModules);
 
   return (
     <>

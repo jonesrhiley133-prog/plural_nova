@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { formatDuration, type StoredRecord } from '@pluralnova/shared';
+import { formatDuration, upgradeLegacyCustomFields, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -11,6 +11,7 @@ import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { SwitchRow } from '../ui/forms.js';
+import { CustomFieldsEditor, CustomFieldsView } from '../ui/CustomFields.js';
 import { Icon } from '../ui/Icon.js';
 
 /**
@@ -50,6 +51,19 @@ export default function MemberProfile(): JSX.Element {
   const editor = useDialog();
   const confirm = useDialog();
 
+  const flags = useCollection('flags');
+  const flagAssignments = useCollection('flagAssignments', {
+    filter: (record) => record['targetType'] === 'member' && record['targetId'] === id,
+  });
+  const flagById = useMemo(() => new Map(flags.items.map((flag) => [flag.id, flag])), [flags.items]);
+  const attachedFlags = useMemo(
+    () =>
+      flagAssignments.items
+        .map((assignment) => flagById.get(String(assignment['flagId'])))
+        .filter((flag): flag is StoredRecord => Boolean(flag)),
+    [flagAssignments.items, flagById],
+  );
+
   if (loading && !member) return <SkeletonList rows={4} />;
 
   if (!member) {
@@ -68,8 +82,10 @@ export default function MemberProfile(): JSX.Element {
   const color = (member['color'] as string) || 'var(--accent)';
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
 
+  const flagsVisible = member['flagDisplayEnabled'] !== false && attachedFlags.length > 0;
+
   return (
-    <>
+    <div className="member-tint" style={{ ['--member-color' as never]: color }}>
       <Card flush style={{ marginBottom: 'var(--space-4)', overflow: 'visible' }}>
         <div className="banner" style={{ ['--member-color' as never]: color, borderRadius: 'var(--radius) var(--radius) 0 0' }}>
           {member['bannerUrl'] ? (
@@ -87,6 +103,7 @@ export default function MemberProfile(): JSX.Element {
               icon={(member['icon'] as string) ?? null}
               size={88}
               round
+              ring
             />
           </div>
 
@@ -103,15 +120,31 @@ export default function MemberProfile(): JSX.Element {
                 <IconButton icon="edit" label="Edit profile" onClick={() => editor.show()} />
                 <IconButton
                   icon="trash"
-                  label="Delete member"
+                  label={term('Delete {{member}}')}
                   variant="ghost"
                   onClick={() => confirm.show()}
                 />
               </div>
             </div>
 
-            {Array.isArray(member['roles']) && member['roles'].length > 0 ? (
+            {flagsVisible ? (
               <div className="row" style={{ marginTop: 'var(--space-3)' }}>
+                {attachedFlags.map((flag) => (
+                  <span
+                    key={flag.id}
+                    className="chip chip--flag"
+                    style={{ ['--flag-color' as never]: (flag['color'] as string) || 'var(--accent)' }}
+                    title={String(flag['name'])}
+                  >
+                    {flag['icon'] ? `${String(flag['icon'])} ` : ''}
+                    {String(flag['name'])}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            {Array.isArray(member['roles']) && member['roles'].length > 0 ? (
+              <div className="row" style={{ marginTop: flagsVisible ? 'var(--space-2)' : 'var(--space-3)' }}>
                 {(member['roles'] as string[]).map((role) => (
                   <Chip key={role} accent>
                     {role}
@@ -132,7 +165,7 @@ export default function MemberProfile(): JSX.Element {
 
       {tab === 'overview' ? <Overview member={member} /> : null}
       {tab === 'identity' ? <Identity member={member} /> : null}
-      {tab === 'about' ? <About member={member} /> : null}
+      {tab === 'about' ? <About member={member} onChange={update} /> : null}
       {tab === 'fronting' ? <FrontingTab member={member} /> : null}
       {tab === 'relationships' ? <RelationshipsTab member={member} /> : null}
       {tab === 'journal' ? <MemberJournal member={member} /> : null}
@@ -166,7 +199,7 @@ export default function MemberProfile(): JSX.Element {
           navigate('/members');
         }}
       />
-    </>
+    </div>
   );
 
   function tabLabel(value: Tab): string {
@@ -242,8 +275,17 @@ function Identity({ member }: { member: StoredRecord }): JSX.Element {
   );
 }
 
-function About({ member }: { member: StoredRecord }): JSX.Element {
-  const custom = (member['customFields'] ?? {}) as Record<string, unknown>;
+function About({
+  member,
+  onChange,
+}: {
+  member: StoredRecord;
+  onChange: (id: string, patch: Record<string, unknown>) => Promise<StoredRecord>;
+}): JSX.Element {
+  const toast = useToast();
+  const editor = useDialog();
+  const customFields = useMemo(() => upgradeLegacyCustomFields(member['customFields']), [member]);
+
   return (
     <div className="stack">
       <Card title="About">
@@ -257,16 +299,33 @@ function About({ member }: { member: StoredRecord }): JSX.Element {
           ]}
         />
       </Card>
-      {Object.keys(custom).length > 0 ? (
-        <Card title="Custom fields" subtitle="Fields this profile added">
-          <FieldList rows={Object.entries(custom)} />
-        </Card>
-      ) : null}
+
+      <CustomFieldsView
+        fields={customFields}
+        actions={
+          <Button variant="ghost" size="sm" icon="edit" onClick={() => editor.show()}>
+            Edit
+          </Button>
+        }
+      />
+
       {member['notes'] ? (
         <Card title="Notes" subtitle="Private to this account">
           <p className="prose">{String(member['notes'])}</p>
         </Card>
       ) : null}
+
+      <Dialog open={editor.open} onClose={editor.hide} title="Custom fields">
+        <CustomFieldsEditor
+          value={customFields}
+          onCancel={editor.hide}
+          onSave={async (next) => {
+            await onChange(member.id, { customFields: next });
+            toast.success('Saved');
+            editor.hide();
+          }}
+        />
+      </Dialog>
     </div>
   );
 }

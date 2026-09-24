@@ -275,7 +275,7 @@ export default function Tasks(): JSX.Element {
         <RecordForm
           collection="tasks"
           record={editor.value}
-          omit={['completedAt', 'remindSent', 'archived', 'subtasks']}
+          omit={['completedAt', 'remindSent', 'archived', 'subtasks', 'category']}
           onSubmit={async (values) => {
             if (editor.value) {
               await update(editor.value.id, values);

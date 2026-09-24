@@ -85,7 +85,7 @@ export function Onboarding(): JSX.Element {
               <Intro title={t('onboarding.privacyTitle')} body={t('onboarding.privacyBody')} icon="lock">
                 <ul className="stack stack--tight small muted" style={{ paddingLeft: '1.1rem' }}>
                   <li>Records are private until you choose to share them.</li>
-                  <li>Nothing about your system is public by default.</li>
+                  <li>{term('Nothing about your {{system}} is public by default.')}</li>
                   <li>You can export everything, at any time, in one file.</li>
                   <li>Deleting your account removes your data.</li>
                 </ul>
@@ -202,7 +202,11 @@ function FeatureTour(): JSX.Element {
   const { term } = useI18n();
   const groups = [
     ['front', term('Who is {{fronting}}'), term('Track {{fronting}}, co-{{fronting}} and the whole history.')],
-    ['journal', 'Journalling and notes', 'Entries by member or for the whole system, with moods and tags.'],
+    [
+      'journal',
+      'Journalling and notes',
+      term('Entries by {{member}} or for the whole {{system}}, with moods and tags.'),
+    ],
     ['wellbeing', 'Wellbeing', '144 emotions, body sensations, sleep and daily check-ins — described, never diagnosed.'],
     ['social', 'Social, if you want it', 'A profile you control, friends, a feed, and private messages.'],
     ['backup', 'Your data stays yours', 'Full export and restore, offline support, and sync across devices.'],

@@ -64,11 +64,14 @@ export interface ThemeTokens {
   nebulaDeep: string;
 }
 
+export type FontChoice = 'lexend' | 'system' | 'serif';
+
 export interface ThemeSettings {
   base: ThemeBase;
   accent: string;
   surfaceStyle: SurfaceStyle;
   effects: EffectLevel;
+  fontFamily: FontChoice;
   /** 0–100; how translucent glass surfaces are. */
   surfaceOpacity: number;
   highContrast: boolean;
@@ -82,7 +85,7 @@ export interface ThemeSettings {
   showStarfield: boolean;
 }
 
-export const DEFAULT_ACCENT = '#8b5cf6';
+export const DEFAULT_ACCENT = '#7aa2f7';
 
 export const DEFAULT_THEME: ThemeSettings = {
   base: 'dark',
@@ -100,6 +103,7 @@ export const DEFAULT_THEME: ThemeSettings = {
    */
   surfaceStyle: 'solid',
   effects: 'balanced',
+  fontFamily: 'lexend',
   surfaceOpacity: 100,
   highContrast: false,
   reducedMotion: false,
@@ -111,34 +115,37 @@ export const DEFAULT_THEME: ThemeSettings = {
 };
 
 const DARK: ThemeTokens = {
-  // PluralSpace-inspired: deep violet night, cozy charcoal panels, vibrant purple.
-  bg: '#13091f',
-  bgSubtle: '#1a0f2e',
-  surface: '#1e1430',
-  surfaceRaised: '#251a3d',
-  surfaceSunken: '#0f0818',
-  border: '#2d2042',
-  borderStrong: '#3d2d57',
-  text: '#f5f3ff',
-  textMuted: '#b8b0d0',
-  textFaint: '#8b80a8',
+  bg: '#0b1020',
+  bgSubtle: '#111935',
+  surface: '#19223c',
+  surfaceRaised: '#212c4c',
+  surfaceSunken: '#0e142a',
+  border: '#2a3558',
+  borderStrong: '#3c4a76',
+  text: '#e7ecf8',
+  textMuted: '#c3cee6',
+  textFaint: '#b2bed7',
   accent: DEFAULT_ACCENT,
   accentText: '#04070f',
   accentSoft: '#7aa2f726',
   positive: '#5ec6a8',
   caution: '#f0a85a',
   critical: '#ec7392',
+  // #ec7392 only reaches 2.8:1 against white — a badge needs 4.5:1+, so its
+  // text is dark rather than the white every other filled surface here uses.
   criticalText: '#05070d',
   info: '#8bd5ff',
-  atmosphere: '#1e0f3a',
+  atmosphere: '#16224a',
   shadow: '0 18px 40px -24px rgba(0, 0, 0, 0.9)',
   glassEdge: 'rgba(200, 220, 255, 0.13)',
   glassSheen: 'rgba(160, 190, 255, 0.045)',
   shadowLift: '0 2px 6px -2px rgba(0, 0, 0, 0.6), 0 24px 56px -28px rgba(4, 10, 30, 0.95)',
   glow: 'rgba(122, 162, 247, 0.17)',
-  nebulaCore: '#3d2660',
-  nebulaDrift: '#6b3fa0',
-  nebulaDeep: '#2a1a4e',
+  // Muted rather than saturated: these wash the background, and a vivid one
+  // reads as a galaxy wallpaper instead of a night sky.
+  nebulaCore: '#2b3d73',
+  nebulaDrift: '#5f4a8c',
+  nebulaDeep: '#1a4668',
 };
 
 const AMOLED: ThemeTokens = {
@@ -231,8 +238,8 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
   {
     id: 'nebula',
     label: 'Nebula',
-    description: 'The default: deep violet, flat surfaces, quiet motion.',
-    settings: { base: 'dark', accent: '#8b5cf6', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
+    description: 'The default: deep navy, soft glass, quiet motion.',
+    settings: { base: 'dark', accent: '#7aa2f7', surfaceStyle: 'solid', effects: 'balanced', showStarfield: false },
   },
   {
     id: 'void',
@@ -472,11 +479,34 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
   const isLight = settings.base === 'light';
 
   let accent = parseHex(settings.accent) ? settings.accent : base.accent;
-  let guard = 0;
-  while (contrastRatio(accent, tokens.bg) < 3 && guard < 24) {
-    accent = mix(accent, isLight ? '#000000' : '#ffffff', 0.08);
-    guard += 1;
+  const towardEdge = (): void => {
+    let guard = 0;
+    while (contrastRatio(accent, tokens.bg) < 3 && guard < 24) {
+      accent = mix(accent, isLight ? '#000000' : '#ffffff', 0.08);
+      guard += 1;
+    }
+  };
+  towardEdge();
+
+  /*
+   * The page background otherwise stays a flat, base-only colour with no
+   * hint of the chosen accent — on the solid surface this app now defaults
+   * to, that is the only place accent shows up at all, since the colour
+   * fields below are hidden there. A light wash of the accent gives the
+   * whole page an undertone that actually answers "did the theme change?"
+   * without bringing a glow back. AMOLED keeps its true black regardless.
+   *
+   * Moving bg toward the accent can only ever lower the contrast between
+   * them, so the guard above has to run again against the tinted value —
+   * checking it once against the untinted background is not enough.
+   */
+  if (settings.base !== 'amoled') {
+    const tint = isLight ? 0.035 : 0.06;
+    tokens.bg = mix(base.bg, accent, tint);
+    tokens.bgSubtle = mix(base.bgSubtle, accent, tint);
+    towardEdge();
   }
+
   tokens.accent = accent;
   tokens.accentText = readableTextOn(accent);
   tokens.accentSoft = withAlpha(accent, isLight ? 0.12 : 0.16);
@@ -543,6 +573,7 @@ export function normaliseThemeSettings(input: Partial<ThemeSettings> | null | un
   if (!['dark', 'amoled', 'light'].includes(merged.base)) merged.base = 'dark';
   if (!['glass', 'solid', 'clear'].includes(merged.surfaceStyle)) merged.surfaceStyle = 'glass';
   if (!['full', 'balanced', 'performance'].includes(merged.effects)) merged.effects = 'full';
+  if (!['lexend', 'system', 'serif'].includes(merged.fontFamily)) merged.fontFamily = 'lexend';
   return merged;
 }
 

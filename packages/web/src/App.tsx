@@ -26,7 +26,6 @@ import { Onboarding } from './modules/auth/Onboarding.js';
 const load = <T,>(loader: () => Promise<{ default: T }>) => lazy(loader as never);
 
 const Dashboard = load(() => import('./modules/Dashboard.js'));
-const WhosThere = load(() => import('./modules/WhosThere.js'));
 const QuickFront = load(() => import('./modules/QuickFront.js'));
 const Fronting = load(() => import('./modules/Fronting.js'));
 const Stats = load(() => import('./modules/Stats.js'));
@@ -141,7 +140,6 @@ function AppRoutes(): JSX.Element {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
-        <Route path="whos-there" element={<SystemOnly><WhosThere /></SystemOnly>} />
         <Route path="quick-front" element={<SystemOnly><QuickFront /></SystemOnly>} />
         <Route path="fronting" element={<SystemOnly><Fronting /></SystemOnly>} />
         <Route path="stats" element={<SystemOnly><Stats /></SystemOnly>} />

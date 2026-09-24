@@ -67,7 +67,7 @@ export default function Templates(): JSX.Element {
         empty={{
           title: 'No templates yet',
           body: term(
-            'A daily {{journal}} prompt, a member profile you fill in the same way each time, a task that comes round every week.',
+            'A daily {{journal}} prompt, a {{member}} profile you fill in the same way each time, a task that comes round every week.',
           ),
           icon: 'template',
           action: { label: 'New template', run: () => creator.show() },

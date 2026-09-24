@@ -54,6 +54,7 @@ export interface AuthActions {
   }) => Promise<{ recoveryCode?: string }>;
   signOut: () => Promise<void>;
   saveSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>;
+  restoreHistoryEntry: (id: string) => Promise<void>;
   setActiveSystem: (systemId: string) => Promise<void>;
   setActiveMember: (memberId: string | null, pin?: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -317,6 +318,22 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     }));
   }, []);
 
+  /**
+   * A restorable history entry puts one setting back to what it says the
+   * value used to be. The server does the actual write and hands back the
+   * settings that resulted, same as saving one — this just applies them.
+   */
+  const restoreHistoryEntry = useCallback<AuthActions['restoreHistoryEntry']>(async (id) => {
+    const result = await api.post<{ settings: AppSettings; user: PublicUser }>(
+      `/api/auth/history/${id}/restore`,
+    );
+    setState((current) => ({
+      ...current,
+      settings: mergeSettings(result.settings),
+      user: result.user,
+    }));
+  }, []);
+
   const value = useMemo(
     () => ({
       ...state,
@@ -326,6 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       claimGuest,
       signOut,
       saveSettings,
+      restoreHistoryEntry,
       setActiveSystem,
       setActiveMember,
       refresh,
@@ -339,6 +357,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       claimGuest,
       signOut,
       saveSettings,
+      restoreHistoryEntry,
       setActiveSystem,
       setActiveMember,
       refresh,

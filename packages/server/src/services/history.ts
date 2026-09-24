@@ -10,15 +10,44 @@ import type { Scope } from '../db/repository.js';
  * because this is something a system reads, not a debug trace.
  */
 
+export type HistoryCategory =
+  | 'settings'
+  | 'theme'
+  | 'system'
+  | 'life'
+  | 'social'
+  | 'creative'
+  | 'work'
+  | 'data'
+  | 'other';
+
 export interface HistoryInput {
   eventType: string;
   summary: string;
+  category?: HistoryCategory;
   entityType?: string;
   entityId?: string;
   memberId?: string | null;
   note?: string;
   meta?: Record<string, unknown> | null;
   automatic?: boolean;
+  /** Serialised JSON of what the field held before, for a restorable change. */
+  previousValue?: string;
+  /** Serialised JSON of what it became. */
+  newValue?: string;
+  location?: string;
+  /** Whether `previousValue` is enough on its own to put this change back. */
+  restorable?: boolean;
+}
+
+/** A guess at the category for a call site that does not pass one explicitly. */
+function deriveCategory(eventType: string): HistoryCategory {
+  const area = eventType.split('.')[0] ?? '';
+  if (area === 'settings' || area === 'theme') return area;
+  if (['front', 'member', 'relationship', 'system'].includes(area)) return 'system';
+  if (area === 'data') return 'data';
+  if (area === 'poll') return 'social';
+  return 'other';
 }
 
 export function recordHistory(scope: Scope, input: HistoryInput): void {
@@ -28,8 +57,9 @@ export function recordHistory(scope: Scope, input: HistoryInput): void {
     .prepare(
       `INSERT INTO "systemHistory"
         ("id","userId","systemId","memberId","visibility","createdAt","updatedAt","deletedAt","version",
-         "eventType","summary","entityType","entityId","occurredAt","note","meta","automatic")
-       VALUES (?,?,?,?,?,?,?,NULL,1,?,?,?,?,?,?,?,?)`,
+         "eventType","summary","category","entityType","entityId","occurredAt","note","meta","automatic",
+         "previousValue","newValue","location","restorable")
+       VALUES (?,?,?,?,?,?,?,NULL,1,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       newId('hst'),
@@ -41,12 +71,17 @@ export function recordHistory(scope: Scope, input: HistoryInput): void {
       timestamp,
       input.eventType,
       input.summary,
+      input.category ?? deriveCategory(input.eventType),
       input.entityType ?? '',
       input.entityId ?? '',
       timestamp,
       input.note ?? '',
       input.meta ? JSON.stringify(input.meta) : null,
       input.automatic === false ? 0 : 1,
+      input.previousValue ?? '',
+      input.newValue ?? '',
+      input.location ?? '',
+      input.restorable ? 1 : 0,
     );
 }
 

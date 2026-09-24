@@ -33,7 +33,7 @@ describe('accessibility', () => {
   it('has no WCAG 2 A/AA violations on any of the main screens', async () => {
     const { page } = session;
     const routes = [
-      '', 'whos-there', 'members', 'journal', 'tasks', 'calendar', 'settings/appearance',
+      '', 'members', 'journal', 'tasks', 'calendar', 'settings/appearance',
       'messages', 'flux', 'finances', 'more', 'search', 'notifications', 'vault', 'stats',
     ];
     const broken = [];
@@ -83,9 +83,18 @@ describe('accessibility', () => {
     await page.waitForTimeout(700);
 
     await page.goto(`${BASE}/members`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+    // The first member on the account can trigger the once-a-day fronting
+    // ritual on this very reload — dismiss it so it does not block the click
+    // below, the same way the dialog in the test above is closed first.
+    const ritual = page.getByRole('dialog').getByRole('button', { name: 'Close' });
+    if (await ritual.isVisible().catch(() => false)) {
+      await ritual.click();
+      await page.waitForTimeout(300);
+    }
     const listViolations = await violations(page);
 
-    await page.getByText('Accessibility Alter').first().click();
+    await page.getByRole('button', { name: 'Accessibility Alter' }).first().click();
     await page.waitForTimeout(600);
     const profileViolations = await violations(page);
 

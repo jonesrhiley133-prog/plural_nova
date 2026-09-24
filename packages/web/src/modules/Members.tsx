@@ -6,7 +6,7 @@ import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { FRONT_STATUS_META } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, SegmentedControl, Status } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SegmentedControl, Status } from '../ui/primitives.js';
 import { SearchField, useDebounced } from '../ui/forms.js';
 import { AsyncContent, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
@@ -31,6 +31,19 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: 'newest', label: 'Newest' },
 ];
 
+type MemberLayout = 'square' | 'circle' | 'slimBanner' | 'thickBanner';
+
+const LAYOUTS: { value: MemberLayout; label: string }[] = [
+  { value: 'square', label: 'Squares' },
+  { value: 'circle', label: 'Circles' },
+  { value: 'slimBanner', label: 'Slim banners' },
+  { value: 'thickBanner', label: 'Thick banners' },
+];
+
+function isFronting(member: StoredRecord): boolean {
+  return member['frontStatus'] === 'fronting' || member['frontStatus'] === 'cofronting';
+}
+
 export default function Members(): JSX.Element {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -40,8 +53,10 @@ export default function Members(): JSX.Element {
   const [rawSearch, setRawSearch] = useState('');
   const search = useDebounced(rawSearch);
   const [sort, setSort] = useState<SortKey>('orbit');
+  const [layout, setLayout] = useState<MemberLayout>('square');
   const [columns, setColumns] = useState(3);
   const [showArchived, setShowArchived] = useState(false);
+  const isGrid = layout === 'square' || layout === 'circle';
 
   const groups = useCollection('memberGroups');
   const subsystems = useCollection('subsystems');
@@ -116,13 +131,19 @@ export default function Members(): JSX.Element {
                 options={SORTS.map(({ key, label }) => ({ value: key, label }))}
               />
               <span className="spacer" />
-              <SegmentedControl
-                value={columns}
-                onChange={setColumns}
-                label="Columns"
-                options={[2, 3, 4, 5].map((count) => ({ value: count, label: count }))}
-              />
+              <SegmentedControl value={layout} onChange={setLayout} label="Layout" options={LAYOUTS} />
             </div>
+
+            {isGrid ? (
+              <div className="row">
+                <SegmentedControl
+                  value={columns}
+                  onChange={setColumns}
+                  label="Columns"
+                  options={[2, 3, 4, 5].map((count) => ({ value: count, label: count }))}
+                />
+              </div>
+            ) : null}
 
             {groups.items.length > 0 || subsystems.items.length > 0 ? (
               <div className="row">
@@ -169,20 +190,43 @@ export default function Members(): JSX.Element {
               icon: 'search',
             }}
           >
-            {(records) => (
-              <div
-                className="grid grid--columns"
-                style={{ ['--grid-columns' as never]: columns }}
-              >
-                {records.map((member) => (
-                  <MemberCard
-                    key={member.id}
-                    member={member}
-                    onOpen={() => navigate(`/members/${member.id}`)}
-                  />
-                ))}
-              </div>
-            )}
+            {(records) =>
+              isGrid ? (
+                <div className="grid grid--columns" style={{ ['--grid-columns' as never]: columns }}>
+                  {records.map((member) =>
+                    layout === 'square' ? (
+                      <MemberCard
+                        key={member.id}
+                        member={member}
+                        onOpen={() => navigate(`/members/${member.id}`)}
+                        onQuickFront={() => navigate(`/quick-front?member=${member.id}`)}
+                      />
+                    ) : (
+                      <MemberCircleCard
+                        key={member.id}
+                        member={member}
+                        onOpen={() => navigate(`/members/${member.id}`)}
+                        onQuickFront={() => navigate(`/quick-front?member=${member.id}`)}
+                      />
+                    ),
+                  )}
+                </div>
+              ) : (
+                <Card flush>
+                  <div className="list">
+                    {records.map((member) => (
+                      <MemberBannerRow
+                        key={member.id}
+                        member={member}
+                        thick={layout === 'thickBanner'}
+                        onOpen={() => navigate(`/members/${member.id}`)}
+                        onQuickFront={() => navigate(`/quick-front?member=${member.id}`)}
+                      />
+                    ))}
+                  </div>
+                </Card>
+              )
+            }
           </AsyncContent>
         </>
       )}
@@ -207,21 +251,38 @@ export default function Members(): JSX.Element {
 function MemberCard({
   member,
   onOpen,
+  onQuickFront,
 }: {
   member: StoredRecord;
   onOpen: () => void;
+  onQuickFront: () => void;
 }): JSX.Element {
   const { term } = useI18n();
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
   const minutes = Number(member['frontMinutes'] ?? 0);
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
+    <div
       className="card card--interactive card--flush"
-      style={{ textAlign: 'left', overflow: 'hidden' }}
+      style={{ position: 'relative', textAlign: 'left', overflow: 'hidden' }}
     >
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={String(member['name'])}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          margin: 0,
+          cursor: 'pointer',
+          zIndex: 1,
+        }}
+      />
       <div
         style={{
           aspectRatio: '1',
@@ -233,6 +294,17 @@ function MemberCard({
               } 32%, var(--bg-subtle)), var(--bg-subtle))`,
         }}
       >
+        <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
+          <IconButton
+            icon="bolt"
+            label={term('Quick {{front}}')}
+            size="sm"
+            onClick={(event) => {
+              event.stopPropagation();
+              onQuickFront();
+            }}
+          />
+        </span>
         {member['avatarUrl'] ? (
           <img
             src={String(member['avatarUrl'])}
@@ -283,7 +355,147 @@ function MemberCard({
           </div>
         ) : null}
       </div>
-    </button>
+    </div>
+  );
+}
+
+function MemberCircleCard({
+  member,
+  onOpen,
+  onQuickFront,
+}: {
+  member: StoredRecord;
+  onOpen: () => void;
+  onQuickFront: () => void;
+}): JSX.Element {
+  const { term } = useI18n();
+  const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
+
+  return (
+    <div
+      className="card card--interactive"
+      style={{ textAlign: 'center', position: 'relative', padding: 'var(--space-3)' }}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={String(member['name'])}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          margin: 0,
+          cursor: 'pointer',
+          zIndex: 1,
+        }}
+      />
+      <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
+        <IconButton
+          icon="bolt"
+          label={term('Quick {{front}}')}
+          size="sm"
+          onClick={(event) => {
+            event.stopPropagation();
+            onQuickFront();
+          }}
+        />
+      </span>
+      <Avatar
+        name={String(member['name'])}
+        src={(member['avatarUrl'] as string) ?? null}
+        color={(member['color'] as string) ?? null}
+        icon={(member['icon'] as string) ?? null}
+        size={64}
+        round
+        ring={isFronting(member)}
+      />
+      <div className="truncate" style={{ marginTop: 'var(--space-2)', fontWeight: 'var(--weight-semibold)' }}>
+        {String(member['name'])}
+      </div>
+      <div style={{ marginTop: 2, display: 'flex', justifyContent: 'center' }}>
+        <Status label={term(meta.label)} glyph={meta.glyph} color={meta.color} />
+      </div>
+    </div>
+  );
+}
+
+function MemberBannerRow({
+  member,
+  thick,
+  onOpen,
+  onQuickFront,
+}: {
+  member: StoredRecord;
+  thick: boolean;
+  onOpen: () => void;
+  onQuickFront: () => void;
+}): JSX.Element {
+  const { term } = useI18n();
+  const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
+  const minutes = Number(member['frontMinutes'] ?? 0);
+
+  return (
+    <div className="list-row" style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={String(member['name'])}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          margin: 0,
+          cursor: 'pointer',
+          zIndex: 1,
+        }}
+      />
+      <Avatar
+        name={String(member['name'])}
+        src={(member['avatarUrl'] as string) ?? null}
+        color={(member['color'] as string) ?? null}
+        icon={(member['icon'] as string) ?? null}
+        size={thick ? 64 : 40}
+        round
+        ring={isFronting(member)}
+      />
+      <span className="list-row__body">
+        <span className="list-row__title">{String(member['name'])}</span>
+        <span className="list-row__meta">
+          {member['pronouns'] ? <span className="faint">{String(member['pronouns'])}</span> : null}
+          <Status label={term(meta.label)} glyph={meta.glyph} color={meta.color} />
+          {minutes > 0 ? (
+            <span className="tiny faint numeric">
+              {formatDuration(minutes)} {term('{{fronting}}')}
+            </span>
+          ) : null}
+        </span>
+        {thick && member['bio'] ? (
+          <span className="small faint clamp-2" style={{ marginTop: 2 }}>
+            {String(member['bio'])}
+          </span>
+        ) : null}
+      </span>
+      <span className="list-row__trailing" style={{ position: 'relative', zIndex: 2 }}>
+        <IconButton
+          icon="bolt"
+          label={term('Quick {{front}}')}
+          size="sm"
+          variant="ghost"
+          onClick={(event) => {
+            event.stopPropagation();
+            onQuickFront();
+          }}
+        />
+      </span>
+    </div>
   );
 }
 

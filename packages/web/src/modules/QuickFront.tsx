@@ -23,14 +23,30 @@ export default function QuickFront(): JSX.Element {
   const [params] = useSearchParams();
   const { t, term } = useI18n();
   const toast = useToast();
-  const { state, loading, start, switchTo } = useFronting();
+  const { state, loading, start, switchTo, addCoFronter } = useFronting();
   const members = useCollection('members', {
     filter: (member) => member['archived'] !== true,
   });
 
-  const isSwitch = params.has('switch') || state.active.length > 0;
+  const forceSwitch = params.has('switch');
+  const hasActive = state.active.length > 0;
+  const isSwitch = forceSwitch || hasActive;
 
-  const [selected, setSelected] = useState<string[]>([]);
+  const alreadyFrontingIds = useMemo(
+    () =>
+      new Set(
+        state.active.flatMap((event) => [
+          ...(event.memberId ? [event.memberId] : []),
+          ...event.coFronters.map((co) => co.id),
+        ]),
+      ),
+    [state.active],
+  );
+
+  const [selected, setSelected] = useState<string[]>(() => {
+    const preset = params.get('member');
+    return preset ? [preset] : [];
+  });
   const [unknown, setUnknown] = useState(false);
   const [search, setSearch] = useState('');
   const [showDetail, setShowDetail] = useState(false);
@@ -84,9 +100,31 @@ export default function QuickFront(): JSX.Element {
       else await start({ ...payload, endOthers: false });
 
       toast.success(t('front.logged'));
-      navigate('/whos-there');
+      navigate('/');
     } catch (cause) {
       toast.fromError(cause, term('Could not record the {{front}}'));
+      setSaving(false);
+    }
+  };
+
+  /** Joins the open front rather than replacing it — nobody already out is ended. */
+  const addToFront = async (): Promise<void> => {
+    const primaryEvent = state.active[0];
+    const joining = selected.filter((id) => !alreadyFrontingIds.has(id));
+    if (!primaryEvent || joining.length === 0) {
+      toast.error(term('Choose someone new'), term('Everyone selected is already {{fronting}}.'));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      for (const memberId of joining) {
+        await addCoFronter(primaryEvent.id, memberId);
+      }
+      toast.success(term('Added to the {{front}}'));
+      navigate('/');
+    } catch (cause) {
+      toast.fromError(cause, term('Could not add them'));
       setSaving(false);
     }
   };
@@ -130,9 +168,11 @@ export default function QuickFront(): JSX.Element {
       <PageHeader
         title={t('front.quickFront')}
         description={
-          isSwitch
-            ? term('This ends the {{front}} that is open and starts a new one.')
-            : term('Choose one {{member}} or several. Everything else is optional.')
+          hasActive && !forceSwitch
+            ? term('Ringed avatars are already {{fronting}}. Add more without ending them, or switch to replace the {{front}} entirely.')
+            : isSwitch
+              ? term('This ends the {{front}} that is open and starts a new one.')
+              : term('Choose one {{member}} or several. Everything else is optional.')
         }
       />
 
@@ -176,7 +216,7 @@ export default function QuickFront(): JSX.Element {
                   icon={(member['icon'] as string) ?? null}
                   size={48}
                   round
-                  ring={isSelected}
+                  ring={isSelected || alreadyFrontingIds.has(member.id)}
                 />
                 <span className="small truncate" style={{ maxWidth: '100%' }}>
                   {String(member['name'])}
@@ -240,16 +280,40 @@ export default function QuickFront(): JSX.Element {
           {t('action.cancel')}
         </Button>
         <span className="spacer" />
-        <Button
-          variant="primary"
-          size="lg"
-          icon="bolt"
-          loading={saving}
-          onClick={() => void save()}
-          disabled={selected.length === 0 && !unknown}
-        >
-          {isSwitch ? t('front.switch') : t('front.start')}
-        </Button>
+        {hasActive && !forceSwitch ? (
+          <>
+            <Button
+              variant="secondary"
+              size="lg"
+              loading={saving}
+              onClick={() => void addToFront()}
+              disabled={selected.every((id) => alreadyFrontingIds.has(id))}
+            >
+              {term('Add to {{front}}')}
+            </Button>
+            <Button
+              variant="primary"
+              size="lg"
+              icon="bolt"
+              loading={saving}
+              onClick={() => void save()}
+              disabled={selected.length === 0 && !unknown}
+            >
+              {term('Switch instead')}
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="primary"
+            size="lg"
+            icon="bolt"
+            loading={saving}
+            onClick={() => void save()}
+            disabled={selected.length === 0 && !unknown}
+          >
+            {isSwitch ? t('front.switch') : t('front.start')}
+          </Button>
+        )}
       </div>
     </>
   );

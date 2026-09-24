@@ -157,7 +157,7 @@ export default function Constellations(): JSX.Element {
         </Card>
       )}
 
-      <SectionHeading label="Find other systems" />
+      <SectionHeading label={term('Find other {{systems}}')} />
       <div style={{ marginBottom: 'var(--space-4)' }}>
         <SearchField value={rawSearch} onChange={setRawSearch} placeholder="Search handles and names…" />
       </div>
@@ -170,7 +170,7 @@ export default function Constellations(): JSX.Element {
             body={
               search
                 ? 'Try a different handle or name.'
-                : 'Systems appear here once they make their profile discoverable.'
+                : term('{{Systems}} appear here once they make their profile discoverable.')
             }
           />
         </Card>
@@ -363,7 +363,7 @@ function ProfileEditor({
       />
       <SwitchRow
         label="Accept message requests"
-        hint="From systems you are not friends with."
+        hint={term('From {{systems}} you are not friends with.')}
         checked={draft.acceptMessageRequests !== false}
         onChange={(value) => set('acceptMessageRequests', value)}
       />

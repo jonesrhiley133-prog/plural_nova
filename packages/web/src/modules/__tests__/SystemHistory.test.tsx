@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { translate, resolveTerminology } from '@pluralnova/shared';
@@ -13,6 +13,8 @@ import SystemHistory from '../SystemHistory.js';
 
 const terms = resolveTerminology(null);
 const calls: Record<string, string | number | undefined>[] = [];
+let response: unknown = { items: [], total: 0, eventTypes: [], categories: [] };
+const restoreHistoryEntry = vi.fn(async (_id: string) => undefined);
 
 vi.mock('../../core/api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../core/api.js')>();
@@ -22,7 +24,7 @@ vi.mock('../../core/api.js', async (importOriginal) => {
       ...actual.api,
       get: async (_path: string, query?: Record<string, string | number | undefined>) => {
         calls.push(query ?? {});
-        return { items: [], total: 0, eventTypes: [] };
+        return response;
       },
     },
   };
@@ -31,6 +33,14 @@ vi.mock('../../core/api.js', async (importOriginal) => {
 vi.mock('../../core/data.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../core/data.js')>()),
   useRecordMap: () => new Map(),
+}));
+
+vi.mock('../../core/auth.js', () => ({
+  useAuth: () => ({ restoreHistoryEntry }),
+}));
+
+vi.mock('../../core/toast.js', () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn(), fromError: vi.fn() }),
 }));
 
 vi.mock('../../core/i18n.js', () => ({
@@ -42,6 +52,11 @@ vi.mock('../../core/i18n.js', () => ({
 }));
 
 describe('system history', () => {
+  beforeEach(() => {
+    response = { items: [], total: 0, eventTypes: [], categories: [] };
+    restoreHistoryEntry.mockClear();
+  });
+
   it('asks the server once, not once per render', async () => {
     calls.length = 0;
     render(<SystemHistory />);
@@ -78,5 +93,93 @@ describe('system history', () => {
     expect(from.getMinutes()).toBe(0);
     expect(from.getSeconds()).toBe(0);
     expect(from.getMilliseconds()).toBe(0);
+  });
+
+  it('shows the before-and-after for a restorable change, and restores it on request', async () => {
+    response = {
+      items: [
+        {
+          id: 'hst_1',
+          eventType: 'settings.theme',
+          summary: 'Theme was changed',
+          occurredAt: '2024-01-01T12:00:00.000Z',
+          memberId: null,
+          note: '',
+          automatic: true,
+          category: 'theme',
+          entityType: 'settings',
+          previousValue: JSON.stringify('dark'),
+          newValue: JSON.stringify('light'),
+          restorable: true,
+        },
+      ],
+      total: 1,
+      eventTypes: [{ key: 'settings.theme', count: 1 }],
+      categories: [{ key: 'theme', count: 1 }],
+    };
+    const user = userEvent.setup();
+    render(<SystemHistory />);
+
+    expect(await screen.findByText('dark → light')).toBeInTheDocument();
+    const restoreButton = screen.getByRole('button', { name: 'Restore' });
+    await user.click(restoreButton);
+
+    expect(restoreHistoryEntry).toHaveBeenCalledWith('hst_1');
+  });
+
+  it('diffs an object setting key by key instead of dumping both copies of it', async () => {
+    response = {
+      items: [
+        {
+          id: 'hst_3',
+          eventType: 'settings.theme',
+          summary: 'Theme was changed',
+          occurredAt: '2024-01-01T12:00:00.000Z',
+          memberId: null,
+          note: '',
+          automatic: true,
+          category: 'theme',
+          entityType: 'settings',
+          previousValue: JSON.stringify({ base: 'dark', accent: '#7aa2f7', fontFamily: 'lexend' }),
+          newValue: JSON.stringify({ base: 'dark', accent: '#7aa2f7', fontFamily: 'serif' }),
+          restorable: true,
+        },
+      ],
+      total: 1,
+      eventTypes: [{ key: 'settings.theme', count: 1 }],
+      categories: [{ key: 'theme', count: 1 }],
+    };
+    render(<SystemHistory />);
+
+    expect(await screen.findByText('fontFamily: lexend → serif')).toBeInTheDocument();
+    expect(screen.queryByText(/"base"/)).not.toBeInTheDocument();
+  });
+
+  it('does not offer to restore a change that already says it cannot be', async () => {
+    response = {
+      items: [
+        {
+          id: 'hst_2',
+          eventType: 'member.updated',
+          summary: 'Rowan’s profile was updated',
+          occurredAt: '2024-01-01T12:00:00.000Z',
+          memberId: null,
+          note: '',
+          automatic: true,
+          category: 'system',
+          entityType: 'member',
+          previousValue: '',
+          newValue: '',
+          restorable: false,
+        },
+      ],
+      total: 1,
+      eventTypes: [{ key: 'member.updated', count: 1 }],
+      categories: [{ key: 'system', count: 1 }],
+    };
+    render(<SystemHistory />);
+
+    expect(await screen.findByText('Rowan’s profile was updated')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument();
   });
 });

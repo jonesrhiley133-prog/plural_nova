@@ -82,7 +82,7 @@ interface Message {
 export default function Messages(): JSX.Element {
   const { threadId } = useParams<{ threadId: string }>();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, term } = useI18n();
   const dates = useDateFormat();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -138,14 +138,14 @@ export default function Messages(): JSX.Element {
           <EmptyState
             icon="message"
             title="No conversations yet"
-            body="Find a system on Constellations and start one, or wait for someone to write."
+            body={term('Find a {{system}} on Constellations and start one, or wait for someone to write.')}
             action={{ label: 'Find someone', run: () => navigate('/constellations') }}
           />
         </Card>
       ) : (
         <div className="stack">
           {requests.length > 0 ? (
-            <Card title="Message requests" subtitle="From systems you are not friends with" flush>
+            <Card title="Message requests" subtitle={term('From {{systems}} you are not friends with')} flush>
               <div className="list">
                 {requests.map((conversation) => (
                   <ConversationRow
@@ -231,7 +231,7 @@ function Thread({
   onBack: () => void;
   onChanged: () => void;
 }): JSX.Element {
-  const { t } = useI18n();
+  const { t, term } = useI18n();
   const dates = useDateFormat();
   const toast = useToast();
   const systemMode = useSystemMode();
@@ -527,9 +527,10 @@ function Thread({
 
       {!encryptionReady && cryptoAvailable() ? (
         <p className="tiny faint" style={{ marginBottom: 'var(--space-3)' }}>
-          <Icon name="info" size={11} /> Messages in this conversation are not encrypted — the other
-          system has not published a key from a device that supports it. PluralNova will not show a
-          padlock it has not earned.
+          <Icon name="info" size={11} />{' '}
+          {term(
+            'Messages in this conversation are not encrypted — the other {{system}} has not published a key from a device that supports it. PluralNova will not show a padlock it has not earned.',
+          )}
         </p>
       ) : null}
 
@@ -569,7 +570,7 @@ function Thread({
         <div className="row" style={{ marginBottom: 'var(--space-3)' }}>
           <span className="tiny faint">Sending as</span>
           <Chip selected={asMemberId === null} onClick={() => setAsMemberId(null)}>
-            The system
+            {term('The {{system}}')}
           </Chip>
           {members.items.slice(0, 6).map((member) => (
             <Chip

@@ -3,9 +3,11 @@ import { useCollection } from '../core/data.js';
 import { CollectionScreen } from '../ui/CollectionScreen.js';
 import { Chip } from '../ui/primitives.js';
 import { useState } from 'react';
+import { useI18n } from '../core/i18n.js';
 
 /** Notes, with folders and pinning. Everything else comes from the registry. */
 export default function Notes(): JSX.Element {
+  const { term } = useI18n();
   const [params] = useSearchParams();
   const folders = useCollection('noteFolders');
   const [folderId, setFolderId] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export default function Notes(): JSX.Element {
         String(b.updatedAt).localeCompare(String(a.updatedAt))
       }
       emptyTitle="No notes yet"
-      emptyBody="Lists, reminders, half-thoughts — anything that does not belong in the journal."
+      emptyBody={term('Lists, reminders, half-thoughts — anything that does not belong in the {{journal}}.')}
       above={
         <div className="row" style={{ marginBottom: 'var(--space-4)' }}>
           <Chip selected={folderId === null} onClick={() => setFolderId(null)}>

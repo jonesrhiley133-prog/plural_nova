@@ -114,7 +114,7 @@ export const calendarEvents: CollectionDef = {
     f.bool('allDay', 'All day'),
     f.text('location', 'Location', { searchable: true }),
     f.refs('memberIds', 'Members involved', 'members'),
-    f.color('color', 'Colour'),
+    f.color('color', 'Colour', { group: 'Appearance' }),
     /*
      * Recurrence, in parts rather than as a sentence.
      *
@@ -124,7 +124,7 @@ export const calendarEvents: CollectionDef = {
      * field stays for whatever people already typed into it, and as the place
      * to describe a rule these cannot express.
      */
-    f.text('recurrence', 'Repeats', { hint: 'Described in your own words.' }),
+    f.text('recurrence', 'Repeats', { hint: 'Described in your own words.', group: 'Repeating' }),
     f.bool('isRecurring', 'Repeats', { group: 'Repeating' }),
     f.enumOf(
       'recurrenceType',
@@ -147,7 +147,7 @@ export const calendarEvents: CollectionDef = {
     f.json('recurrenceWeekdays', 'On these days', { group: 'Repeating' }),
     f.date('recurrenceEndsOn', 'Until', { group: 'Repeating' }),
 
-    f.datetime('remindAt', 'Reminder'),
+    f.datetime('remindAt', 'Reminder', { group: 'Reminders' }),
     f.int('remindMinutesBefore', 'Remind me', {
       min: 0,
       max: 20160,

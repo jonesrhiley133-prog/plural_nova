@@ -177,14 +177,14 @@ export default function Stats(): JSX.Element {
 
         <Card>
           {overview.loading ? (
-            <LoadingLine label="Loading when fronts start…" />
+            <LoadingLine label={term('Loading when {{fronts}} start…')} />
           ) : overview.error ? (
             <ErrorLine message={overview.error} />
           ) : (
             <Heatmap
-              title="When fronts start"
+              title={term('When {{fronts}} start')}
               subtitle="Day of the week against hour of the day"
-              valueLabel="Fronts started"
+              valueLabel={term('{{Fronts}} started')}
               rows={weekday.map((bucket) => bucket.label)}
               columns={hourly.map((bucket) => bucket.label.slice(0, 2))}
               values={weekday.map((day) =>
@@ -236,9 +236,9 @@ export default function Stats(): JSX.Element {
 
       <div style={{ marginTop: 'var(--space-5)' }}>
         <DescriptiveNote>
-          These are counts of what you recorded. Gaps mean nothing was logged, which is not the same
-          as nothing happening — and none of these numbers mean anything about how a system should
-          work.
+          {term(
+            'These are counts of what you recorded. Gaps mean nothing was logged, which is not the same as nothing happening — and none of these numbers mean anything about how a {{system}} should work.',
+          )}
         </DescriptiveNote>
       </div>
     </>

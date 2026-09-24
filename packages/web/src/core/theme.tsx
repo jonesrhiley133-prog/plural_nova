@@ -46,6 +46,7 @@ export function applyTheme(settings: ThemeSettings): ThemeTokens {
   root.dataset['base'] = resolved.base;
   root.dataset['surface'] = resolved.surfaceStyle;
   root.dataset['effects'] = resolved.effects;
+  root.dataset['font'] = resolved.fontFamily;
   root.dataset['reducedMotion'] = String(resolved.reducedMotion);
   root.dataset['largeText'] = String(resolved.largeText);
   root.style.setProperty('--text-scale', String(resolved.textScale / 100));
@@ -64,6 +65,7 @@ export function applyTheme(settings: ThemeSettings): ThemeTokens {
         base: resolved.base,
         effects: resolved.effects,
         surfaceStyle: resolved.surfaceStyle,
+        font: resolved.fontFamily,
         tokens: Object.fromEntries(
           Object.entries(tokens).map(([key, value]) => [tokenName(key).slice(2), value]),
         ),

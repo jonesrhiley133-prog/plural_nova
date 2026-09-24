@@ -17,7 +17,7 @@ export default function Contacts(): JSX.Element {
       collection="contacts"
       description={term('People outside the {{system}}, and what each {{member}} needs to know about them.')}
       emptyTitle="No contacts yet"
-      emptyBody="Add someone, note how they are with you, and who in the system knows them."
+      emptyBody={term('Add someone, note how they are with you, and who in the {{system}} knows them.')}
       filter={(record) => safety === 'all' || record['safety'] === safety}
       above={
         <div className="row" style={{ marginBottom: 'var(--space-4)' }}>

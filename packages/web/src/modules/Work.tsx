@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { formatDuration, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useQuery } from '../core/data.js';
-import { useDateFormat } from '../core/i18n.js';
+import { useDateFormat, useI18n } from '../core/i18n.js';
+import { useLiveSession } from '../core/liveSession.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
@@ -26,13 +27,16 @@ interface WorkStats {
   shiftCount: number;
   totalMinutes: number;
   averageShiftMinutes: number;
+  earnings: number | null;
+  earningsCurrency: string | null;
   byDay: { label: string; value: number; key: string }[];
   byWeekday: { label: string; value: number }[];
-  workplaces: { id: string; name: string; minutes: number }[];
+  workplaces: { id: string; name: string; minutes: number; earnings: number | null; currency: string | null }[];
   tasks: { open: number; completed: number };
 }
 
 export default function Work(): JSX.Element {
+  const { term } = useI18n();
   const dates = useDateFormat();
   const toast = useToast();
 
@@ -46,6 +50,16 @@ export default function Work(): JSX.Element {
 
   const editor = useDialog<{ collection: string; record: StoredRecord | null }>();
   const confirm = useDialog<{ collection: string; record: StoredRecord }>();
+  const session = useLiveSession(shifts, 'startsAt', 'endsAt');
+
+  const clockOut = async (): Promise<void> => {
+    try {
+      const stopped = await session.stop();
+      if (stopped) editor.show({ collection: 'workShifts', record: stopped });
+    } catch (cause) {
+      toast.fromError(cause, 'Could not clock out');
+    }
+  };
 
   const collectionFor = (name: string) =>
     name === 'workplaces' ? workplaces : name === 'workShifts' ? shifts : name === 'workTasks' ? tasks : coworkers;
@@ -62,15 +76,39 @@ export default function Work(): JSX.Element {
     <>
       <PageHeader
         title="Work"
-        description="Shifts, tasks and the people you work with — kept private to this account."
+        description={
+          session.active
+            ? `Clocked in for ${formatDuration(session.elapsedMinutes)} so far.`
+            : 'Shifts, tasks and the people you work with — kept private to this account.'
+        }
         actions={
-          <Button
-            variant="primary"
-            icon="plus"
-            onClick={() => editor.show({ collection: collectionForTab[tab], record: null })}
-          >
-            Add
-          </Button>
+          tab === 'overview' || tab === 'schedule' ? (
+            session.active ? (
+              <Button variant="primary" icon="pause" onClick={() => void clockOut()}>
+                Clock out
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => editor.show({ collection: 'workShifts', record: null })}
+                >
+                  Add a shift
+                </Button>
+                <Button variant="primary" icon="play" onClick={() => void session.start()}>
+                  Clock in
+                </Button>
+              </>
+            )
+          ) : (
+            <Button
+              variant="primary"
+              icon="plus"
+              onClick={() => editor.show({ collection: collectionForTab[tab], record: null })}
+            >
+              Add
+            </Button>
+          )
         }
       />
 
@@ -95,6 +133,17 @@ export default function Work(): JSX.Element {
               value={stats.data?.tasks.open ?? 0}
               detail={stats.data?.tasks.completed ? `${stats.data.tasks.completed} done` : undefined}
             />
+            {stats.data?.earnings !== null && stats.data?.earnings !== undefined ? (
+              <Stat
+                label="Earnings"
+                value={new Intl.NumberFormat(undefined, {
+                  style: 'currency',
+                  currency: stats.data.earningsCurrency ?? 'USD',
+                  maximumFractionDigits: 0,
+                }).format(stats.data.earnings)}
+                detail="last 8 weeks, from hourly rate"
+              />
+            ) : null}
           </div>
 
           <Card>
@@ -133,7 +182,14 @@ export default function Work(): JSX.Element {
                   id: workplace.id,
                   label: workplace.name,
                   value: workplace.minutes,
-                  detail: formatDuration(workplace.minutes),
+                  detail:
+                    workplace.earnings !== null
+                      ? `${formatDuration(workplace.minutes)} · ${new Intl.NumberFormat(undefined, {
+                          style: 'currency',
+                          currency: workplace.currency ?? 'USD',
+                          maximumFractionDigits: 0,
+                        }).format(workplace.earnings)}`
+                      : formatDuration(workplace.minutes),
                 }))}
                 format={(value) => formatDuration(value)}
                 emptyMessage="No workplaces set up yet."
@@ -360,7 +416,7 @@ export default function Work(): JSX.Element {
           onRetry={coworkers.reload}
           empty={{
             title: 'No coworkers recorded',
-            body: 'Useful when a member who has not met someone needs to know how they are.',
+            body: term('Useful when a {{member}} who has not met someone needs to know how they are.'),
             icon: 'contact',
             action: { label: 'Add a coworker', run: () => editor.show({ collection: 'coworkers', record: null }) },
           }}

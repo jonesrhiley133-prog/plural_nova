@@ -1,5 +1,7 @@
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useRef,
@@ -8,6 +10,25 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, IconButton } from './primitives.js';
+
+/**
+ * Lets a form rendered inside a dialog put its own save action in the header
+ * instead of the footer, without every dialog caller having to wire it up by
+ * hand. Nothing outside a `Dialog` provides this, so a form used inline on a
+ * page (no context to reach) falls back to its own footer unchanged.
+ */
+const DialogHeaderActionsContext = createContext<((node: ReactNode) => void) | null>(null);
+
+/** Returns whether it actually took over — a caller with no dialog to reach still needs its own footer. */
+export function useDialogHeaderActions(node: ReactNode): boolean {
+  const setActions = useContext(DialogHeaderActionsContext);
+  useEffect(() => {
+    if (!setActions) return;
+    setActions(node);
+    return () => setActions(null);
+  }, [setActions, node]);
+  return setActions !== null;
+}
 
 /**
  * Dialogs.
@@ -47,6 +68,7 @@ export function Dialog({
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const [headerActions, setHeaderActions] = useState<ReactNode>(null);
 
   /*
    * Callers pass `onClose` as an inline arrow, so its identity changes on every
@@ -136,9 +158,16 @@ export function Dialog({
               </p>
             ) : null}
           </div>
-          {dismissible ? <IconButton icon="close" label="Close" variant="ghost" size="sm" onClick={onClose} /> : null}
+          <div className="dialog__header-actions">
+            {headerActions}
+            {dismissible ? <IconButton icon="close" label="Close" variant="ghost" size="sm" onClick={onClose} /> : null}
+          </div>
         </div>
-        <div className="dialog__body">{children}</div>
+        <div className="dialog__body">
+          <DialogHeaderActionsContext.Provider value={setHeaderActions}>
+            {children}
+          </DialogHeaderActionsContext.Provider>
+        </div>
         {footer ? <div className="dialog__footer">{footer}</div> : null}
       </div>
     </div>,
