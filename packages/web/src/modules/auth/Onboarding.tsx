@@ -340,7 +340,11 @@ function MembersStep(): JSX.Element {
     setSaving(true);
     try {
       const result = await api.post<{ created: number }>('/api/records/members/batch', {
-        records: list.map((name, index) => ({ name, orbitOrder: index })),
+        records: list.map((name, index) => ({
+          name,
+          orbitOrder: index,
+          color: ACCENT_PRESETS[index % ACCENT_PRESETS.length]!.accent,
+        })),
       });
       setAdded(result.created);
       setNames('');

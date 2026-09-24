@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { formatDuration, type StoredRecord } from '@pluralnova/shared';
+import { ACCENT_PRESETS, formatDuration, type StoredRecord } from '@pluralnova/shared';
 import { useCollection } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -72,6 +72,10 @@ export default function Members(): JSX.Element {
   });
 
   const creator = useDialog();
+  // Cycled by how many members already exist, so a new one starts distinct
+  // from the last rather than defaulting to the same accent as everyone else
+  // who never opened the colour picker.
+  const nextColor = ACCENT_PRESETS[all.length % ACCENT_PRESETS.length]!.accent;
   const [autoOpened, setAutoOpened] = useState(false);
   if (params.get('new') === '1' && !autoOpened) {
     setAutoOpened(true);
@@ -235,6 +239,7 @@ export default function Members(): JSX.Element {
         <RecordForm
           collection="members"
           fields={['name', 'pronouns', 'color', 'icon', 'bio', 'roles', 'subsystemId']}
+          initial={{ color: nextColor }}
           onSubmit={async (values) => {
             const created = await create(values);
             toast.success(term('{{Member}} added'), 'Fill in the rest of their profile whenever you like.');

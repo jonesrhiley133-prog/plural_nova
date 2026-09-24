@@ -971,7 +971,13 @@
   display: flex;
   gap: var(--space-4);
   overflow-x: auto;
-  padding-bottom: var(--space-1);
+  /*
+   * `overflow-x: auto` with `overflow-y` left at its default computes the
+   * y-axis to `auto` too, not `visible` — so a scrolling row clips vertically
+   * as well. The ring sits 4px outside each avatar's own box; without this
+   * padding, that top sliver is exactly what a hidden y-overflow cuts off.
+   */
+  padding: 6px 0 var(--space-1);
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
