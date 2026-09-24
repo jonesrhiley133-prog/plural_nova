@@ -5,6 +5,7 @@ import { DataProvider } from './core/data.js';
 import { I18nProvider } from './core/i18n.js';
 import { ThemeProvider, usePreAuthTheme } from './core/theme.js';
 import { ToastProvider } from './core/toast.js';
+import { MusicPlayerProvider } from './core/musicPlayer.js';
 import { startSyncWatchers, syncEngine } from './core/sync.js';
 import { startRealtime } from './core/realtime.js';
 import { publishMessageKey } from './core/crypto.js';
@@ -222,10 +223,12 @@ export function App(): JSX.Element {
             <ThemeProvider>
               <ToastProvider>
                 <DataProvider>
-                  <AppUpdate />
-                  <Suspense fallback={<ScreenFallback />}>
-                    <AppRoutes />
-                  </Suspense>
+                  <MusicPlayerProvider>
+                    <AppUpdate />
+                    <Suspense fallback={<ScreenFallback />}>
+                      <AppRoutes />
+                    </Suspense>
+                  </MusicPlayerProvider>
                 </DataProvider>
               </ToastProvider>
             </ThemeProvider>

@@ -6,9 +6,10 @@ import { useToast } from '../core/toast.js';
 import { useActiveMemberId } from '../core/auth.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, IconButton, Meter, Stat } from '../ui/primitives.js';
-import { TextField } from '../ui/forms.js';
+import { TagField, TextField } from '../ui/forms.js';
 import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { Icon } from '../ui/Icon.js';
 import { RankedBars } from '../charts/index.js';
 import { magnitudeColor } from '../charts/palette.js';
 
@@ -143,6 +144,9 @@ export default function BodyMap(): JSX.Element {
                 {region.label}
               </Chip>
             ))}
+            <Chip onClick={() => editor.show({ region: '', record: null })}>
+              <Icon name="plus" size={12} /> Somewhere else
+            </Chip>
           </div>
         </Card>
 
@@ -274,7 +278,8 @@ function SensationDialog({
   onSave: (values: Record<string, unknown>) => Promise<void>;
   onUpdate: (id: string, values: Record<string, unknown>) => Promise<void>;
 }): JSX.Element {
-  const [sensation, setSensation] = useState('');
+  const [region, setRegion] = useState('');
+  const [sensations, setSensations] = useState<string[]>([]);
   const [intensity, setIntensity] = useState(3);
   const [side, setSide] = useState('both');
   const [note, setNote] = useState('');
@@ -282,12 +287,13 @@ function SensationDialog({
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   const record = dialog.value?.record ?? null;
-  const region = BODY_REGIONS.find((item) => item.id === dialog.value?.region);
-  const key = record ? record.id : (dialog.value?.region ?? null);
+  const matchedRegion = BODY_REGIONS.find((item) => item.id === dialog.value?.region);
+  const key = record ? record.id : (dialog.value?.region ?? '__custom__');
 
   if (dialog.open && loadedKey !== key) {
     setLoadedKey(key);
-    setSensation(record ? String(record['sensation'] ?? '') : '');
+    setRegion(record ? String(record['region'] ?? '') : (matchedRegion?.label ?? dialog.value?.region ?? ''));
+    setSensations(record ? [String(record['sensation'] ?? '')].filter(Boolean) : []);
     setIntensity(record ? Number(record['intensity'] ?? 3) : 3);
     setSide(record ? String(record['side'] ?? 'both') : 'both');
     setNote(record ? String(record['note'] ?? '') : '');
@@ -295,19 +301,21 @@ function SensationDialog({
   if (!dialog.open && loadedKey !== null) setLoadedKey(null);
 
   const save = async (): Promise<void> => {
-    if (!sensation.trim() || !dialog.value) return;
+    if (!region.trim() || sensations.length === 0) return;
     setSaving(true);
     try {
-      const payload = {
-        region: dialog.value.region,
-        sensation: sensation.trim(),
-        intensity,
-        side,
-        note,
-        ...(record ? {} : { recordedAt: new Date().toISOString() }),
-      };
-      if (record) await onUpdate(record.id, payload);
-      else await onSave(payload);
+      const shared = { region: region.trim(), intensity, side, note };
+      if (record) {
+        const [first, ...rest] = sensations;
+        await onUpdate(record.id, { ...shared, sensation: first });
+        for (const sensation of rest) {
+          await onSave({ ...shared, sensation, recordedAt: new Date().toISOString() });
+        }
+      } else {
+        for (const sensation of sensations) {
+          await onSave({ ...shared, sensation, recordedAt: new Date().toISOString() });
+        }
+      }
       dialog.hide();
     } finally {
       setSaving(false);
@@ -318,30 +326,37 @@ function SensationDialog({
     <Dialog
       open={dialog.open}
       onClose={dialog.hide}
-      title={region ? `${region.label}` : 'Record a sensation'}
+      title={record ? 'Edit entry' : 'Record a sensation'}
       footer={
         <>
           <Button variant="ghost" onClick={dialog.hide}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={() => void save()} disabled={!sensation.trim()} loading={saving}>
+          <Button
+            variant="primary"
+            onClick={() => void save()}
+            disabled={!region.trim() || sensations.length === 0}
+            loading={saving}
+          >
             Save
           </Button>
         </>
       }
     >
-      <div className="field">
-        <span className="field__label">What does it feel like?</span>
-        <div className="row">
-          {SENSATION_WORDS.map((word) => (
-            <Chip key={word} selected={sensation === word} onClick={() => setSensation(word)}>
-              {word}
-            </Chip>
-          ))}
-        </div>
-      </div>
+      <TextField
+        label="Where"
+        value={region}
+        onChange={setRegion}
+        placeholder="Head, left knee, jaw…"
+      />
 
-      <TextField label="Or your own word" value={sensation} onChange={setSensation} />
+      <TagField
+        label="What does it feel like?"
+        hint={sensations.length > 1 ? `Saved as ${sensations.length} separate entries.` : undefined}
+        values={sensations}
+        onChange={setSensations}
+        suggestions={[...SENSATION_WORDS]}
+      />
 
       <div className="field">
         <span className="field__label">How strong?</span>

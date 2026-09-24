@@ -880,6 +880,66 @@
   background: var(--accent-soft);
 }
 
+/* ── Template picker rows ───────────────────────────────────────────────── */
+
+.template-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
+}
+
+.template-row + .template-row {
+  margin-top: var(--space-2);
+}
+
+.template-row:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+}
+
+.template-row--selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.template-row__icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.template-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.template-row__title {
+  font-size: var(--size-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.template-row__description {
+  font-size: var(--size-xs);
+  color: var(--text-muted);
+}
+
 .list-row__body {
   flex: 1;
   min-width: 0;
@@ -971,7 +1031,13 @@
   display: flex;
   gap: var(--space-4);
   overflow-x: auto;
-  padding-bottom: var(--space-1);
+  /*
+   * `overflow-x: auto` with `overflow-y` left at its default computes the
+   * y-axis to `auto` too, not `visible` — so a scrolling row clips vertically
+   * as well. The ring sits 4px outside each avatar's own box; without this
+   * padding, that top sliver is exactly what a hidden y-overflow cuts off.
+   */
+  padding: 6px 0 var(--space-1);
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -1404,6 +1470,29 @@
 
 .dialog--wide {
   max-width: 880px;
+}
+
+/* Edge to edge, for a view that wants to be the only thing on screen. */
+.overlay--fullscreen {
+  padding: 0;
+  align-items: stretch;
+}
+
+.dialog--fullscreen {
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100dvh;
+  border-radius: 0;
+  padding-bottom: 0;
+}
+
+.dialog--fullscreen .dialog__handle {
+  display: none;
+}
+
+.dialog--fullscreen .dialog__body {
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
 }
 
 .dialog__header {

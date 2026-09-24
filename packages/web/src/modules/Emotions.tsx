@@ -172,33 +172,32 @@ export default function Emotions(): JSX.Element {
         systemMode={systemMode}
         members={[...members.values()]}
         defaultMemberId={activeMemberId}
+        recentIds={recentIds}
         onSave={async (values) => {
           await entries.create(values);
-          toast.success(t('emotions.saved'));
         }}
+        onSaved={(count) => toast.success(count > 1 ? `${count} emotions recorded` : t('emotions.saved'))}
       />
     </>
   );
 }
 
 interface Draft {
-  emotion: Emotion | null;
+  emotions: Emotion[];
   intensity: number;
   context: string;
   activity: string;
   note: string;
   memberId: string | null;
-  recordedAt: string;
 }
 
 const EMPTY_DRAFT: Draft = {
-  emotion: null,
+  emotions: [],
   intensity: 3,
   context: '',
   activity: '',
   note: '',
   memberId: null,
-  recordedAt: '',
 };
 
 function EmotionSheet({
@@ -207,14 +206,18 @@ function EmotionSheet({
   systemMode,
   members,
   defaultMemberId,
+  recentIds,
   onSave,
+  onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   systemMode: boolean;
   members: { id: string; [key: string]: unknown }[];
   defaultMemberId: string | null;
+  recentIds: string[];
   onSave: (values: Record<string, unknown>) => Promise<void>;
+  onSaved: (count: number) => void;
 }): JSX.Element {
   const { t } = useI18n();
   const [step, setStep] = useState(0);
@@ -233,26 +236,60 @@ function EmotionSheet({
     setStep(0);
   };
 
+  const recent = useMemo(
+    () => recentIds.map((id) => getEmotion(id)).filter((emotion): emotion is Emotion => emotion != null),
+    [recentIds],
+  );
+
   const options = useMemo(() => {
     if (search.trim()) return searchEmotions(search).slice(0, 60);
     if (family) return EMOTIONS.filter((emotion) => emotion.family === family);
     return [];
   }, [search, family]);
 
+  const toggleEmotion = (emotion: Emotion): void => {
+    setDraft((current) => {
+      const already = current.emotions.some((item) => item.id === emotion.id);
+      return {
+        ...current,
+        emotions: already
+          ? current.emotions.filter((item) => item.id !== emotion.id)
+          : [...current.emotions, emotion],
+      };
+    });
+  };
+
+  const surpriseMe = (): void => {
+    const pool = options.length > 0 ? options : EMOTIONS;
+    const unpicked = pool.filter((emotion) => !draft.emotions.some((item) => item.id === emotion.id));
+    const from = unpicked.length > 0 ? unpicked : pool;
+    const pick = from[Math.floor(Math.random() * from.length)];
+    if (pick) toggleEmotion(pick);
+  };
+
+  const skip = (): void => {
+    reset();
+    onClose();
+  };
+
   const save = async (): Promise<void> => {
-    if (!draft.emotion) return;
+    if (draft.emotions.length === 0) return;
     setSaving(true);
     try {
-      await onSave({
-        emotionId: draft.emotion.id,
-        category: draft.emotion.family,
-        intensity: draft.intensity,
-        recordedAt: draft.recordedAt || new Date().toISOString(),
-        context: draft.context,
-        activity: draft.activity,
-        note: draft.note,
-        memberId: draft.memberId,
-      });
+      const recordedAt = new Date().toISOString();
+      for (const emotion of draft.emotions) {
+        await onSave({
+          emotionId: emotion.id,
+          category: emotion.family,
+          intensity: draft.intensity,
+          recordedAt,
+          context: draft.context,
+          activity: draft.activity,
+          note: draft.note,
+          memberId: draft.memberId,
+        });
+      }
+      onSaved(draft.emotions.length);
       reset();
       onClose();
     } finally {
@@ -271,14 +308,22 @@ function EmotionSheet({
       title={step === 0 ? t('emotions.choose') : step === 1 ? t('emotions.intensity') : t('emotions.context')}
       footer={
         <>
-          {step > 0 ? (
+          {step === 0 ? (
+            <Button variant="ghost" onClick={skip}>
+              {t('action.skip')}
+            </Button>
+          ) : (
             <Button variant="ghost" onClick={() => setStep((value) => value - 1)}>
               {t('action.back')}
             </Button>
-          ) : null}
+          )}
           <span className="spacer" />
           {step < 2 ? (
-            <Button variant="primary" onClick={() => setStep((value) => value + 1)} disabled={!draft.emotion}>
+            <Button
+              variant="primary"
+              onClick={() => setStep((value) => value + 1)}
+              disabled={draft.emotions.length === 0}
+            >
               {t('action.next')}
             </Button>
           ) : (
@@ -289,18 +334,43 @@ function EmotionSheet({
         </>
       }
     >
-      {draft.emotion ? (
+      {draft.emotions.length > 0 ? (
         <div className="row" style={{ marginBottom: 'var(--space-4)' }}>
-          <Chip color={draft.emotion.color} accent>
-            {draft.emotion.emoji} {draft.emotion.name}
-          </Chip>
+          {draft.emotions.map((emotion) => (
+            <Chip key={emotion.id} color={emotion.color} accent>
+              {emotion.emoji} {emotion.name}
+            </Chip>
+          ))}
           {step > 0 ? <Chip>{intensityLabel(draft.intensity)}</Chip> : null}
         </div>
       ) : null}
 
       {step === 0 ? (
         <div className="stack">
-          <SearchField value={rawSearch} onChange={setRawSearch} placeholder="Search 144 emotions…" />
+          <div className="row" style={{ alignItems: 'center' }}>
+            <SearchField value={rawSearch} onChange={setRawSearch} placeholder="Search 144 emotions…" />
+            <Button variant="secondary" size="sm" icon="shuffle" onClick={surpriseMe}>
+              Surprise me
+            </Button>
+          </div>
+
+          {recent.length > 0 && !search.trim() && !family ? (
+            <div className="field">
+              <span className="field__label">Recently used</span>
+              <div className="row">
+                {recent.map((emotion) => (
+                  <Chip
+                    key={emotion.id}
+                    selected={draft.emotions.some((item) => item.id === emotion.id)}
+                    color={emotion.color}
+                    onClick={() => toggleEmotion(emotion)}
+                  >
+                    {emotion.emoji} {emotion.name}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {!search.trim() ? (
             <div className="row">
@@ -330,12 +400,9 @@ function EmotionSheet({
               {options.map((emotion) => (
                 <Chip
                   key={emotion.id}
-                  selected={draft.emotion?.id === emotion.id}
+                  selected={draft.emotions.some((item) => item.id === emotion.id)}
                   color={emotion.color}
-                  onClick={() => {
-                    setDraft((current) => ({ ...current, emotion }));
-                    setStep(1);
-                  }}
+                  onClick={() => toggleEmotion(emotion)}
                 >
                   {emotion.emoji} {emotion.name}
                 </Chip>
@@ -369,7 +436,7 @@ function EmotionSheet({
                         width: 7,
                         height: 7,
                         borderRadius: '50%',
-                        background: dot <= level ? draft.emotion?.color ?? 'var(--accent)' : 'var(--surface-sunken)',
+                        background: dot <= level ? draft.emotions[0]?.color ?? 'var(--accent)' : 'var(--surface-sunken)',
                       }}
                     />
                   ))}

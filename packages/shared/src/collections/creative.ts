@@ -78,6 +78,7 @@ export const stories: CollectionDef = {
     f.text('title', 'Title', { required: true, inList: true, searchable: true }),
     f.long('summary', 'Summary', { searchable: true }),
     f.text('genre', 'Genre', { inList: true }),
+    f.text('setting', 'Setting', { hint: 'Where & when', searchable: true }),
     f.enumOf('status', 'Status', [
       { value: 'planning', label: 'Planning' },
       { value: 'drafting', label: 'Drafting' },
@@ -89,6 +90,7 @@ export const stories: CollectionDef = {
     f.tags('tags', 'Tags'),
     f.int('wordGoal', 'Word goal'),
     f.long('worldbuilding', 'Worldbuilding', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true }),
     f.json('timeline', 'Timeline'),
     f.color('color', 'Colour'),
   ],
@@ -295,8 +297,8 @@ export const musicTracks: CollectionDef = {
     f.text('artist', 'Artist', { inList: true, searchable: true }),
     f.text('album', 'Album', { searchable: true }),
     f.image('artworkUrl', 'Artwork'),
-    f.url('previewUrl', 'Preview stream', {
-      hint: 'Supplied by the music provider; PluralNova never stores audio itself.',
+    f.url('previewUrl', 'Audio', {
+      hint: 'A short preview from the provider, or the full file if you uploaded one.',
     }),
     f.url('externalUrl', 'Open in provider'),
     f.text('provider', 'Provider', { defaultValue: 'local' }),

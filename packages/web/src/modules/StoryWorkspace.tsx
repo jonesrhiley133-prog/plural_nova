@@ -5,21 +5,33 @@ import { useCollection, useRecord } from '../core/data.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, IconButton, Stat, Tabs } from '../ui/primitives.js';
-import { TextField } from '../ui/forms.js';
+import { ColorField, TextField } from '../ui/forms.js';
 import { AsyncContent, EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { Icon } from '../ui/Icon.js';
+import { resolveTemplate, StoryTemplatePicker, type StoryTemplate } from './storyTemplates.js';
 
 /**
  * A story, open.
  *
- * Chapters, scenes, characters, locations, worldbuilding and a timeline, all
- * scoped to this project. The chapter editor saves on demand rather than on
- * every keystroke, and says when it last saved.
+ * The chapters, and everything about the story itself, share one screen: a
+ * rail to move between chapters, the page being written, and the story's own
+ * facts beside it — so naming a place in "Setting" and using it in the next
+ * paragraph never means leaving the paragraph. Scenes and locations, which
+ * are closer to a database than to a page, keep their own tab instead.
  */
 
-type Tab = 'chapters' | 'scenes' | 'characters' | 'locations' | 'world';
+type MainTab = 'write' | 'scenes' | 'locations';
+type InfoTab = 'info' | 'cast' | 'notes';
+
+const STATUS_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: 'planning', label: 'Planning' },
+  { value: 'drafting', label: 'Drafting' },
+  { value: 'revising', label: 'Revising' },
+  { value: 'finished', label: 'Complete' },
+  { value: 'shelved', label: 'Paused' },
+];
 
 export default function StoryWorkspace(): JSX.Element {
   const { id } = useParams<{ id: string }>();
@@ -33,10 +45,12 @@ export default function StoryWorkspace(): JSX.Element {
   const locations = useCollection('storyLocations', { filter: (row) => row['storyId'] === id });
   const characters = useCollection('characters');
 
-  const [tab, setTab] = useState<Tab>('chapters');
-  const [openChapter, setOpenChapter] = useState<string | null>(null);
+  const [mainTab, setMainTab] = useState<MainTab>('write');
+  const [infoTab, setInfoTab] = useState<InfoTab>('info');
+  const [openChapterId, setOpenChapterId] = useState<string | null>(null);
   const editor = useDialog<{ collection: string; record: StoredRecord | null }>();
   const confirm = useDialog<{ collection: string; record: StoredRecord }>();
+  const chapterPicker = useDialog();
 
   const linked = useMemo(
     () => characters.items.filter((character) => ((character['storyIds'] as string[]) ?? []).includes(id ?? '')),
@@ -44,6 +58,7 @@ export default function StoryWorkspace(): JSX.Element {
   );
 
   const words = chapters.items.reduce((sum, chapter) => sum + Number(chapter['wordCount'] ?? 0), 0);
+  const openChapter = chapters.items.find((chapter) => chapter.id === openChapterId) ?? chapters.items[0] ?? null;
 
   if (!story) {
     return stories.loading ? (
@@ -63,115 +78,176 @@ export default function StoryWorkspace(): JSX.Element {
   const collectionFor = (name: string) =>
     name === 'storyChapters' ? chapters : name === 'storyScenes' ? scenes : locations;
 
+  const addChapter = async (template: StoryTemplate | null): Promise<void> => {
+    const { title, body } = resolveTemplate(template);
+    const chapterTitle = template ? title : `Chapter ${chapters.items.length + 1}`;
+    const wordCount = body.trim() ? body.trim().split(/\s+/).length : 0;
+    const created = await chapters.create({
+      storyId: story.id,
+      title: chapterTitle,
+      body,
+      wordCount,
+      sortOrder: chapters.items.length,
+    });
+    setOpenChapterId(created.id);
+    setMainTab('write');
+  };
+
   return (
     <>
-      <PageHeader
-        title={String(story['title'])}
-        description={String(story['summary'] ?? '')}
-        actions={
-          <>
-            <Button variant="ghost" icon="chevronLeft" onClick={() => navigate('/stories')}>
-              Stories
-            </Button>
-            <Button
-              variant="primary"
-              icon="plus"
-              onClick={() =>
-                editor.show({
-                  collection:
-                    tab === 'scenes' ? 'storyScenes' : tab === 'locations' ? 'storyLocations' : 'storyChapters',
-                  record: null,
-                })
-              }
-            >
-              Add
-            </Button>
-          </>
-        }
-      />
+      <div className="row" style={{ alignItems: 'center', marginBottom: 'var(--space-3)', gap: 'var(--space-2)' }}>
+        <Button variant="ghost" size="sm" icon="chevronLeft" onClick={() => navigate('/stories')}>
+          Stories
+        </Button>
+        <span className="tiny faint">/</span>
+        <span className="small" style={{ fontWeight: 'var(--weight-medium)' }}>
+          {String(story['title'] ?? '').trim() || 'Untitled Story'}
+        </span>
+      </div>
 
       <div className="stat-grid" style={{ marginBottom: 'var(--space-4)' }}>
         <Stat label="Chapters" value={chapters.items.length} />
         <Stat label="Scenes" value={scenes.items.length} />
         <Stat label="Words" value={words.toLocaleString()} />
-        <Stat label="Status" value={String(story['status'] ?? 'planning')} />
+        <Stat label="Status" value={STATUS_OPTIONS.find((option) => option.value === story['status'])?.label ?? 'Planning'} />
       </div>
 
       <Tabs
-        value={tab}
-        onChange={setTab}
+        value={mainTab}
+        onChange={setMainTab}
         label="Story sections"
-        options={(['chapters', 'scenes', 'characters', 'locations', 'world'] as const).map((option) => ({
-          value: option,
-          label: option[0]!.toUpperCase() + option.slice(1),
-        }))}
+        options={[
+          { value: 'write', label: 'Chapters' },
+          { value: 'scenes', label: 'Scenes' },
+          { value: 'locations', label: 'Locations' },
+        ]}
       />
 
-      {tab === 'chapters' ? (
-        <AsyncContent
-          loading={chapters.loading}
-          error={chapters.error}
-          items={chapters.items}
-          onRetry={chapters.reload}
-          empty={{
-            title: 'No chapters yet',
-            body: 'Add the first one — it can be a title and nothing else.',
-            icon: 'story',
-            action: { label: 'Add a chapter', run: () => editor.show({ collection: 'storyChapters', record: null }) },
-          }}
-        >
-          {(items) => (
-            <div className="stack">
-              {items.map((chapter) => (
-                <Card key={chapter.id}>
-                  <div className="row row--between" style={{ alignItems: 'flex-start' }}>
-                    <div style={{ minWidth: 0 }}>
-                      <h3 style={{ fontSize: 'var(--size-md)' }}>{String(chapter['title'])}</h3>
-                      <div className="tiny faint">
-                        {Number(chapter['wordCount'] ?? 0).toLocaleString()} words · {String(chapter['status'] ?? 'draft')}
-                      </div>
-                    </div>
-                    <div className="row row--nowrap">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setOpenChapter(openChapter === chapter.id ? null : chapter.id)}
-                      >
-                        {openChapter === chapter.id ? 'Close' : 'Write'}
-                      </Button>
-                      <IconButton
-                        icon="trash"
-                        label="Delete chapter"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => confirm.show({ collection: 'storyChapters', record: chapter })}
-                      />
-                    </div>
-                  </div>
-
-                  {chapter['summary'] ? (
-                    <p className="small muted" style={{ marginTop: 'var(--space-2)' }}>
-                      {String(chapter['summary'])}
-                    </p>
-                  ) : null}
-
-                  {openChapter === chapter.id ? (
-                    <ChapterEditor
-                      chapter={chapter}
-                      onSave={async (values) => {
-                        await chapters.update(chapter.id, values);
-                        toast.success('Saved');
-                      }}
-                    />
-                  ) : null}
-                </Card>
-              ))}
+      {mainTab === 'write' ? (
+        <div className="story-workspace">
+          <div className="story-workspace__rail">
+            <div className="row row--between" style={{ marginBottom: 'var(--space-2)' }}>
+              <span className="tiny faint" style={{ letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Chapters · {chapters.items.length}
+              </span>
             </div>
-          )}
-        </AsyncContent>
+            <div className="row" style={{ marginBottom: 'var(--space-3)' }}>
+              <Button variant="secondary" size="sm" icon="plus" onClick={() => void addChapter(null)}>
+                Add
+              </Button>
+              <Button variant="ghost" size="sm" icon="story" onClick={() => chapterPicker.show()}>
+                Template
+              </Button>
+            </div>
+            {chapters.items.length === 0 ? (
+              <p className="tiny faint">No chapters yet.</p>
+            ) : (
+              <div className="stack stack--tight">
+                {chapters.items.map((chapter, index) => (
+                  <button
+                    key={chapter.id}
+                    type="button"
+                    className={`story-rail-item${openChapter?.id === chapter.id ? ' story-rail-item--active' : ''}`}
+                    onClick={() => setOpenChapterId(chapter.id)}
+                  >
+                    <span className="tiny faint numeric">{String(index + 1).padStart(2, '0')}</span>
+                    <span className="truncate">{String(chapter['title'] ?? 'Untitled')}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="story-workspace__editor">
+            {openChapter ? (
+              <ChapterEditor
+                key={openChapter.id}
+                chapter={openChapter}
+                onSave={async (values) => {
+                  await chapters.update(openChapter.id, values);
+                  toast.success('Saved');
+                }}
+                onDelete={() => confirm.show({ collection: 'storyChapters', record: openChapter })}
+              />
+            ) : (
+              <Card>
+                <EmptyState
+                  icon="story"
+                  title="No chapters yet"
+                  body="Add one, or start from a template — it can be a title and nothing else."
+                  action={{ label: 'Add a chapter', run: () => void addChapter(null) }}
+                />
+              </Card>
+            )}
+          </div>
+
+          <div className="story-workspace__info">
+            <Tabs
+              value={infoTab}
+              onChange={setInfoTab}
+              label="Story details"
+              options={[
+                { value: 'info', label: 'Story Info' },
+                { value: 'cast', label: 'Story Cast' },
+                { value: 'notes', label: 'Notes' },
+              ]}
+            />
+
+            {infoTab === 'info' ? (
+              <StoryInfoPanel story={story} onSave={(values) => stories.update(story.id, values)} />
+            ) : null}
+
+            {infoTab === 'cast' ? (
+              <Card
+                title="Cast"
+                subtitle="Linked from your character database"
+                actions={
+                  <Button variant="ghost" size="sm" onClick={() => navigate('/characters')}>
+                    Open
+                  </Button>
+                }
+              >
+                {linked.length === 0 ? (
+                  <EmptyState
+                    icon="character"
+                    title="Nobody linked yet"
+                    body="Open a character and add this story to their 'appears in' list."
+                  />
+                ) : (
+                  <div className="stack stack--tight">
+                    {linked.map((character) => (
+                      <div key={character.id} className="row row--nowrap">
+                        <Avatar
+                          name={String(character['name'])}
+                          src={(character['imageUrl'] as string) ?? null}
+                          color={(character['color'] as string) ?? null}
+                          size={30}
+                          round
+                        />
+                        <div style={{ minWidth: 0 }}>
+                          <div className="small truncate">{String(character['name'])}</div>
+                          <div className="tiny faint truncate">{String(character['role'] ?? '')}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            ) : null}
+
+            {infoTab === 'notes' ? (
+              <AutoSaveTextArea
+                label="Notes"
+                hint="Anything that doesn't belong in the world's own facts — reminders to yourself, threads to pick back up."
+                value={String(story['notes'] ?? '')}
+                onSave={(value) => stories.update(story.id, { notes: value })}
+              />
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
-      {tab === 'scenes' ? (
+      {mainTab === 'scenes' ? (
         <AsyncContent
           loading={scenes.loading}
           error={scenes.error}
@@ -185,7 +261,15 @@ export default function StoryWorkspace(): JSX.Element {
           }}
         >
           {(items) => (
-            <Card flush>
+            <Card
+              flush
+              title="Scenes"
+              actions={
+                <Button variant="ghost" size="sm" icon="plus" onClick={() => editor.show({ collection: 'storyScenes', record: null })}>
+                  Add
+                </Button>
+              }
+            >
               <div className="list">
                 {items.map((scene) => (
                   <div key={scene.id} className="list-row">
@@ -223,45 +307,7 @@ export default function StoryWorkspace(): JSX.Element {
         </AsyncContent>
       ) : null}
 
-      {tab === 'characters' ? (
-        <Card
-          title="Characters in this story"
-          subtitle="Linked from your character database"
-          actions={
-            <Button variant="ghost" size="sm" onClick={() => navigate('/characters')}>
-              Open characters
-            </Button>
-          }
-        >
-          {linked.length === 0 ? (
-            <EmptyState
-              icon="character"
-              title="Nobody linked yet"
-              body="Open a character and add this story to their 'appears in' list."
-            />
-          ) : (
-            <div className="grid" style={{ ['--grid-min' as never]: '160px' }}>
-              {linked.map((character) => (
-                <div key={character.id} className="row row--nowrap">
-                  <Avatar
-                    name={String(character['name'])}
-                    src={(character['imageUrl'] as string) ?? null}
-                    color={(character['color'] as string) ?? null}
-                    size={34}
-                    round
-                  />
-                  <div style={{ minWidth: 0 }}>
-                    <div className="small truncate">{String(character['name'])}</div>
-                    <div className="tiny faint truncate">{String(character['role'] ?? '')}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      ) : null}
-
-      {tab === 'locations' ? (
+      {mainTab === 'locations' ? (
         <AsyncContent
           loading={locations.loading}
           error={locations.error}
@@ -300,17 +346,14 @@ export default function StoryWorkspace(): JSX.Element {
         </AsyncContent>
       ) : null}
 
-      {tab === 'world' ? (
-        <Card title="Worldbuilding">
-          <WorldEditor
-            story={story}
-            onSave={async (value) => {
-              await stories.update(story.id, { worldbuilding: value });
-              toast.success('Saved');
-            }}
-          />
-        </Card>
-      ) : null}
+      <StoryTemplatePicker
+        open={chapterPicker.open}
+        onClose={chapterPicker.hide}
+        onPick={(template) => {
+          chapterPicker.hide();
+          void addChapter(template);
+        }}
+      />
 
       <Dialog open={editor.open} onClose={editor.hide} title={editor.value?.record ? 'Edit' : 'Add'} wide>
         {editor.value ? (
@@ -338,6 +381,7 @@ export default function StoryWorkspace(): JSX.Element {
         body="It is removed from the story."
         onConfirm={async () => {
           if (!confirm.value) return;
+          if (confirm.value.record.id === openChapterId) setOpenChapterId(null);
           await collectionFor(confirm.value.collection).remove(confirm.value.record.id);
           toast.success('Deleted');
         }}
@@ -349,84 +393,169 @@ export default function StoryWorkspace(): JSX.Element {
 function ChapterEditor({
   chapter,
   onSave,
+  onDelete,
 }: {
   chapter: StoredRecord;
   onSave: (values: Record<string, unknown>) => Promise<void>;
+  onDelete: () => void;
 }): JSX.Element {
+  const [view, setView] = useState<'write' | 'preview'>('write');
+  const [title, setTitle] = useState(String(chapter['title'] ?? ''));
   const [body, setBody] = useState(String(chapter['body'] ?? ''));
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
   const wordCount = body.trim() ? body.trim().split(/\s+/).length : 0;
-  const dirty = body !== String(chapter['body'] ?? '');
+  const dirty = body !== String(chapter['body'] ?? '') || title !== String(chapter['title'] ?? '');
+
+  const save = (): void => {
+    setSaving(true);
+    void onSave({ title: title.trim() || 'Untitled', body, wordCount })
+      .then(() => setSavedAt(new Date().toLocaleTimeString()))
+      .finally(() => setSaving(false));
+  };
 
   return (
-    <div style={{ marginTop: 'var(--space-4)' }}>
-      <textarea
-        className="textarea"
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
-        rows={18}
-        aria-label={`${String(chapter['title'])} text`}
-        style={{ lineHeight: 1.75, fontSize: 'var(--size-md)' }}
+    <Card>
+      <div className="row row--between" style={{ marginBottom: 'var(--space-3)' }}>
+        <Tabs
+          value={view}
+          onChange={setView}
+          label="Chapter view"
+          options={[
+            { value: 'write', label: 'Write' },
+            { value: 'preview', label: 'Preview' },
+          ]}
+        />
+        <IconButton icon="trash" label="Delete chapter" variant="ghost" size="sm" onClick={onDelete} />
+      </div>
+
+      <input
+        className="input"
+        style={{ fontSize: 'var(--size-lg)', fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-3)' }}
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        aria-label="Chapter title"
+        placeholder="Chapter title"
       />
+
+      {view === 'write' ? (
+        <textarea
+          className="textarea"
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          rows={18}
+          aria-label={`${title} text`}
+          placeholder="Write your chapter here…"
+          style={{ lineHeight: 1.75, fontSize: 'var(--size-md)' }}
+        />
+      ) : (
+        <div className="prose" style={{ minHeight: 300, whiteSpace: 'pre-wrap' }}>
+          {body.trim() ? body : <span className="faint">Nothing written yet.</span>}
+        </div>
+      )}
+
       <div className="row row--between" style={{ marginTop: 'var(--space-3)' }}>
         <span className="tiny faint numeric">
           {wordCount.toLocaleString()} words
           {savedAt ? ` · saved ${savedAt}` : dirty ? ' · unsaved changes' : ''}
         </span>
-        <Button
-          variant="primary"
-          size="sm"
-          icon="check"
-          disabled={!dirty}
-          loading={saving}
-          onClick={() => {
-            setSaving(true);
-            void onSave({ body, wordCount })
-              .then(() => setSavedAt(new Date().toLocaleTimeString()))
-              .finally(() => setSaving(false));
-          }}
-        >
+        <Button variant="primary" size="sm" icon="check" disabled={!dirty} loading={saving} onClick={save}>
           Save chapter
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
-function WorldEditor({
+function StoryInfoPanel({
   story,
   onSave,
 }: {
   story: StoredRecord;
-  onSave: (value: string) => Promise<void>;
+  onSave: (values: Record<string, unknown>) => unknown;
 }): JSX.Element {
-  const [value, setValue] = useState(String(story['worldbuilding'] ?? ''));
-  const [saving, setSaving] = useState(false);
+  const save = (field: string, value: unknown): void => {
+    if (value === (story[field] ?? '')) return;
+    void onSave({ [field]: value });
+  };
 
   return (
-    <>
+    <Card style={{ marginTop: 'var(--space-3)' }}>
+      <div className="field" style={{ marginBottom: 'var(--space-3)' }}>
+        <span className="field__label">Status</span>
+        <div className="row">
+          {STATUS_OPTIONS.map((option) => (
+            <Chip key={option.value} selected={story['status'] === option.value} onClick={() => save('status', option.value)}>
+              {option.label}
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      <AutoSaveField label="Genre" placeholder="Fantasy, romance…" value={String(story['genre'] ?? '')} onSave={(value) => save('genre', value)} />
+      <AutoSaveField label="Setting" placeholder="Where & when" value={String(story['setting'] ?? '')} onSave={(value) => save('setting', value)} />
+      <ColorField label="Accent colour" value={String(story['color'] ?? '#8b5cf6')} onChange={(value) => save('color', value)} />
+      <AutoSaveTextArea label="Synopsis" placeholder="What's the story about?" rows={3} value={String(story['summary'] ?? '')} onSave={(value) => save('summary', value)} />
+      <AutoSaveTextArea label="Worldbuilding & lore" placeholder="Rules, history, magic systems…" rows={4} value={String(story['worldbuilding'] ?? '')} onSave={(value) => save('worldbuilding', value)} />
+    </Card>
+  );
+}
+
+/** A text field that saves itself on blur, once the value has actually changed. */
+function AutoSaveField({
+  label,
+  value,
+  placeholder,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onSave: (value: string) => void;
+}): JSX.Element {
+  const [draft, setDraft] = useState(value);
+  return (
+    <div style={{ marginBottom: 'var(--space-3)' }}>
       <TextField
-        label="Notes about the world"
-        value={value}
-        onChange={setValue}
-        multiline
-        rows={14}
-        hint="Rules, history, geography — whatever needs to stay consistent."
+        label={label}
+        value={draft}
+        onChange={setDraft}
+        {...(placeholder ? { placeholder } : {})}
+        onBlur={() => onSave(draft)}
       />
-      <Button
-        variant="primary"
-        size="sm"
-        disabled={value === String(story['worldbuilding'] ?? '')}
-        loading={saving}
-        onClick={() => {
-          setSaving(true);
-          void onSave(value).finally(() => setSaving(false));
-        }}
-      >
-        Save
-      </Button>
-    </>
+    </div>
+  );
+}
+
+function AutoSaveTextArea({
+  label,
+  value,
+  placeholder,
+  hint,
+  rows = 4,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  hint?: string;
+  rows?: number;
+  onSave: (value: string) => void;
+}): JSX.Element {
+  const [draft, setDraft] = useState(value);
+  return (
+    <div style={{ marginBottom: 'var(--space-3)' }}>
+      <TextField
+        label={label}
+        value={draft}
+        onChange={setDraft}
+        multiline
+        rows={rows}
+        {...(placeholder ? { placeholder } : {})}
+        {...(hint ? { hint } : {})}
+        onBlur={() => onSave(draft)}
+      />
+    </div>
   );
 }

@@ -128,6 +128,11 @@
   --header-height: 56px;
   --content-max: 1180px;
   --content-narrow: 720px;
+  /* The music mini-bar, floated above the other floating controls. Zero by
+     default so a page's bottom padding is unaffected until something is
+     actually playing — set by MusicPlayerBar, not written here directly. */
+  --music-bar-height: 64px;
+  --music-bar-space: 0px;
 
   /* Safe areas, so the floating nav never sits under a home indicator. */
   --safe-top: env(safe-area-inset-top, 0px);
@@ -141,6 +146,12 @@
   --z-overlay: 60;
   --z-modal: 70;
   --z-toast: 90;
+}
+
+/* Set on the document by MusicPlayerBar while a track is loaded, so every
+   screen's bottom padding grows to clear it without importing anything. */
+:root.has-music-bar {
+  --music-bar-space: calc(var(--music-bar-height) + var(--space-3));
 }
 
 /*

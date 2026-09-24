@@ -9,6 +9,7 @@ import { Badge, IconButton } from '../ui/primitives.js';
 import { Atmosphere } from './Atmosphere.js';
 import { BarTitleContext } from './BarTitleContext.js';
 import { FrontingRitual } from './FrontingRitual.js';
+import { MusicPlayerBar } from './MusicPlayerBar.js';
 import { BottomNav, SidebarNav } from './Navigation.js';
 import { QuickActions } from './QuickActions.js';
 import { SyncIndicator } from './SyncIndicator.js';
@@ -102,6 +103,7 @@ export function Layout(): JSX.Element {
       <QuickActions />
       <BottomNav />
       {systemMode ? <FrontingRitual /> : null}
+      <MusicPlayerBar />
     </>
   );
 }

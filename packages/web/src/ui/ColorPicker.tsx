@@ -210,6 +210,7 @@ export function ColorPicker({
    */
   const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(parseHex(value) ? value : '#7aa2f7') ?? FALLBACK_HSV);
   const lastCommitted = useRef(hsvToHex(hsv));
+  const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (value.toLowerCase() === lastCommitted.current.toLowerCase()) return;
@@ -217,15 +218,27 @@ export function ColorPicker({
     if (parsed) setHsv(parsed);
   }, [value]);
 
+  // A held arrow key or a dragged thumb can commit dozens of times a second.
+  // The displayed swatch and slider follow every one of those immediately —
+  // they are local state — but notifying the parent is debounced, because the
+  // parent's onChange for the theme accent goes on to save over the network,
+  // and firing thirty overlapping saves for one continuous gesture is exactly
+  // the kind of pile-up that can leave a slow, late response racing a fast
+  // new one back into this component's own `value` prop.
+  useEffect(() => () => {
+    if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+  }, []);
+
   const hex = hsvToHex(hsv);
 
   const commitHsv = (next: Hsv): void => {
     setHsv(next);
     const nextHex = hsvToHex(next);
     lastCommitted.current = nextHex;
-    onChange(nextHex);
     rememberRecent(nextHex);
     setRecent(readRecent());
+    if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+    onChangeTimer.current = setTimeout(() => onChange(nextHex), 150);
   };
 
   const commitHex = (nextHex: string): void => {

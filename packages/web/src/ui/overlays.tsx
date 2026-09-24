@@ -47,6 +47,9 @@ export interface DialogProps {
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  /** Covers the whole viewport instead of floating a panel over the page — for a
+   *  view that wants to be the only thing on screen, like a now-playing player. */
+  fullscreen?: boolean;
   /** Prevents closing by backdrop or Escape, for a step that must be answered. */
   dismissible?: boolean;
 }
@@ -62,6 +65,7 @@ export function Dialog({
   children,
   footer,
   wide,
+  fullscreen,
   dismissible = true,
 }: DialogProps): JSX.Element | null {
   const panel = useRef<HTMLDivElement>(null);
@@ -132,14 +136,14 @@ export function Dialog({
 
   return createPortal(
     <div
-      className="overlay"
+      className={`overlay${fullscreen ? ' overlay--fullscreen' : ''}`}
       onMouseDown={(event) => {
         if (dismissible && event.target === event.currentTarget) onClose();
       }}
     >
       <div
         ref={panel}
-        className={`dialog${wide ? ' dialog--wide' : ''}`}
+        className={`dialog${wide ? ' dialog--wide' : ''}${fullscreen ? ' dialog--fullscreen' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
