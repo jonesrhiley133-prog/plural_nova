@@ -7,7 +7,7 @@ import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, IconButton, Stat } from '../ui/primitives.js';
 import { NumberField, TextField } from '../ui/forms.js';
-import { AsyncContent, EmptyState, LoadingLine } from '../ui/feedback.js';
+import { AsyncContent, EmptyState, ErrorPanel, LoadingLine } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { Icon } from '../ui/Icon.js';
@@ -36,6 +36,7 @@ export default function Vault(): JSX.Element {
   const { t } = useI18n();
 
   const [status, setStatus] = useState<VaultStatus | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,7 +51,12 @@ export default function Vault(): JSX.Element {
     try {
       const result = await api.get<VaultStatus>('/api/vault/status');
       setStatus(result);
+      setStatusError(null);
     } catch (cause) {
+      // The lock state is a property of the server session, not something to
+      // guess from a cache — offline, this stays an honest "can't check"
+      // rather than assuming either locked or unlocked.
+      setStatusError(messageFor(cause));
       toast.fromError(cause, 'Could not check the vault');
     }
   }, [toast]);
@@ -88,7 +94,11 @@ export default function Vault(): JSX.Element {
       <>
         <PageHeader title="Private vault" />
         <Card>
-          <LoadingLine label="Checking the vault…" />
+          {statusError ? (
+            <ErrorPanel title="Could not check the vault" message={statusError} onRetry={() => void load()} />
+          ) : (
+            <LoadingLine label="Checking the vault…" />
+          )}
         </Card>
       </>
     );
@@ -289,10 +299,12 @@ export default function Vault(): JSX.Element {
           onChange={(value) => {
             void saveSettings({
               privacy: { ...settings.privacy, vaultAutoLockMinutes: Math.max(1, value ?? 5) },
-            }).then(() => {
-              toast.success('Saved');
-              void load();
-            });
+            })
+              .then(() => {
+                toast.success('Saved');
+                void load();
+              })
+              .catch((cause: unknown) => toast.fromError(cause, 'Could not save that'));
           }}
           min={1}
           max={240}

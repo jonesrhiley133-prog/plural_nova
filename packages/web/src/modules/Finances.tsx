@@ -5,7 +5,7 @@ import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, IconButton, Meter, Stat, Tabs } from '../ui/primitives.js';
-import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
+import { AsyncContent, DescriptiveNote, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { Icon } from '../ui/Icon.js';
@@ -105,7 +105,11 @@ export default function Finances(): JSX.Element {
         }))}
       />
 
-      {tab === 'overview' ? (
+      {tab === 'overview' && stats.loading && !stats.data ? (
+        <SkeletonCards count={4} />
+      ) : tab === 'overview' && stats.error && !stats.data ? (
+        <ErrorPanel message={stats.error} onRetry={stats.reload} />
+      ) : tab === 'overview' ? (
         <div className="stack">
           <div className="stat-grid">
             <Stat label="Balance" value={money(stats.data?.totalBalance ?? 0)} detail="across all accounts" />

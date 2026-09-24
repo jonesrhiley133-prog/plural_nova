@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { newId, now, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { ApiRequestError, api, isOffline, messageFor } from './api.js';
-import { clearCollection, putRecords, readCollection, removeRecord } from './localdb.js';
+import { clearCollection, getMeta, putRecords, readCollection, removeRecord, setMeta } from './localdb.js';
 import { syncEngine } from './sync.js';
 
 /**
@@ -390,6 +390,11 @@ export function useRecordMap(collection: string): Map<string, StoredRecord> {
 /**
  * A one-off server request with loading and error state, for endpoints that are
  * computed rather than stored — statistics, the daily summary, search.
+ *
+ * The last answer for a given path and query is kept locally, the same way a
+ * collection's records are: read first so a repeat visit never opens blank,
+ * then replaced by whatever the network returns. Offline, that cached answer
+ * is what stays on screen instead of an error where a chart used to be.
  */
 export function useQuery<T>(
   path: string | null,
@@ -408,27 +413,40 @@ export function useQuery<T>(
       setLoading(false);
       return;
     }
-    setLoading(true);
+    const cacheKey = `query:${path}?${serialised}`;
     setError(null);
 
-    api
-      .get<T>(path, JSON.parse(serialised) as Record<string, string>)
-      .then((result) => {
+    let hadCache = false;
+    void (async () => {
+      const cached = await getMeta<T>(cacheKey);
+      if (!active.current) return;
+      if (cached !== null) {
+        hadCache = true;
+        setData(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const result = await api.get<T>(path, JSON.parse(serialised) as Record<string, string>);
         if (!active.current) return;
         setData(result);
         setError(null);
-      })
-      .catch((cause: unknown) => {
+        void setMeta(cacheKey, result);
+      } catch (cause) {
         if (!active.current) return;
         setError(
           cause instanceof ApiRequestError && isOffline(cause)
-            ? 'Shown from this device. Reconnect for the latest.'
+            ? hadCache
+              ? 'Shown from this device. Reconnect for the latest.'
+              : 'Not on this device yet — open this once while connected.'
             : messageFor(cause),
         );
-      })
-      .finally(() => {
+      } finally {
         if (active.current) setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       active.current = false;

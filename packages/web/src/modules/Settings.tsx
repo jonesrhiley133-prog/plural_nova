@@ -174,18 +174,26 @@ function Appearance(): JSX.Element {
   };
 
   const saveCurrentAsPreset = async (): Promise<void> => {
-    const preset = createCustomPreset(presetName, theme);
-    await saveSettings({ customThemePresets: [...customPresets, preset] });
-    await update({ presetId: preset.id });
-    saveDialog.hide();
-    toast.success('Saved', `"${preset.label}" was added to your presets.`);
+    try {
+      const preset = createCustomPreset(presetName, theme);
+      await saveSettings({ customThemePresets: [...customPresets, preset] });
+      await update({ presetId: preset.id });
+      saveDialog.hide();
+      toast.success('Saved', `"${preset.label}" was added to your presets.`);
+    } catch (cause) {
+      toast.fromError(cause, 'Could not save that preset');
+    }
   };
 
   const duplicatePreset = async (preset: ThemePreset): Promise<void> => {
-    const copy = createCustomPreset(`${preset.label} (copy)`, preset.settings);
-    await saveSettings({ customThemePresets: [...customPresets, copy] });
-    applyPreset(copy);
-    toast.success('Duplicated', `Adjust "${copy.label}" freely — the original is untouched.`);
+    try {
+      const copy = createCustomPreset(`${preset.label} (copy)`, preset.settings);
+      await saveSettings({ customThemePresets: [...customPresets, copy] });
+      applyPreset(copy);
+      toast.success('Duplicated', `Adjust "${copy.label}" freely — the original is untouched.`);
+    } catch (cause) {
+      toast.fromError(cause, 'Could not duplicate that preset');
+    }
   };
 
   const deletePreset = async (preset: ThemePreset): Promise<void> => {
@@ -918,9 +926,9 @@ function Navigation(): JSX.Element {
             { value: 'singlet', label: term('Singlet Mode — {{system}} features hidden') },
           ]}
           onChange={(value) => {
-            void saveSettings({ mode: value as 'system' | 'singlet' }).then(() =>
-              toast.success('Saved', 'Nothing was deleted — switching back brings it all straight back.'),
-            );
+            void saveSettings({ mode: value as 'system' | 'singlet' })
+              .then(() => toast.success('Saved', 'Nothing was deleted — switching back brings it all straight back.'))
+              .catch((cause: unknown) => toast.fromError(cause, 'Could not switch modes'));
           }}
           placeholder="System Mode"
         />

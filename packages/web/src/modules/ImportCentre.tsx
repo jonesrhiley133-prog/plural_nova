@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CRUD_COLLECTIONS, requireCollection, type ConflictStrategy } from '@pluralnova/shared';
 import { api, messageFor } from '../core/api.js';
 import { recordStore } from '../core/data.js';
+import { getMeta, setMeta } from '../core/localdb.js';
 import { syncEngine } from '../core/sync.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -67,8 +68,13 @@ export default function ImportCentre(): JSX.Element {
     try {
       const result = await api.get<{ sources: ImportSource[] }>('/api/data/import/sources');
       setSources(result.sources);
+      void setMeta('importSources', result.sources);
     } catch {
-      // The list is convenience; the import itself still works from the ids.
+      // This list never varies per account, so a copy seen once before is as
+      // good as a fresh one — offline, that beats the form quietly refusing
+      // to render because nothing matched an empty list.
+      const cached = await getMeta<ImportSource[]>('importSources');
+      if (cached) setSources(cached);
     }
   }, []);
 

@@ -468,28 +468,6 @@ systemRouter.post(
   }),
 );
 
-/** Bulk reordering from the Organise screen, applied in one transaction. */
-systemRouter.post(
-  '/organize',
-  handler((req, res) => {
-    const context = requireSystemMode(req);
-    const moves = (req.body as { moves?: { memberId: string; groupId?: string | null; subsystemId?: string | null; orbitOrder?: number }[] }).moves;
-    if (!Array.isArray(moves)) throw badRequest('Send a "moves" array.');
-
-    const applied: string[] = [];
-    for (const move of moves) {
-      const patch: Record<string, unknown> = {};
-      if (move.groupId !== undefined) patch['groupId'] = move.groupId;
-      if (move.subsystemId !== undefined) patch['subsystemId'] = move.subsystemId;
-      if (move.orbitOrder !== undefined) patch['orbitOrder'] = move.orbitOrder;
-      if (Object.keys(patch).length === 0) continue;
-      updateRecord('members', context.scope, move.memberId, patch);
-      applied.push(move.memberId);
-    }
-    ok(res, { applied: applied.length });
-  }),
-);
-
 systemRouter.delete(
   '/:id',
   handler((req, res) => {
