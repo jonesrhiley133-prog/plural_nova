@@ -93,7 +93,12 @@ export function Layout(): JSX.Element {
           <main id="main-content" className="app-main" tabIndex={-1}>
             <ErrorBoundary label={title} onReset={() => navigate(0)}>
               <BarTitleContext.Provider value={current ? title : null}>
-                <Outlet />
+                {/* Keyed by path, so every navigation — not just a route that
+                    happens to mount a different component tree — is a fresh
+                    element for .app-main > * to animate in. */}
+                <div key={location.pathname} className="page-transition">
+                  <Outlet />
+                </div>
               </BarTitleContext.Provider>
             </ErrorBoundary>
           </main>

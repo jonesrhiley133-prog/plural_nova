@@ -938,7 +938,7 @@ function Navigation(): JSX.Element {
             value={id}
             options={[
               ...available.map((item) => ({ value: item.id, label: term(item.label) })),
-              { value: 'more', label: 'More' },
+              { value: 'more', label: 'Hub' },
             ]}
             onChange={(value) => setTab(index, value)}
             placeholder="Choose a screen"

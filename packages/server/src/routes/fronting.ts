@@ -179,7 +179,7 @@ frontingRouter.post(
       startedAt?: string;
       note?: string;
       mood?: string;
-      location?: string;
+      locationIds?: string[];
       activity?: string;
       tags?: string[];
       endOthers?: boolean;
@@ -212,7 +212,7 @@ frontingRouter.post(
           startedAt: body.startedAt ?? now(),
           endedAt: null,
           activity: body.activity ?? '',
-          location: body.location ?? '',
+          locationIds: body.locationIds ?? [],
           mood: body.mood ?? '',
           note: body.note ?? '',
           tags: body.tags ?? [],

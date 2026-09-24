@@ -42,7 +42,7 @@ export interface StartFrontInput {
   startedAt?: string;
   note?: string;
   mood?: string;
-  location?: string;
+  locationIds?: string[];
   activity?: string;
   tags?: string[];
   endOthers?: boolean;

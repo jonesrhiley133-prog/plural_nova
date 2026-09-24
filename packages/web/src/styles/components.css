@@ -397,6 +397,38 @@
   gap: var(--space-1);
 }
 
+/*
+ * A rating, not a badge: the same outline star used everywhere else (a
+ * favourite, a bookmark) rather than a one-off filled glyph, so "starred"
+ * keeps meaning one thing across the app. Colour carries "on" the way it
+ * already does for Favourite, not a fill swap.
+ */
+.star-field {
+  display: flex;
+  gap: 2px;
+}
+
+.star-field__star {
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--border-strong);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
+}
+
+.star-field__star[data-filled='true'] {
+  color: var(--caution);
+}
+
+.star-field__star:hover {
+  color: var(--caution);
+}
+
+.star-field__star:active {
+  transform: scale(0.9);
+}
+
 .input,
 .textarea,
 .select {

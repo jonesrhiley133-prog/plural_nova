@@ -112,7 +112,9 @@ export const calendarEvents: CollectionDef = {
     f.datetime('startsAt', 'Starts', { required: true, inList: true }),
     f.datetime('endsAt', 'Ends'),
     f.bool('allDay', 'All day'),
-    f.text('location', 'Location', { searchable: true }),
+    f.refs('locationIds', 'Locations', 'locationEntries', {
+      hint: 'Pick from the places you\'ve set up.',
+    }),
     f.refs('memberIds', 'Members involved', 'members'),
     f.color('color', 'Colour', { group: 'Appearance' }),
     /*
@@ -334,7 +336,7 @@ export const sleepEntries: CollectionDef = {
     f.datetime('startedAt', 'Fell asleep', { required: true, inList: true }),
     f.datetime('endedAt', 'Woke up', { inList: true }),
     f.int('durationMinutes', 'Duration', { inList: true }),
-    f.int('quality', 'Quality', { min: 1, max: 5, inList: true }),
+    f.int('quality', 'Quality', { min: 0, max: 5, inList: true, stars: true }),
     f.bool('isNap', 'Nap'),
     f.int('awakenings', 'Times awake', { min: 0, max: 50 }),
     f.text('mood', 'Mood on waking'),
@@ -378,7 +380,10 @@ export const sleepEntries: CollectionDef = {
      * Environment, because a pattern here is usually the answer when nothing
      * else explains a run of bad nights, and none of it is knowable later.
      */
-    f.text('location', 'Where', { group: 'Environment', hint: 'Home, away, somewhere new.' }),
+    f.refs('locationIds', 'Where', 'locationEntries', {
+      group: 'Environment',
+      hint: 'Home, away, somewhere new — pick from the places you\'ve set up.',
+    }),
     f.enumOf(
       'noise',
       'Noise',
@@ -458,7 +463,7 @@ export const fitnessEntries: CollectionDef = {
     ),
     f.datetime('startedAt', 'Started', { group: 'Activity' }),
     f.datetime('endedAt', 'Ended', { group: 'Activity' }),
-    f.text('location', 'Where', { group: 'Activity' }),
+    f.refs('locationIds', 'Where', 'locationEntries', { group: 'Activity' }),
 
     f.int('calories', 'Energy (kcal)', { min: 0, group: 'Measurements' }),
     f.int('heartRateAvg', 'Average heart rate', { min: 20, max: 250, group: 'Measurements' }),

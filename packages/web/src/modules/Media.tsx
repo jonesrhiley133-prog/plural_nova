@@ -283,7 +283,7 @@ export default function Media(): JSX.Element {
         <RecordForm
           collection="mediaItems"
           record={editor.value}
-          fields={['title', 'description', 'folder', 'tags', 'favorite', 'pinned', 'inVault', 'memberId']}
+          fields={['title', 'description', 'folder', 'favorite', 'pinned', 'inVault', 'memberId']}
           onSubmit={async (values) => {
             if (!editor.value) return;
             await media.update(editor.value.id, values);

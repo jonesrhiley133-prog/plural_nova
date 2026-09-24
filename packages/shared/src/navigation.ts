@@ -127,7 +127,7 @@ export const NAVIGATION: readonly NavCategory[] = [
   },
   {
     id: 'more',
-    label: 'More',
+    label: 'Hub',
     icon: 'more',
     color: '#94a3b8',
     items: [

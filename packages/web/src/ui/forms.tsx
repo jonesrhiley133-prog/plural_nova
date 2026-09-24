@@ -189,6 +189,59 @@ export function NumberField({
   );
 }
 
+/**
+ * A tappable star rating from 0 to `max`. Tapping the star already set clears
+ * back to 0 rather than sitting on it, which is the only way to reach 0 from
+ * a row of stars without a separate "no rating" control.
+ */
+export function StarField({
+  label,
+  value,
+  onChange,
+  max = 5,
+  hint,
+  error,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+  max?: number;
+  hint?: string;
+  error?: string;
+}): JSX.Element {
+  const rating = value ?? 0;
+
+  return (
+    <Field label={label} {...(hint ? { hint } : {})} {...(error ? { error } : {})}>
+      {({ id, describedBy, invalid }) => (
+        <div
+          id={id}
+          className="star-field"
+          role="radiogroup"
+          aria-label={label}
+          aria-describedby={describedBy}
+          aria-invalid={invalid}
+        >
+          {Array.from({ length: max }, (_, index) => index + 1).map((star) => (
+            <button
+              key={star}
+              type="button"
+              className="star-field__star"
+              data-filled={star <= rating}
+              role="radio"
+              aria-checked={star === rating}
+              aria-label={`${star} of ${max} stars`}
+              onClick={() => onChange(star === rating ? 0 : star)}
+            >
+              <Icon name="star" size={22} />
+            </button>
+          ))}
+        </div>
+      )}
+    </Field>
+  );
+}
+
 export function SelectField({
   label,
   value,

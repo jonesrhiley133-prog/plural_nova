@@ -57,6 +57,8 @@ export interface FieldDef {
   min?: number;
   max?: number;
   maxLength?: number;
+  /** `int` only — a tappable star rating instead of a number field. */
+  stars?: boolean;
   /** Rendered in compact list rows. */
   inList?: boolean;
   /** Included in global search. */

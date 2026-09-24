@@ -144,6 +144,7 @@
   border: none;
   background: transparent;
   color: var(--text-faint);
+  text-decoration: none;
   font-size: 10px;
   font-weight: var(--weight-medium);
   cursor: pointer;

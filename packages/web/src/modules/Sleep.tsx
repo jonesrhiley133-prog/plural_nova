@@ -39,6 +39,7 @@ export default function Sleep(): JSX.Element {
   const toast = useToast();
   const entries = useCollection('sleepEntries');
   const members = useRecordMap('members');
+  const locations = useRecordMap('locationEntries');
   const editor = useDialog<StoredRecord>();
   const confirm = useDialog<StoredRecord>();
   const [creating, setCreating] = useState(false);
@@ -164,6 +165,10 @@ export default function Sleep(): JSX.Element {
                   entry['sleepTalking'] === true ? 'Sleep talking' : null,
                 ].filter((flag): flag is string => flag !== null);
                 const medications = Array.isArray(entry['medications']) ? (entry['medications'] as string[]) : [];
+                const locationNames = ((entry['locationIds'] as string[]) ?? [])
+                  .map((id) => locations.get(id)?.['name'])
+                  .filter((name): name is string => Boolean(name))
+                  .join(', ');
                 const hasDetail =
                   Boolean(entry['bedtime']) ||
                   Boolean(entry['outOfBedAt']) ||
@@ -171,7 +176,7 @@ export default function Sleep(): JSX.Element {
                   flags.length > 0 ||
                   Boolean(entry['moodBefore']) ||
                   Boolean(entry['stress']) ||
-                  Boolean(entry['location']) ||
+                  locationNames.length > 0 ||
                   Boolean(entry['noise']) ||
                   Boolean(entry['lightLevel']) ||
                   Boolean(entry['temperature']) ||
@@ -243,7 +248,7 @@ export default function Sleep(): JSX.Element {
                             ['Caffeine that day', entry['caffeine'] === true ? 'Yes' : null],
                             ['Exercised that day', entry['exercised'] === true ? 'Yes' : null],
                             ['Medications', medications.length > 0 ? medications : null],
-                            ['Where', entry['location'] ? String(entry['location']) : null],
+                            ['Where', locationNames.length > 0 ? locationNames : null],
                             ['Noise', enumLabel('sleepEntries', 'noise', entry['noise'])],
                             ['Light', enumLabel('sleepEntries', 'lightLevel', entry['lightLevel'])],
                             ['Temperature', enumLabel('sleepEntries', 'temperature', entry['temperature'])],

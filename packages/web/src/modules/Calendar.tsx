@@ -29,6 +29,7 @@ export default function Calendar(): JSX.Element {
   const toast = useToast();
   const { settings } = useAuth();
   const members = useRecordMap('members');
+  const locations = useRecordMap('locationEntries');
 
   const [view, setView] = useState<View>('month');
   const [cursor, setCursor] = useState(() => new Date());
@@ -137,6 +138,7 @@ export default function Calendar(): JSX.Element {
           day={selectedDay}
           events={byDay.get(selectedDay) ?? []}
           members={members}
+          locations={locations}
           onEdit={(event) => editor.show(event)}
           onDelete={(event) => confirm.show(event)}
           onAdd={() => setCreating(true)}
@@ -356,6 +358,7 @@ function DayList({
   day,
   events,
   members,
+  locations,
   onEdit,
   onDelete,
   onAdd,
@@ -363,6 +366,7 @@ function DayList({
   day: string;
   events: StoredRecord[];
   members: Map<string, StoredRecord>;
+  locations: Map<string, StoredRecord>;
   onEdit: (event: StoredRecord) => void;
   onDelete: (event: StoredRecord) => void;
   onAdd: () => void;
@@ -401,11 +405,16 @@ function DayList({
                           event['endsAt'] ? ` – ${dates.time(String(event['endsAt']))}` : ''
                         }`}
                   </span>
-                  {event['location'] ? (
-                    <span className="faint">
-                      <Icon name="location" size={11} /> {String(event['location'])}
-                    </span>
-                  ) : null}
+                  {(() => {
+                    const names = ((event['locationIds'] as string[]) ?? [])
+                      .map((id) => locations.get(id)?.['name'])
+                      .filter((name): name is string => Boolean(name));
+                    return names.length > 0 ? (
+                      <span className="faint">
+                        <Icon name="location" size={11} /> {names.join(', ')}
+                      </span>
+                    ) : null;
+                  })()}
                   {((event['memberIds'] as string[]) ?? []).map((id) => {
                     const member = members.get(id);
                     return member ? (
