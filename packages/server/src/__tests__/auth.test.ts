@@ -136,4 +136,57 @@ describe('authentication', () => {
     const after = await client.request('GET', '/api/records/journalEntries', { token });
     expect(after.body.data.total).toBe(before.body.data.total);
   });
+
+  it('logs a restorable entry when a setting changes, and restoring it puts the value back', async () => {
+    const account = await registerUser(client);
+    const me = await client.request('GET', '/api/auth/me', { token: account.token });
+    const originalWeekStart = me.body.data.settings.weekStart;
+    const flipped = originalWeekStart === 1 ? 0 : 1;
+
+    const changed = await client.request('PUT', '/api/auth/settings', {
+      token: account.token,
+      body: { weekStart: flipped },
+    });
+    expect(changed.status).toBe(200);
+    expect(changed.body.data.settings.weekStart).toBe(flipped);
+
+    const history = await client.request('GET', '/api/stats/activity', { token: account.token });
+    const entry = (history.body.data.items as any[]).find(
+      (item) => item.entityId === 'weekStart' && item.restorable,
+    );
+    expect(entry).toBeTruthy();
+    expect(entry.category).toBe('settings');
+    expect(JSON.parse(entry.newValue)).toBe(flipped);
+    expect(JSON.parse(entry.previousValue)).toBe(originalWeekStart);
+
+    const restored = await client.request('POST', `/api/auth/history/${entry.id}/restore`, {
+      token: account.token,
+    });
+    expect(restored.status).toBe(200);
+    expect(restored.body.data.settings.weekStart).toBe(originalWeekStart);
+
+    // A restored entry cannot be restored a second time.
+    const again = await client.request('POST', `/api/auth/history/${entry.id}/restore`, {
+      token: account.token,
+    });
+    expect(again.status).toBe(400);
+  });
+
+  it('reports category counts on the activity feed and can filter by one', async () => {
+    const account = await registerUser(client);
+    await client.request('PUT', '/api/auth/settings', {
+      token: account.token,
+      body: { weekStart: 0 },
+    });
+
+    const history = await client.request('GET', '/api/stats/activity', { token: account.token });
+    const categories = history.body.data.categories as { key: string; count: number }[];
+    expect(categories.some((entry) => entry.key === 'settings')).toBe(true);
+
+    const filtered = await client.request('GET', '/api/stats/activity?category=settings', {
+      token: account.token,
+    });
+    expect(filtered.body.data.items.length).toBeGreaterThan(0);
+    expect((filtered.body.data.items as any[]).every((item) => item.category === 'settings')).toBe(true);
+  });
 });

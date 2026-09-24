@@ -380,6 +380,7 @@ statsRouter.get(
     const limit = Math.min(200, Math.max(1, Number(req.query['limit'] ?? 60)));
     const memberId = typeof req.query['memberId'] === 'string' ? req.query['memberId'] : undefined;
     const eventType = typeof req.query['eventType'] === 'string' ? req.query['eventType'] : undefined;
+    const category = typeof req.query['category'] === 'string' ? req.query['category'] : undefined;
     const from = typeof req.query['from'] === 'string' ? req.query['from'] : undefined;
 
     const history = listRecords('systemHistory', context.scope, {
@@ -387,7 +388,7 @@ statsRouter.get(
       sortField: 'occurredAt',
       sortDir: 'desc',
       ...(memberId ? { memberId } : {}),
-      filters: eventType ? { eventType } : {},
+      filters: { ...(eventType ? { eventType } : {}), ...(category ? { category } : {}) },
       ...(from ? { range: { field: 'occurredAt', from } } : {}),
     });
 
@@ -395,6 +396,7 @@ statsRouter.get(
     ok(res, {
       ...history,
       eventTypes: topEntries(countBy(types, (row) => String(row['eventType'] ?? '')), 30),
+      categories: topEntries(countBy(types, (row) => String(row['category'] ?? 'other')), 9),
     });
   }),
 );

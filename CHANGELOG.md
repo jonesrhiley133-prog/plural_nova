@@ -10,6 +10,25 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.7] — 2026-09-24
+
+### Added
+
+- **Typed custom fields, with an editor.** A member's custom fields are no
+  longer a flat, unlabelled list — each one has a type (short text, a
+  rating, a colour, a link, a yes/no, tags, and more), and an editor to add,
+  reorder, and remove them. A field can carry a group of its own, and those
+  render as their own card on the profile; anything already saved in the old
+  shape upgrades to the new one automatically, in memory, the moment it is
+  read.
+- **System history shows what actually changed, and can put settings back.**
+  Entries now carry a category (chips to filter by, alongside the existing
+  event-type filter) and, for settings changes, a before-and-after. An
+  object-valued setting like the whole theme diffs key by key — "fontFamily:
+  lexend → serif" — rather than printing two copies of the object side by
+  side. A restorable entry gets a Restore button that puts that one value
+  back and logs the reversal as its own entry.
+
 ## [1.0.6] — 2026-09-23
 
 ### Changed

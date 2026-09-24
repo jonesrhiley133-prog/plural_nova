@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { formatDuration, type StoredRecord } from '@pluralnova/shared';
+import { formatDuration, upgradeLegacyCustomFields, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -11,6 +11,7 @@ import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { SwitchRow } from '../ui/forms.js';
+import { CustomFieldsEditor, CustomFieldsView } from '../ui/CustomFields.js';
 import { Icon } from '../ui/Icon.js';
 
 /**
@@ -164,7 +165,7 @@ export default function MemberProfile(): JSX.Element {
 
       {tab === 'overview' ? <Overview member={member} /> : null}
       {tab === 'identity' ? <Identity member={member} /> : null}
-      {tab === 'about' ? <About member={member} /> : null}
+      {tab === 'about' ? <About member={member} onChange={update} /> : null}
       {tab === 'fronting' ? <FrontingTab member={member} /> : null}
       {tab === 'relationships' ? <RelationshipsTab member={member} /> : null}
       {tab === 'journal' ? <MemberJournal member={member} /> : null}
@@ -274,8 +275,17 @@ function Identity({ member }: { member: StoredRecord }): JSX.Element {
   );
 }
 
-function About({ member }: { member: StoredRecord }): JSX.Element {
-  const custom = (member['customFields'] ?? {}) as Record<string, unknown>;
+function About({
+  member,
+  onChange,
+}: {
+  member: StoredRecord;
+  onChange: (id: string, patch: Record<string, unknown>) => Promise<StoredRecord>;
+}): JSX.Element {
+  const toast = useToast();
+  const editor = useDialog();
+  const customFields = useMemo(() => upgradeLegacyCustomFields(member['customFields']), [member]);
+
   return (
     <div className="stack">
       <Card title="About">
@@ -289,16 +299,33 @@ function About({ member }: { member: StoredRecord }): JSX.Element {
           ]}
         />
       </Card>
-      {Object.keys(custom).length > 0 ? (
-        <Card title="Custom fields" subtitle="Fields this profile added">
-          <FieldList rows={Object.entries(custom)} />
-        </Card>
-      ) : null}
+
+      <CustomFieldsView
+        fields={customFields}
+        actions={
+          <Button variant="ghost" size="sm" icon="edit" onClick={() => editor.show()}>
+            Edit
+          </Button>
+        }
+      />
+
       {member['notes'] ? (
         <Card title="Notes" subtitle="Private to this account">
           <p className="prose">{String(member['notes'])}</p>
         </Card>
       ) : null}
+
+      <Dialog open={editor.open} onClose={editor.hide} title="Custom fields">
+        <CustomFieldsEditor
+          value={customFields}
+          onCancel={editor.hide}
+          onSave={async (next) => {
+            await onChange(member.id, { customFields: next });
+            toast.success('Saved');
+            editor.hide();
+          }}
+        />
+      </Dialog>
     </div>
   );
 }

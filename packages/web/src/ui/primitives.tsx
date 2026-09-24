@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  isValidElement,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type KeyboardEvent,
@@ -550,6 +551,8 @@ export function FieldList({ rows }: { rows: [string, unknown][] }): JSX.Element 
                   <Chip key={String(item)}>{String(item)}</Chip>
                 ))}
               </span>
+            ) : isValidElement(value) ? (
+              value
             ) : (
               String(value)
             )}
