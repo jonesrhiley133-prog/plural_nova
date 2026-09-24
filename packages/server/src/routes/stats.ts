@@ -145,20 +145,27 @@ statsRouter.get(
     const members = listRecords('members', context.scope, { limit: 500 }).items;
     const byId = new Map(members.map((m) => [m.id, m]));
 
+    const moods = inRange('moodEntries', 'recordedAt');
+    const emotions = inRange('emotionEntries', 'recordedAt');
+    const sensations = inRange('bodySensations', 'recordedAt');
+    const journal = inRange('journalEntries', 'entryDate');
+    const sleep = inRange('sleepEntries', 'startedAt', 20);
+
     ok(res, {
       date,
+      insights: dayInsights(context.scope, date, from, { moods, emotions, sensations, journal, sleep, fronts }),
       fronting: fronts.map((event) => ({
         ...event,
         minutes: eventMinutes(event),
         memberName: event.memberId ? ((byId.get(event.memberId)?.['name'] as string) ?? null) : null,
       })),
-      moods: inRange('moodEntries', 'recordedAt'),
-      emotions: inRange('emotionEntries', 'recordedAt').map((entry) => ({
+      moods,
+      emotions: emotions.map((entry) => ({
         ...entry,
         emotion: getEmotion(String(entry['emotionId'])) ?? null,
       })),
-      sensations: inRange('bodySensations', 'recordedAt'),
-      journal: inRange('journalEntries', 'entryDate'),
+      sensations,
+      journal,
       notes: listRecords('notes', context.scope, { limit: 50, range: { field: 'createdAt', from, to } }).items,
       tasks: listRecords('tasks', context.scope, { limit: 100, range: { field: 'dueAt', from, to } }).items,
       completedTasks: listRecords('tasks', context.scope, {
@@ -166,7 +173,7 @@ statsRouter.get(
         range: { field: 'completedAt', from, to },
       }).items,
       events: inRange('calendarEvents', 'startsAt'),
-      sleep: inRange('sleepEntries', 'startedAt', 20),
+      sleep,
       wellness: inRange('wellnessEntries', 'recordedAt', 20),
       fitness: inRange('fitnessEntries', 'performedAt', 50),
       locations: inRange('locationEntries', 'visitedAt', 50),
@@ -174,6 +181,104 @@ statsRouter.get(
     });
   }),
 );
+
+/**
+ * Observations for one day, each a plain comparison against a trailing
+ * fortnight ending the day before — never the day itself, so "today" is
+ * never folded into its own baseline. A category only appears once the
+ * baseline has at least three entries to compare against, so a quiet
+ * comparison never gets more confidence than three data points earn it.
+ * These are numbers next to other numbers, not conclusions about anyone.
+ */
+function dayInsights(
+  scope: Parameters<typeof listRecords>[1],
+  date: string,
+  from: string,
+  today: {
+    moods: ReturnType<typeof listRecords>['items'];
+    emotions: ReturnType<typeof listRecords>['items'];
+    sensations: ReturnType<typeof listRecords>['items'];
+    journal: ReturnType<typeof listRecords>['items'];
+    sleep: ReturnType<typeof listRecords>['items'];
+    fronts: FrontEventLike[];
+  },
+): {
+  mood: { today: number; baseline: number } | null;
+  emotions: { todayCount: number; baselineCountPerDay: number; todayAverage: number; baselineAverage: number } | null;
+  sensations: { todayCount: number; baselineCountPerDay: number } | null;
+  fronting: { todayMinutes: number; baselineMinutesPerDay: number } | null;
+  sleep: { todayMinutes: number; baselineMinutes: number } | null;
+  journalStreak: number;
+} {
+  const baselineDays = 14;
+  const baselineTo = from;
+  const baselineFrom = new Date(new Date(from).getTime() - baselineDays * 86_400_000).toISOString();
+  const baseline = (collection: string, field: string, limit = 500) =>
+    listRecords(collection, scope, { limit, range: { field, from: baselineFrom, to: baselineTo } }).items;
+
+  const baselineMoods = baseline('moodEntries', 'recordedAt');
+  const baselineEmotions = baseline('emotionEntries', 'recordedAt');
+  const baselineSensations = baseline('bodySensations', 'recordedAt');
+  const baselineJournal = baseline('journalEntries', 'entryDate');
+  const baselineSleep = baseline('sleepEntries', 'startedAt');
+  const baselineFronts = baseline('frontEvents', 'startedAt') as unknown as FrontEventLike[];
+
+  const scored = (rows: ReturnType<typeof listRecords>['items'], field: string) =>
+    rows.map((row) => Number(row[field] ?? 0)).filter((value) => value > 0);
+  const round1 = (value: number): number => Math.round(value * 10) / 10;
+
+  const todayMoodScores = scored(today.moods, 'score');
+  const baselineMoodScores = scored(baselineMoods, 'score');
+  const mood =
+    todayMoodScores.length > 0 && baselineMoodScores.length >= 3
+      ? { today: round1(average(todayMoodScores)), baseline: round1(average(baselineMoodScores)) }
+      : null;
+
+  const todayIntensities = scored(today.emotions, 'intensity');
+  const baselineIntensities = scored(baselineEmotions, 'intensity');
+  const emotionsInsight =
+    today.emotions.length > 0 && baselineEmotions.length >= 3
+      ? {
+          todayCount: today.emotions.length,
+          baselineCountPerDay: round1(baselineEmotions.length / baselineDays),
+          todayAverage: round1(average(todayIntensities)),
+          baselineAverage: round1(average(baselineIntensities)),
+        }
+      : null;
+
+  const sensationsInsight =
+    baselineSensations.length >= 3
+      ? { todayCount: today.sensations.length, baselineCountPerDay: round1(baselineSensations.length / baselineDays) }
+      : null;
+
+  const todayFrontMinutes = today.fronts.reduce((sum, event) => sum + eventMinutes(event), 0);
+  const baselineFrontMinutes = baselineFronts.reduce((sum, event) => sum + eventMinutes(event), 0);
+  const fronting =
+    baselineFronts.length >= 3
+      ? { todayMinutes: todayFrontMinutes, baselineMinutesPerDay: Math.round(baselineFrontMinutes / baselineDays) }
+      : null;
+
+  const todaySleepMinutes = today.sleep.reduce((sum, entry) => sum + Number(entry['durationMinutes'] ?? 0), 0);
+  const baselineSleepMinutes = scored(baselineSleep, 'durationMinutes');
+  const sleepInsight =
+    today.sleep.length > 0 && baselineSleepMinutes.length >= 3
+      ? { todayMinutes: todaySleepMinutes, baselineMinutes: Math.round(average(baselineSleepMinutes)) }
+      : null;
+
+  const journalStreak = currentStreak(
+    [...baselineJournal, ...today.journal].map((entry) => String(entry['entryDate'])),
+    new Date(`${date}T12:00:00`),
+  );
+
+  return {
+    mood,
+    emotions: emotionsInsight,
+    sensations: sensationsInsight,
+    fronting,
+    sleep: sleepInsight,
+    journalStreak,
+  };
+}
 
 /**
  * Emotion insights: which emotions recur, when, and alongside what. Presented

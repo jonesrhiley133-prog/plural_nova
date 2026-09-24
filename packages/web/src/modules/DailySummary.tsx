@@ -14,8 +14,62 @@ import { Icon } from '../ui/Icon.js';
  * to answer "what actually happened on Tuesday" without visiting eight screens.
  */
 
+interface DayInsights {
+  mood: { today: number; baseline: number } | null;
+  emotions: { todayCount: number; baselineCountPerDay: number; todayAverage: number; baselineAverage: number } | null;
+  sensations: { todayCount: number; baselineCountPerDay: number } | null;
+  fronting: { todayMinutes: number; baselineMinutesPerDay: number } | null;
+  sleep: { todayMinutes: number; baselineMinutes: number } | null;
+  journalStreak: number;
+}
+
+/**
+ * Each line is a comparison against the trailing two weeks — never a claim
+ * about why the numbers differ. Only `fronting` and `journal` are configurable
+ * terms; the rest (mood, emotion, sensation, sleep) are not, so those lines
+ * never need `term()`.
+ */
+function insightLines(insights: DayInsights, term: (text: string) => string): string[] {
+  const lines: string[] = [];
+  if (insights.mood) {
+    lines.push(
+      `Mood averaged ${insights.mood.today}/10 today, compared to ${insights.mood.baseline}/10 over the last two weeks.`,
+    );
+  }
+  if (insights.emotions) {
+    const { todayCount, baselineCountPerDay, todayAverage, baselineAverage } = insights.emotions;
+    lines.push(
+      `${todayCount} emotion${todayCount === 1 ? '' : 's'} logged today, averaging ${todayAverage}/10 — ` +
+        `compared to about ${baselineCountPerDay} a day recently, averaging ${baselineAverage}/10.`,
+    );
+  }
+  if (insights.sensations) {
+    const { todayCount, baselineCountPerDay } = insights.sensations;
+    lines.push(
+      `${todayCount} body sensation${todayCount === 1 ? '' : 's'} noted today, compared to about ${baselineCountPerDay} a day recently.`,
+    );
+  }
+  if (insights.fronting) {
+    lines.push(
+      term(
+        `{{Fronting}} totalled ${formatDuration(insights.fronting.todayMinutes)} today, compared to a usual ${formatDuration(insights.fronting.baselineMinutesPerDay)} a day.`,
+      ),
+    );
+  }
+  if (insights.sleep) {
+    lines.push(
+      `Slept ${formatDuration(insights.sleep.todayMinutes)} last night, compared to an average of ${formatDuration(insights.sleep.baselineMinutes)}.`,
+    );
+  }
+  if (insights.journalStreak > 1) {
+    lines.push(term(`{{Journal}} entries ${insights.journalStreak} days in a row, including today.`));
+  }
+  return lines;
+}
+
 interface Day {
   date: string;
+  insights: DayInsights;
   fronting: { id: string; memberName: string | null; minutes: number; activity?: string; startedAt: string }[];
   moods: { id: string; label: string; score: number; recordedAt: string }[];
   emotions: { id: string; emotionId: string; intensity: number; emotion: { name: string; emoji: string } | null }[];
@@ -46,6 +100,7 @@ export default function DailySummary(): JSX.Element {
 
   const isToday = date === dayKey(new Date());
   const data = day.data;
+  const lines = data ? insightLines(data.insights, term) : [];
 
   const counts = data
     ? data.fronting.length +
@@ -101,6 +156,26 @@ export default function DailySummary(): JSX.Element {
         </Card>
       ) : (
         <>
+          {lines.length > 0 ? (
+            <Card
+              title={
+                <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
+                  <Icon name="insight" size={16} /> Insights
+                </span>
+              }
+              subtitle="Simple comparisons against the last two weeks — not a diagnosis, just numbers next to other numbers."
+              style={{ marginBottom: 'var(--space-4)' }}
+            >
+              <ul className="stack stack--tight" style={{ margin: 0, paddingLeft: 'var(--space-4)' }}>
+                {lines.map((line, index) => (
+                  <li key={index} className="small">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
+
           <div className="stat-grid" style={{ marginBottom: 'var(--space-4)' }}>
             <Stat
               label={term('{{Fronting}}')}

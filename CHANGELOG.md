@@ -10,6 +10,19 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.11] — 2026-09-24
+
+### Added
+
+- **Daily Summary now says how a day compares**, not just what happened on
+  it. Mood, emotions, body sensations, fronting time and sleep are each
+  quietly checked against the trailing two weeks — "Mood averaged 9/10
+  today, compared to 5/10 over the last two weeks" — and a run of
+  consecutive journal days is called out. Every comparison waits for at
+  least three days of baseline before saying anything, and the card says
+  outright that these are numbers next to other numbers, not a diagnosis.
+  There is no AI here, just arithmetic run over data already being kept.
+
 ## [1.0.10] — 2026-09-24
 
 ### Added
