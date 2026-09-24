@@ -90,9 +90,13 @@ export default function NotificationCentre(): JSX.Element {
   }, [load]);
 
   const markRead = async (ids: string[]): Promise<void> => {
-    await api.post('/api/notifications/read', { ids });
-    void refreshBadges();
-    await load();
+    try {
+      await api.post('/api/notifications/read', { ids });
+      void refreshBadges();
+      await load();
+    } catch (cause) {
+      toast.fromError(cause, 'Could not mark that as read');
+    }
   };
 
   return (
@@ -107,11 +111,14 @@ export default function NotificationCentre(): JSX.Element {
                 variant="secondary"
                 icon="check"
                 onClick={() => {
-                  void api.post('/api/notifications/read', { all: true }).then(() => {
-                    void refreshBadges();
-                    void load();
-                    toast.success('All marked as read');
-                  });
+                  void api
+                    .post('/api/notifications/read', { all: true })
+                    .then(() => {
+                      void refreshBadges();
+                      void load();
+                      toast.success('All marked as read');
+                    })
+                    .catch((cause: unknown) => toast.fromError(cause, 'Could not mark everything as read'));
                 }}
               >
                 {t('notifications.markAllRead')}
@@ -186,10 +193,13 @@ export default function NotificationCentre(): JSX.Element {
                     size="sm"
                     onClick={(event) => {
                       event.stopPropagation();
-                      void api.delete(`/api/notifications/${notification.id}`).then(() => {
-                        void refreshBadges();
-                        void load();
-                      });
+                      void api
+                        .delete(`/api/notifications/${notification.id}`)
+                        .then(() => {
+                          void refreshBadges();
+                          void load();
+                        })
+                        .catch((cause: unknown) => toast.fromError(cause, 'Could not dismiss that'));
                     }}
                   />
                 </span>
@@ -205,10 +215,13 @@ export default function NotificationCentre(): JSX.Element {
             variant="ghost"
             size="sm"
             onClick={() => {
-              void api.delete('/api/notifications').then(() => {
-                toast.success('Cleared read notifications');
-                void load();
-              });
+              void api
+                .delete('/api/notifications')
+                .then(() => {
+                  toast.success('Cleared read notifications');
+                  void load();
+                })
+                .catch((cause: unknown) => toast.fromError(cause, 'Could not clear those'));
             }}
           >
             Clear the ones already read

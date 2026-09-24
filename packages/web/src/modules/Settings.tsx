@@ -174,18 +174,26 @@ function Appearance(): JSX.Element {
   };
 
   const saveCurrentAsPreset = async (): Promise<void> => {
-    const preset = createCustomPreset(presetName, theme);
-    await saveSettings({ customThemePresets: [...customPresets, preset] });
-    await update({ presetId: preset.id });
-    saveDialog.hide();
-    toast.success('Saved', `"${preset.label}" was added to your presets.`);
+    try {
+      const preset = createCustomPreset(presetName, theme);
+      await saveSettings({ customThemePresets: [...customPresets, preset] });
+      await update({ presetId: preset.id });
+      saveDialog.hide();
+      toast.success('Saved', `"${preset.label}" was added to your presets.`);
+    } catch (cause) {
+      toast.fromError(cause, 'Could not save that preset');
+    }
   };
 
   const duplicatePreset = async (preset: ThemePreset): Promise<void> => {
-    const copy = createCustomPreset(`${preset.label} (copy)`, preset.settings);
-    await saveSettings({ customThemePresets: [...customPresets, copy] });
-    applyPreset(copy);
-    toast.success('Duplicated', `Adjust "${copy.label}" freely — the original is untouched.`);
+    try {
+      const copy = createCustomPreset(`${preset.label} (copy)`, preset.settings);
+      await saveSettings({ customThemePresets: [...customPresets, copy] });
+      applyPreset(copy);
+      toast.success('Duplicated', `Adjust "${copy.label}" freely — the original is untouched.`);
+    } catch (cause) {
+      toast.fromError(cause, 'Could not duplicate that preset');
+    }
   };
 
   const deletePreset = async (preset: ThemePreset): Promise<void> => {
@@ -880,7 +888,14 @@ function Performance(): JSX.Element {
           icon="refresh"
           style={{ marginTop: 'var(--space-3)' }}
           onClick={() => {
-            void syncEngine.run().then(() => toast.success('Synced'));
+            // run() always resolves — offline and a real failure are both
+            // recorded on the status rather than thrown — so the toast has
+            // to read that status instead of treating "it returned" as success.
+            void syncEngine.run().then((status) => {
+              if (status.state === 'offline') toast.info('No connection', 'Nothing to sync right now.');
+              else if (status.state === 'error') toast.error('Sync did not finish', status.lastError ?? undefined);
+              else toast.success('Synced');
+            });
           }}
         >
           Sync now
@@ -918,9 +933,9 @@ function Navigation(): JSX.Element {
             { value: 'singlet', label: term('Singlet Mode — {{system}} features hidden') },
           ]}
           onChange={(value) => {
-            void saveSettings({ mode: value as 'system' | 'singlet' }).then(() =>
-              toast.success('Saved', 'Nothing was deleted — switching back brings it all straight back.'),
-            );
+            void saveSettings({ mode: value as 'system' | 'singlet' })
+              .then(() => toast.success('Saved', 'Nothing was deleted — switching back brings it all straight back.'))
+              .catch((cause: unknown) => toast.fromError(cause, 'Could not switch modes'));
           }}
           placeholder="System Mode"
         />
@@ -938,7 +953,7 @@ function Navigation(): JSX.Element {
             value={id}
             options={[
               ...available.map((item) => ({ value: item.id, label: term(item.label) })),
-              { value: 'more', label: 'More' },
+              { value: 'more', label: 'Hub' },
             ]}
             onChange={(value) => setTab(index, value)}
             placeholder="Choose a screen"
@@ -1053,10 +1068,13 @@ function Account(): JSX.Element {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      void api.delete(`/api/auth/sessions/${session.id}`).then(() => {
-                        setSessions((current) => current.filter((row) => row.id !== session.id));
-                        toast.success('Signed out there');
-                      });
+                      void api
+                        .delete(`/api/auth/sessions/${session.id}`)
+                        .then(() => {
+                          setSessions((current) => current.filter((row) => row.id !== session.id));
+                          toast.success('Signed out there');
+                        })
+                        .catch((cause: unknown) => toast.fromError(cause, 'Could not sign that session out'));
                     }}
                   >
                     Sign out

@@ -397,6 +397,38 @@
   gap: var(--space-1);
 }
 
+/*
+ * A rating, not a badge: the same outline star used everywhere else (a
+ * favourite, a bookmark) rather than a one-off filled glyph, so "starred"
+ * keeps meaning one thing across the app. Colour carries "on" the way it
+ * already does for Favourite, not a fill swap.
+ */
+.star-field {
+  display: flex;
+  gap: 2px;
+}
+
+.star-field__star {
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--border-strong);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
+}
+
+.star-field__star[data-filled='true'] {
+  color: var(--caution);
+}
+
+.star-field__star:hover {
+  color: var(--caution);
+}
+
+.star-field__star:active {
+  transform: scale(0.9);
+}
+
 .input,
 .textarea,
 .select {
@@ -614,6 +646,62 @@
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-text);
+}
+
+/*
+ * An emotion's own emoji, tinted by its family colour — the catalogue already
+ * picked a distinct expression per emotion; this is what puts it at a size
+ * worth looking at, instead of buried at chip-text size next to a label.
+ */
+.emotion-face {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--emotion-size, 48px);
+  height: var(--emotion-size, 48px);
+  border-radius: 50%;
+  font-size: calc(var(--emotion-size, 48px) * 0.5);
+  line-height: 1;
+  background: color-mix(in srgb, var(--emotion-color, var(--accent)) 42%, var(--surface-raised));
+  border: 2px solid transparent;
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+.emotion-face[data-selected] {
+  border-color: var(--emotion-color, var(--accent));
+  transform: scale(1.08);
+}
+
+.emotion-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  width: 76px;
+  padding: var(--space-1);
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+}
+
+.emotion-option[aria-pressed='true'] {
+  color: var(--text);
+  font-weight: var(--weight-medium);
+}
+
+.emotion-option__name {
+  font-size: var(--size-xs);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /*

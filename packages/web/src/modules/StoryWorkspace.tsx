@@ -399,6 +399,7 @@ function ChapterEditor({
   onSave: (values: Record<string, unknown>) => Promise<void>;
   onDelete: () => void;
 }): JSX.Element {
+  const toast = useToast();
   const [view, setView] = useState<'write' | 'preview'>('write');
   const [title, setTitle] = useState(String(chapter['title'] ?? ''));
   const [body, setBody] = useState(String(chapter['body'] ?? ''));
@@ -412,6 +413,7 @@ function ChapterEditor({
     setSaving(true);
     void onSave({ title: title.trim() || 'Untitled', body, wordCount })
       .then(() => setSavedAt(new Date().toLocaleTimeString()))
+      .catch((cause: unknown) => toast.fromError(cause, 'Could not save that'))
       .finally(() => setSaving(false));
   };
 

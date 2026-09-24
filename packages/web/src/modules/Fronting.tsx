@@ -235,9 +235,8 @@ export default function Fronting(): JSX.Element {
             'coFronterIds',
             'activity',
             'mood',
-            'location',
+            'locationIds',
             'note',
-            'tags',
           ]}
           onSubmit={async (values) => {
             if (!editor.value) return;

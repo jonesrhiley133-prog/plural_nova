@@ -9,7 +9,7 @@ import { usePrefersReducedMotion } from '../core/theme.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, ListRow, Stat, Tabs } from '../ui/primitives.js';
 import { NumberField, TextField, SwitchRow } from '../ui/forms.js';
-import { DescriptiveNote, EmptyState } from '../ui/feedback.js';
+import { DescriptiveNote, EmptyState, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
 import { LineChart } from '../charts/index.js';
 import { Icon } from '../ui/Icon.js';
@@ -89,7 +89,11 @@ export default function Wellbeing(): JSX.Element {
 
       {tab === 'games' ? <div style={{ marginTop: 'var(--space-4)' }}><WellbeingGames /></div> : null}
 
-      {tab === 'checkIns' ? (
+      {tab === 'checkIns' && overview.loading && !overview.data ? (
+        <SkeletonCards count={4} />
+      ) : tab === 'checkIns' && overview.error && !overview.data ? (
+        <ErrorPanel message={overview.error} onRetry={overview.reload} />
+      ) : tab === 'checkIns' ? (
         <div style={{ marginTop: 'var(--space-4)' }}>
           <div className="stat-grid" style={{ marginBottom: 'var(--space-4)' }}>
             <Stat

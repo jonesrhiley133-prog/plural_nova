@@ -6,7 +6,7 @@ import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip } from '../ui/primitives.js';
-import { DateTimeField, SearchField, TextField, useDebounced } from '../ui/forms.js';
+import { DateTimeField, ReferenceField, SearchField, TextField, useDebounced } from '../ui/forms.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
 
@@ -27,6 +27,7 @@ export default function QuickFront(): JSX.Element {
   const members = useCollection('members', {
     filter: (member) => member['archived'] !== true,
   });
+  const locations = useCollection('locationEntries');
 
   const forceSwitch = params.has('switch');
   const hasActive = state.active.length > 0;
@@ -53,7 +54,7 @@ export default function QuickFront(): JSX.Element {
   const [startedAt, setStartedAt] = useState<string | null>(new Date().toISOString());
   const [activity, setActivity] = useState('');
   const [mood, setMood] = useState('');
-  const [location, setLocation] = useState('');
+  const [locationIds, setLocationIds] = useState<string[]>([]);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -91,7 +92,7 @@ export default function QuickFront(): JSX.Element {
         startedAt: startedAt ?? new Date().toISOString(),
         activity,
         mood,
-        location,
+        locationIds,
         note,
         unknownFronter: unknown,
       };
@@ -269,7 +270,13 @@ export default function QuickFront(): JSX.Element {
             <DateTimeField label="Started" value={startedAt} onChange={setStartedAt} />
             <TextField label="Activity" value={activity} onChange={setActivity} placeholder="work, errands, resting…" />
             <TextField label="Mood" value={mood} onChange={setMood} />
-            <TextField label="Location" value={location} onChange={setLocation} />
+            <ReferenceField
+              label="Locations"
+              value={locationIds}
+              multiple
+              options={locations.items.map((item) => ({ id: item.id, label: String(item['name'] ?? 'Unnamed') }))}
+              onChange={(next) => setLocationIds(next as string[])}
+            />
             <TextField label="Note" value={note} onChange={setNote} multiline rows={3} />
           </div>
         ) : null}

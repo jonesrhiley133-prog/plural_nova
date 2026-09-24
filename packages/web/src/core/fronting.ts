@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { StoredRecord } from '@pluralnova/shared';
-import { api, messageFor } from './api.js';
+import { NetworkError, api, isOffline, messageFor } from './api.js';
+import { getMeta, setMeta } from './localdb.js';
 import { realtime } from './realtime.js';
 import { recordStore } from './data.js';
 
@@ -36,13 +37,30 @@ const EMPTY: FrontState = {
   memberCount: 0,
 };
 
+const CACHE_KEY = 'fronting.current';
+
+/**
+ * Starting, switching, ending and clearing a front all run business rules that
+ * only the server can enforce — duplicate detection, member status, totals,
+ * history, achievements — so unlike a plain record they are never queued for
+ * later. `NetworkError`'s own default text says a change is "saved on this
+ * device," which is true of a queued write and false of these; offline, this
+ * replaces it with a message that does not promise something that did not
+ * happen.
+ */
+function rethrowForDisplay(cause: unknown): never {
+  throw isOffline(cause)
+    ? new NetworkError('This needs a connection — nothing was recorded. Try again once you are back online.')
+    : cause;
+}
+
 export interface StartFrontInput {
   memberId?: string | null;
   coFronterIds?: string[];
   startedAt?: string;
   note?: string;
   mood?: string;
-  location?: string;
+  locationIds?: string[];
   activity?: string;
   tags?: string[];
   endOthers?: boolean;
@@ -70,7 +88,20 @@ export function useFronting(): {
       const result = await api.get<FrontState>('/api/fronting/current');
       setState(result);
       setError(null);
+      void setMeta(CACHE_KEY, result);
     } catch (cause) {
+      // The default cache-miss state is "nobody's fronting," which is a real
+      // answer everywhere else in the app — here specifically it would be a
+      // false one, so a device that has already seen who's out keeps showing
+      // that instead of quietly reverting to empty the moment it goes offline.
+      if (isOffline(cause)) {
+        const cached = await getMeta<FrontState>(CACHE_KEY);
+        if (cached) {
+          setState(cached);
+          setError('Shown from this device. Reconnect for the latest.');
+          return;
+        }
+      }
       setError(messageFor(cause));
     } finally {
       setLoading(false);
@@ -80,9 +111,16 @@ export function useFronting(): {
   useEffect(() => {
     void reload();
     // Another device changing the front updates this one without a refresh.
-    return realtime.on((event) => {
+    const stopRealtime = realtime.on((event) => {
       if (event.type === 'front.changed') void reload();
     });
+    // Reconnecting is exactly when a cached answer is most likely to be stale.
+    const onOnline = (): void => void reload();
+    window.addEventListener('online', onOnline);
+    return () => {
+      stopRealtime();
+      window.removeEventListener('online', onOnline);
+    };
   }, [reload]);
 
   const after = useCallback(async () => {
@@ -103,27 +141,51 @@ export function useFronting(): {
     error,
     reload,
     start: async (input) => {
-      await api.post('/api/fronting/start', input);
+      try {
+        await api.post('/api/fronting/start', input);
+      } catch (cause) {
+        rethrowForDisplay(cause);
+      }
       await after();
     },
     switchTo: async (input) => {
-      await api.post('/api/fronting/switch', input);
+      try {
+        await api.post('/api/fronting/switch', input);
+      } catch (cause) {
+        rethrowForDisplay(cause);
+      }
       await after();
     },
     end: async (eventId) => {
-      await api.post('/api/fronting/end', eventId ? { eventId } : {});
+      try {
+        await api.post('/api/fronting/end', eventId ? { eventId } : {});
+      } catch (cause) {
+        rethrowForDisplay(cause);
+      }
       await after();
     },
     clear: async () => {
-      await api.post('/api/fronting/clear', {});
+      try {
+        await api.post('/api/fronting/clear', {});
+      } catch (cause) {
+        rethrowForDisplay(cause);
+      }
       await after();
     },
     addCoFronter: async (eventId, memberId) => {
-      await api.post(`/api/fronting/${eventId}/co-fronters`, { memberId });
+      try {
+        await api.post(`/api/fronting/${eventId}/co-fronters`, { memberId });
+      } catch (cause) {
+        rethrowForDisplay(cause);
+      }
       await after();
     },
     removeCoFronter: async (eventId, memberId) => {
-      await api.delete(`/api/fronting/${eventId}/co-fronters/${memberId}`);
+      try {
+        await api.delete(`/api/fronting/${eventId}/co-fronters/${memberId}`);
+      } catch (cause) {
+        rethrowForDisplay(cause);
+      }
       await after();
     },
   };

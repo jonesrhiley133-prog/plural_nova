@@ -182,6 +182,60 @@ export default function Emotions(): JSX.Element {
   );
 }
 
+/**
+ * A colour-tinted circle showing an emotion's own emoji — the point being
+ * that anger looks angry and joy looks bright, rather than every emotion
+ * sharing one or two generic faces. The catalogue already picked a distinct
+ * expression per emotion; this is what finally puts it on screen at a size
+ * worth looking at, instead of buried at chip-text size next to a label.
+ */
+export function EmotionFace({
+  emotion,
+  size = 48,
+  selected,
+}: {
+  emotion: Emotion;
+  size?: number;
+  selected?: boolean;
+}): JSX.Element {
+  return (
+    <span
+      className="emotion-face"
+      aria-hidden="true"
+      data-selected={selected || undefined}
+      style={{ ['--emotion-color' as never]: emotion.color, ['--emotion-size' as never]: `${size}px` }}
+    >
+      {emotion.emoji}
+    </span>
+  );
+}
+
+/** A tappable emotion: its face, and its name underneath. */
+export function EmotionOption({
+  emotion,
+  selected,
+  size,
+  onClick,
+}: {
+  emotion: Emotion;
+  selected: boolean;
+  size?: number;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      className="emotion-option"
+      aria-pressed={selected}
+      data-selected={selected || undefined}
+      onClick={onClick}
+    >
+      <EmotionFace emotion={emotion} size={size} selected={selected} />
+      <span className="emotion-option__name">{emotion.name}</span>
+    </button>
+  );
+}
+
 interface Draft {
   emotions: Emotion[];
   intensity: number;
@@ -359,14 +413,12 @@ function EmotionSheet({
               <span className="field__label">Recently used</span>
               <div className="row">
                 {recent.map((emotion) => (
-                  <Chip
+                  <EmotionOption
                     key={emotion.id}
+                    emotion={emotion}
                     selected={draft.emotions.some((item) => item.id === emotion.id)}
-                    color={emotion.color}
                     onClick={() => toggleEmotion(emotion)}
-                  >
-                    {emotion.emoji} {emotion.name}
-                  </Chip>
+                  />
                 ))}
               </div>
             </div>
@@ -398,14 +450,12 @@ function EmotionSheet({
           ) : (
             <div className="row">
               {options.map((emotion) => (
-                <Chip
+                <EmotionOption
                   key={emotion.id}
+                  emotion={emotion}
                   selected={draft.emotions.some((item) => item.id === emotion.id)}
-                  color={emotion.color}
                   onClick={() => toggleEmotion(emotion)}
-                >
-                  {emotion.emoji} {emotion.name}
-                </Chip>
+                />
               ))}
             </div>
           )}

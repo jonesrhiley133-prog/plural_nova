@@ -165,7 +165,7 @@ export function BottomNav(): JSX.Element {
 const MORE_TAB = {
   id: 'more',
   path: '/more',
-  label: 'More',
+  label: 'Hub',
   icon: 'more',
 } as (typeof ALL_NAV_ITEMS)[number];
 

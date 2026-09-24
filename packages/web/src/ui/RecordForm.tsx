@@ -18,8 +18,8 @@ import {
   NumberField,
   ReferenceField,
   SelectField,
+  StarField,
   SwitchRow,
-  TagField,
   TextField,
 } from './forms.js';
 import { Button } from './primitives.js';
@@ -407,6 +407,25 @@ export function RecordField({
         />
       );
     case 'int':
+      if (field.stars) {
+        return (
+          <StarField
+            {...common}
+            value={value === '' || value === null || value === undefined ? null : Number(value)}
+            onChange={onChange}
+            max={field.max ?? 5}
+          />
+        );
+      }
+      return (
+        <NumberField
+          {...common}
+          value={value === '' || value === null || value === undefined ? null : Number(value)}
+          onChange={onChange}
+          {...(field.min !== undefined ? { min: field.min } : {})}
+          {...(field.max !== undefined ? { max: field.max } : {})}
+        />
+      );
     case 'duration':
     case 'real':
     case 'money':
@@ -453,14 +472,10 @@ export function RecordField({
         />
       );
     case 'tags':
-      return (
-        <TagField
-          label={field.label}
-          {...(field.hint ? { hint: field.hint } : {})}
-          values={Array.isArray(value) ? (value as string[]) : []}
-          onChange={onChange}
-        />
-      );
+      // A free-text label alongside a title, a folder and search was one more
+      // way to organise the same thing, not a different one — left out of the
+      // generic form the way structured JSON already is below.
+      return null;
     case 'color':
       return <ColorField {...common} value={String(value ?? '')} onChange={onChange} />;
     case 'image':

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { requireCollection } from '@pluralnova/shared';
-import { api, messageFor } from '../core/api.js';
+import { SEARCHABLE_COLLECTIONS, requireCollection, searchableFields, type StoredRecord } from '@pluralnova/shared';
+import { api, isOffline, messageFor } from '../core/api.js';
+import { useSystemMode } from '../core/auth.js';
+import { recordStore } from '../core/data.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Card, Chip } from '../ui/primitives.js';
@@ -59,6 +61,7 @@ export default function Search(): JSX.Element {
   const [params, setParams] = useSearchParams();
   const { t, term } = useI18n();
   const dates = useDateFormat();
+  const isSystem = useSystemMode();
 
   const [raw, setRaw] = useState(params.get('q') ?? '');
   const query = useDebounced(raw, 300);
@@ -85,9 +88,20 @@ export default function Search(): JSX.Element {
         setByCollection(result.byCollection);
         setError(null);
       })
-      .catch((cause: unknown) => setError(messageFor(cause)))
+      .catch(async (cause: unknown) => {
+        if (isOffline(cause)) {
+          // The same records already live on this device; a dropped
+          // connection is not a reason search should come back empty.
+          const local = await searchLocally(query, isSystem);
+          setHits(local.hits);
+          setByCollection(local.byCollection);
+          setError(null);
+          return;
+        }
+        setError(messageFor(cause));
+      })
       .finally(() => setLoading(false));
-  }, [query, setParams]);
+  }, [query, setParams, isSystem]);
 
   const shown = filter ? hits.filter((hit) => hit.collection === filter) : hits;
 
@@ -165,6 +179,77 @@ export default function Search(): JSX.Element {
       )}
     </>
   );
+}
+
+/**
+ * The same search the server runs, over whatever this device already has
+ * synced locally. Used only once the network call has failed and offline is
+ * confirmed — the server stays the primary path since it can see rows this
+ * device may not have pulled yet.
+ */
+async function searchLocally(
+  query: string,
+  isSystem: boolean,
+): Promise<{ hits: Hit[]; byCollection: Record<string, number> }> {
+  const needle = query.trim().toLowerCase();
+  const candidates = SEARCHABLE_COLLECTIONS.filter(
+    (collection) =>
+      (!collection.systemOnly || isSystem) && (!collection.serverManaged || collection.name === 'notifications'),
+  );
+
+  // recordStore only holds a collection once something has asked it to load,
+  // so a search reached without visiting any of those screens first would
+  // otherwise run over nothing. Asking now is safe and fast: the network half
+  // of each load fails immediately, since this only runs once offline is
+  // already confirmed, leaving just a local IndexedDB read per collection.
+  await Promise.all(candidates.map((collection) => recordStore.load(collection.name)));
+
+  const hits: Hit[] = [];
+  const byCollection: Record<string, number> = {};
+
+  for (const collection of candidates) {
+    const fields = searchableFields(collection);
+    const matches = recordStore.snapshot(collection.name).records.filter((record) =>
+      fields.some((field) => {
+        const value = record[field.name];
+        if (typeof value === 'string') return value.toLowerCase().includes(needle);
+        if (Array.isArray(value)) return value.some((item) => String(item).toLowerCase().includes(needle));
+        return false;
+      }),
+    );
+    if (matches.length === 0) continue;
+    byCollection[collection.name] = matches.length;
+
+    for (const record of matches.slice(0, 5)) {
+      const title = String(record[collection.titleField] ?? '').trim();
+      hits.push({
+        collection: collection.name,
+        collectionLabel: collection.label,
+        id: record.id,
+        title: title || `Untitled ${collection.singular.toLowerCase()}`,
+        snippet: snippetFor(record, needle, fields.map((field) => field.name)),
+        icon: collection.icon,
+        updatedAt: record.updatedAt,
+      });
+    }
+  }
+
+  hits.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return { hits, byCollection };
+}
+
+/** Pulls the matching phrase out of whichever field contains it, with context. */
+function snippetFor(record: StoredRecord, needle: string, fields: string[]): string {
+  for (const field of fields) {
+    const value = record[field];
+    if (typeof value !== 'string') continue;
+    const index = value.toLowerCase().indexOf(needle);
+    if (index === -1) continue;
+    const start = Math.max(0, index - 40);
+    const end = Math.min(value.length, index + needle.length + 60);
+    return `${start > 0 ? '…' : ''}${value.slice(start, end).trim()}${end < value.length ? '…' : ''}`;
+  }
+  return '';
 }
 
 function labelFor(collection: string): string {

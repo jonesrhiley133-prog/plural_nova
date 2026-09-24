@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { StoredRecord } from '@pluralnova/shared';
-import { api, messageFor } from '../core/api.js';
+import { messageFor } from '../core/api.js';
 import { useCollection } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -65,10 +65,9 @@ export default function Organize(): JSX.Element {
   const move = async (memberId: string, bucketId: string | null): Promise<void> => {
     setBusy(true);
     try {
-      await api.post('/api/system/organize', {
-        moves: [{ memberId, [field]: bucketId }],
-      });
-      await members.reload();
+      // A plain field update, the same as any edit on this record — which
+      // means it queues and survives being offline the same way too.
+      await members.update(memberId, { [field]: bucketId });
     } catch (cause) {
       toast.error('Could not move that', messageFor(cause));
     } finally {
@@ -89,10 +88,7 @@ export default function Organize(): JSX.Element {
 
     setBusy(true);
     try {
-      await api.post('/api/system/organize', {
-        moves: next.map((member, position) => ({ memberId: member.id, orbitOrder: position })),
-      });
-      await members.reload();
+      await Promise.all(next.map((member, position) => members.update(member.id, { orbitOrder: position })));
     } catch (cause) {
       toast.error('Could not reorder', messageFor(cause));
     } finally {

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { StoredRecord } from '@pluralnova/shared';
-import { api, messageFor } from '../core/api.js';
+import { NetworkError, api, isOffline, messageFor } from '../core/api.js';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -283,7 +283,7 @@ export default function Media(): JSX.Element {
         <RecordForm
           collection="mediaItems"
           record={editor.value}
-          fields={['title', 'description', 'folder', 'tags', 'favorite', 'pinned', 'inVault', 'memberId']}
+          fields={['title', 'description', 'folder', 'favorite', 'pinned', 'inVault', 'memberId']}
           onSubmit={async (values) => {
             if (!editor.value) return;
             await media.update(editor.value.id, values);
@@ -302,7 +302,16 @@ export default function Media(): JSX.Element {
         recoverable={false}
         onConfirm={async () => {
           if (!confirm.value) return;
-          await api.delete(`/api/media/${confirm.value.id}`);
+          try {
+            await api.delete(`/api/media/${confirm.value.id}`);
+          } catch (cause) {
+            // Deleting removes the file from server storage, so unlike most
+            // writes it is never queued — offline, nothing was deleted, and
+            // the generic network-error text would wrongly say otherwise.
+            throw isOffline(cause)
+              ? new NetworkError('This needs a connection — the file was not deleted. Try again once you are back online.')
+              : cause;
+          }
           await media.reload();
           toast.success('Deleted');
         }}

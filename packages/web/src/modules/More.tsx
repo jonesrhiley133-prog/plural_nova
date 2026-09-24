@@ -28,7 +28,7 @@ export default function More(): JSX.Element {
       <Card
         interactive
         onClick={() => navigate('/settings/account')}
-        style={{ marginBottom: 'var(--space-4)' }}
+        style={{ marginBottom: 'var(--space-3)' }}
       >
         <div className="row row--nowrap">
           <Avatar name={user?.displayName ?? 'You'} size={44} round />
@@ -37,6 +37,19 @@ export default function More(): JSX.Element {
             <div className="tiny faint truncate">
               {user?.isGuest ? 'Demo account' : user?.email || 'Signed in'}
             </div>
+          </div>
+          <Icon name="chevronRight" size={16} />
+        </div>
+      </Card>
+
+      <Card interactive onClick={() => navigate('/settings')} style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="row row--nowrap">
+          <span className="list-row__icon">
+            <Icon name="settings" size={18} />
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontWeight: 'var(--weight-medium)' }}>Settings</div>
+            <div className="tiny faint">Appearance, notifications, privacy, and more</div>
           </div>
           <Icon name="chevronRight" size={16} />
         </div>

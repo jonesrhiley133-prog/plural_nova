@@ -6,7 +6,7 @@ import { useLiveSession } from '../core/liveSession.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, Chip, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
-import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
+import { AsyncContent, DescriptiveNote, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { ColumnChart, RankedBars } from '../charts/index.js';
@@ -122,7 +122,11 @@ export default function Work(): JSX.Element {
         }))}
       />
 
-      {tab === 'overview' ? (
+      {tab === 'overview' && stats.loading && !stats.data ? (
+        <SkeletonCards count={4} />
+      ) : tab === 'overview' && stats.error && !stats.data ? (
+        <ErrorPanel message={stats.error} onRetry={stats.reload} />
+      ) : tab === 'overview' ? (
         <div className="stack">
           <div className="stat-grid">
             <Stat label="Hours worked" value={formatDuration(stats.data?.totalMinutes ?? 0)} detail="last 8 weeks" />

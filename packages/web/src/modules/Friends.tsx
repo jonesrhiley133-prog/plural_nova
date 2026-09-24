@@ -172,10 +172,13 @@ export default function Friends(): JSX.Element {
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        void api.delete(`/api/social/friends/requests/${request.id}`).then(() => {
-                          toast.info('Request cancelled');
-                          void load();
-                        });
+                        void api
+                          .delete(`/api/social/friends/requests/${request.id}`)
+                          .then(() => {
+                            toast.info('Request cancelled');
+                            void load();
+                          })
+                          .catch((cause: unknown) => toast.fromError(cause, 'Could not cancel that request'));
                       }}
                     >
                       Cancel

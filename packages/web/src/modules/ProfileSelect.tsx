@@ -48,7 +48,11 @@ export default function ProfileSelect(): JSX.Element {
       setPin('');
       navigate('/');
     } catch (cause) {
+      // The inline error only has somewhere to render inside the PIN dialog;
+      // a profile with no PIN skips that dialog entirely, so a toast is the
+      // only way that tap ever tells you it did not work.
       setError(messageFor(cause));
+      toast.fromError(cause, 'Could not switch profiles');
     } finally {
       setBusy(false);
     }

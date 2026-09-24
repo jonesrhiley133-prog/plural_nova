@@ -112,7 +112,9 @@ export default function Cycle(): JSX.Element {
             action={{
               label: 'Turn on cycle tracking',
               run: () => {
-                void saveSettings({ cycleEnabled: true }).then(() => toast.success('Cycle tracking is on'));
+                void saveSettings({ cycleEnabled: true })
+                  .then(() => toast.success('Cycle tracking is on'))
+                  .catch((cause: unknown) => toast.fromError(cause, 'Could not turn that on'));
               },
             }}
           />
@@ -258,9 +260,9 @@ export default function Cycle(): JSX.Element {
             variant="ghost"
             size="sm"
             onClick={() => {
-              void saveSettings({ cycleEnabled: false }).then(() =>
-                toast.success('Cycle tracking is off', 'Your entries are kept.'),
-              );
+              void saveSettings({ cycleEnabled: false })
+                .then(() => toast.success('Cycle tracking is off', 'Your entries are kept.'))
+                .catch((cause: unknown) => toast.fromError(cause, 'Could not turn that off'));
             }}
           >
             Turn this section off

@@ -286,7 +286,9 @@ export const frontEvents: CollectionDef = {
     f.datetime('endedAt', 'Ended', { inList: true, hint: 'Leave empty while this front is active.' }),
     f.int('durationMinutes', 'Duration', { hint: 'Derived when the front ends.' }),
     f.text('activity', 'Activity', { inList: true, searchable: true }),
-    f.text('location', 'Location', { searchable: true }),
+    f.refs('locationIds', 'Locations', 'locationEntries', {
+      hint: 'Pick from the places you\'ve set up.',
+    }),
     f.text('mood', 'Mood', { inList: true }),
     f.long('note', 'Note', { searchable: true }),
     f.tags('tags', 'Tags'),
@@ -318,7 +320,9 @@ export const journalEntries: CollectionDef = {
     f.int('moodScore', 'Mood score', { min: 1, max: 10 }),
     f.tags('tags', 'Tags'),
     f.refs('attachmentIds', 'Attachments', 'mediaItems'),
-    f.text('location', 'Location'),
+    f.refs('locationIds', 'Locations', 'locationEntries', {
+      hint: 'Pick from the places you\'ve set up.',
+    }),
     f.bool('pinned', 'Pinned'),
     f.bool('inVault', 'Keep in vault', { hint: 'Moves this entry behind the vault lock.' }),
 
