@@ -56,24 +56,30 @@ async function buildAssetUrls() {
   }
 }
 
+/**
+ * A handful at a time rather than every file at once — this is exactly the
+ * slow-connection, weak-device situation the caching is meant to survive, and
+ * firing dozens of requests in one burst is the kind of thing that competes
+ * with itself for the connection a phone on bad signal can least afford.
+ */
+async function cacheInBatches(cache, urls, batchSize = 8) {
+  for (let start = 0; start < urls.length; start += batchSize) {
+    await Promise.all(
+      urls
+        .slice(start, start + batchSize)
+        .map((url) => cache.add(new Request(url, { cache: 'reload' })).catch(() => undefined)),
+    );
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
       const shell = await caches.open(SHELL);
-      // Added one at a time: a single missing file must not fail the install and
-      // leave the app with no worker at all.
-      await Promise.all(
-        SHELL_URLS.map((url) =>
-          shell.add(new Request(url, { cache: 'reload' })).catch(() => undefined),
-        ),
-      );
+      await cacheInBatches(shell, SHELL_URLS);
 
       const assets = await caches.open(ASSETS);
-      await Promise.all(
-        (await buildAssetUrls()).map((url) =>
-          assets.add(new Request(url, { cache: 'reload' })).catch(() => undefined),
-        ),
-      );
+      await cacheInBatches(assets, await buildAssetUrls());
     })(),
   );
 });
