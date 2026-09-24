@@ -57,6 +57,23 @@ async function buildAssetUrls() {
 }
 
 /**
+ * The same "only a plain, same-origin, non-redirected response is safe to
+ * hand back later" check `handleAsset` already relies on below — `cache.add`
+ * skips it and stores whatever comes back, and a response that isn't
+ * `basic` can read as an ordinary 200 to `fetch` while still being refused
+ * by a script/module load, which is exactly what a precached route needs to
+ * survive.
+ */
+async function precacheOne(cache, url) {
+  try {
+    const response = await fetch(url, { cache: 'reload' });
+    if (response.ok && response.type === 'basic') await cache.put(url, response);
+  } catch {
+    // Best-effort — handleAsset's runtime cache still covers this on first visit.
+  }
+}
+
+/**
  * A handful at a time rather than every file at once — this is exactly the
  * slow-connection, weak-device situation the caching is meant to survive, and
  * firing dozens of requests in one burst is the kind of thing that competes
@@ -64,11 +81,7 @@ async function buildAssetUrls() {
  */
 async function cacheInBatches(cache, urls, batchSize = 8) {
   for (let start = 0; start < urls.length; start += batchSize) {
-    await Promise.all(
-      urls
-        .slice(start, start + batchSize)
-        .map((url) => cache.add(new Request(url, { cache: 'reload' })).catch(() => undefined)),
-    );
+    await Promise.all(urls.slice(start, start + batchSize).map((url) => precacheOne(cache, url)));
   }
 }
 

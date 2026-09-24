@@ -125,11 +125,38 @@ describe('with no connection', () => {
         .catch((err) => `manifest fetch failed: ${err}`);
       const searchChunk = Array.isArray(manifest) ? manifest.find((u) => u.includes('/Search-')) : null;
 
+      // What is actually sitting in Cache Storage under that key, read
+      // straight from the cache rather than through the service worker's own
+      // fetch handling — this is the response a script/module load would see.
+      let cachedEntry = null;
+      for (const name of names) {
+        const cache = await caches.open(name);
+        const match = await cache.match(searchChunk);
+        if (match) {
+          cachedEntry = {
+            cacheName: name,
+            type: match.type,
+            status: match.status,
+            ok: match.ok,
+            redirected: match.redirected,
+            contentType: match.headers.get('content-type'),
+          };
+          break;
+        }
+      }
+
       let directFetch;
       const fetchStart = Date.now();
       try {
         const res = await fetch(searchChunk);
-        directFetch = { ok: res.ok, status: res.status, ms: Date.now() - fetchStart };
+        directFetch = {
+          ok: res.ok,
+          status: res.status,
+          type: res.type,
+          redirected: res.redirected,
+          contentType: res.headers.get('content-type'),
+          ms: Date.now() - fetchStart,
+        };
       } catch (err) {
         directFetch = { error: String(err), ms: Date.now() - fetchStart };
       }
@@ -149,6 +176,7 @@ describe('with no connection', () => {
         bodySnippet: document.body.innerText.slice(0, 300),
         searchboxCount: document.querySelectorAll('[role="searchbox"]').length,
         searchChunk,
+        cachedEntry,
         directFetch,
         directImport,
       };
