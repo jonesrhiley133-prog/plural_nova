@@ -78,6 +78,7 @@ export const stories: CollectionDef = {
     f.text('title', 'Title', { required: true, inList: true, searchable: true }),
     f.long('summary', 'Summary', { searchable: true }),
     f.text('genre', 'Genre', { inList: true }),
+    f.text('setting', 'Setting', { hint: 'Where & when', searchable: true }),
     f.enumOf('status', 'Status', [
       { value: 'planning', label: 'Planning' },
       { value: 'drafting', label: 'Drafting' },
@@ -89,6 +90,7 @@ export const stories: CollectionDef = {
     f.tags('tags', 'Tags'),
     f.int('wordGoal', 'Word goal'),
     f.long('worldbuilding', 'Worldbuilding', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true }),
     f.json('timeline', 'Timeline'),
     f.color('color', 'Colour'),
   ],

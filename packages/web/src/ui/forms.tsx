@@ -68,6 +68,7 @@ export function TextField({
   label,
   value,
   onChange,
+  onBlur,
   hint,
   error,
   required,
@@ -83,6 +84,8 @@ export function TextField({
   label: string;
   value: string;
   onChange: (value: string) => void;
+  /** For a field that saves on blur rather than on every keystroke. */
+  onBlur?: () => void;
   hint?: string;
   error?: string;
   required?: boolean;
@@ -110,6 +113,7 @@ export function TextField({
             value={value}
             rows={rows ?? 5}
             onChange={(event) => onChange(event.target.value)}
+            onBlur={onBlur}
             aria-describedby={describedBy}
             aria-invalid={invalid}
             placeholder={placeholder}
@@ -123,6 +127,7 @@ export function TextField({
             type={type}
             value={value}
             onChange={(event) => onChange(event.target.value)}
+            onBlur={onBlur}
             aria-describedby={describedBy}
             aria-invalid={invalid}
             placeholder={placeholder}
