@@ -149,35 +149,24 @@ async function handleNavigation(event) {
 async function handleAsset(request) {
   const cache = await caches.open(ASSETS);
   const cached = await cache.match(request);
-  const network = fetch(request)
-    .then((response) => {
-      if (response.ok && response.type === 'basic') cache.put(request, response.clone());
-      return response;
-    })
-    .catch(() => undefined);
-  // A fingerprinted file never changes under its name, so the cached copy is
-  // always correct to serve; the refetch is only for files that can change.
-  if (cached) {
-    // A Response read back from Cache Storage can carry state a script or
-    // module load is pickier about than a plain `fetch` is, even when every
-    // visible property — status, type, headers — reads as an ordinary
-    // success. Rebuilding a plain Response from the same bytes and headers,
-    // rather than handing the cache's own object back untouched, sidesteps
-    // whatever that is.
-    const body = await cached.clone().arrayBuffer();
-    const headers = new Headers(cached.headers);
-    // Express's static serving sends `.js` as the older `application/javascript`.
-    // Every browser accepts that for a classic <script>, but a module load is
-    // held to the current, narrower "JavaScript MIME type" list — where
-    // `text/javascript` is the one IANA and the HTML spec both settled on —
-    // and this is the one property of the response the last fix never tried
-    // changing.
-    if (/\.(?:m?js)$/.test(new URL(request.url).pathname)) {
-      headers.set('content-type', 'text/javascript; charset=utf-8');
-    }
-    return new Response(body, { status: cached.status, statusText: cached.statusText, headers });
+  // A fingerprinted file never changes under its name, so a hit is always
+  // correct to serve — and it has to be the *only* thing that happens: Chrome
+  // has a real, open bug (crbug.com/1169568) where a request stalls or a
+  // module import is refused when a service worker reads a Cache Storage
+  // entry that something else is writing to at the same time. Every visible
+  // property of the cached response here has checked out fine on its own;
+  // what never got tried until now was this file's own previous behaviour of
+  // firing a background refetch-and-`cache.put` on *every* hit, racing its
+  // own read on the exact entry it had just served.
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(request);
+    if (response.ok && response.type === 'basic') cache.put(request, response.clone());
+    return response;
+  } catch {
+    return Response.error();
   }
-  return (await network) || Response.error();
 }
 
 self.addEventListener('fetch', (event) => {
