@@ -157,7 +157,17 @@ async function handleAsset(request) {
     .catch(() => undefined);
   // A fingerprinted file never changes under its name, so the cached copy is
   // always correct to serve; the refetch is only for files that can change.
-  return cached || (await network) || Response.error();
+  if (cached) {
+    // A Response read back from Cache Storage can carry state a script or
+    // module load is pickier about than a plain `fetch` is, even when every
+    // visible property — status, type, headers — reads as an ordinary
+    // success. Rebuilding a plain Response from the same bytes and headers,
+    // rather than handing the cache's own object back untouched, sidesteps
+    // whatever that is.
+    const body = await cached.clone().arrayBuffer();
+    return new Response(body, { status: cached.status, statusText: cached.statusText, headers: cached.headers });
+  }
+  return (await network) || Response.error();
 }
 
 self.addEventListener('fetch', (event) => {
