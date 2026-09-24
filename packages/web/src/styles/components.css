@@ -1472,6 +1472,29 @@
   max-width: 880px;
 }
 
+/* Edge to edge, for a view that wants to be the only thing on screen. */
+.overlay--fullscreen {
+  padding: 0;
+  align-items: stretch;
+}
+
+.dialog--fullscreen {
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100dvh;
+  border-radius: 0;
+  padding-bottom: 0;
+}
+
+.dialog--fullscreen .dialog__handle {
+  display: none;
+}
+
+.dialog--fullscreen .dialog__body {
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+}
+
 .dialog__header {
   display: flex;
   align-items: center;

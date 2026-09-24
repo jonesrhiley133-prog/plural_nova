@@ -297,8 +297,8 @@ export const musicTracks: CollectionDef = {
     f.text('artist', 'Artist', { inList: true, searchable: true }),
     f.text('album', 'Album', { searchable: true }),
     f.image('artworkUrl', 'Artwork'),
-    f.url('previewUrl', 'Preview stream', {
-      hint: 'Supplied by the music provider; PluralNova never stores audio itself.',
+    f.url('previewUrl', 'Audio', {
+      hint: 'A short preview from the provider, or the full file if you uploaded one.',
     }),
     f.url('externalUrl', 'Open in provider'),
     f.text('provider', 'Provider', { defaultValue: 'local' }),

@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { StoredRecord } from '@pluralnova/shared';
-import { ApiRequestError, api, messageFor } from '../core/api.js';
+import { ApiRequestError, api } from '../core/api.js';
 import { useCollection } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
+import { useMusicPlayer, type MusicTrack } from '../core/musicPlayer.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
-import { SearchField, TextField, useDebounced } from '../ui/forms.js';
+import { FileButton, SearchField, TextField, useDebounced } from '../ui/forms.js';
 import { AsyncContent, EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
@@ -14,9 +15,11 @@ import { Icon } from '../ui/Icon.js';
 /**
  * Music.
  *
- * Search runs against a provider adapter on the server; what comes back is
- * metadata and whatever the provider publishes for playback — an official
- * preview, or a link out. PluralNova does not host or scrape audio.
+ * Search runs against a provider adapter on the server and only ever returns
+ * that provider's short preview — a public catalogue does not hand out full
+ * songs for free. A track uploaded here is different: it is PluralNova's own
+ * file, so it plays start to finish, and the player at the bottom of the app
+ * treats the two exactly the same otherwise.
  *
  * The search is debounced and the results only replace the list once a response
  * arrives, so typing does not make the page flicker between states.
@@ -34,9 +37,32 @@ interface ProviderTrack {
   provider: string;
 }
 
+function fromProviderTrack(track: ProviderTrack): MusicTrack {
+  return {
+    id: `provider:${track.provider}:${track.providerTrackId}`,
+    title: track.title,
+    artist: track.artist,
+    artworkUrl: track.artworkUrl,
+    url: track.previewUrl,
+    isFullLength: false,
+  };
+}
+
+function fromLibraryTrack(track: StoredRecord): MusicTrack {
+  return {
+    id: String(track.id),
+    title: String(track['title'] ?? 'Untitled'),
+    artist: String(track['artist'] ?? ''),
+    artworkUrl: String(track['artworkUrl'] ?? ''),
+    url: String(track['previewUrl'] ?? ''),
+    isFullLength: track['provider'] === 'upload',
+  };
+}
+
 export default function Music(): JSX.Element {
   const { term } = useI18n();
   const toast = useToast();
+  const player = useMusicPlayer();
 
   const playlists = useCollection('musicPlaylists');
   const tracks = useCollection('musicTracks');
@@ -49,12 +75,7 @@ export default function Music(): JSX.Element {
   const [results, setResults] = useState<ProviderTrack[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-
-  const [queue, setQueue] = useState<StoredRecord[]>([]);
-  const [playing, setPlaying] = useState<{ title: string; artist: string; url: string } | null>(null);
-  const [shuffle, setShuffle] = useState(false);
-  const [repeat, setRepeat] = useState(false);
-  const audio = useRef<HTMLAudioElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   const playlistEditor = useDialog<StoredRecord>();
   const confirm = useDialog<StoredRecord>();
@@ -92,29 +113,12 @@ export default function Music(): JSX.Element {
     ? tracks.items.filter((track) => track['playlistId'] === playlistId)
     : tracks.items;
 
-  const play = (track: { title: string; artist: string; url: string }): void => {
-    if (!track.url) {
-      toast.info('No preview for this track', 'The provider does not publish one. Use the link to open it there.');
-      return;
-    }
-    setPlaying(track);
-    window.setTimeout(() => void audio.current?.play().catch(() => undefined), 0);
-  };
-
-  const playNext = (): void => {
-    if (queue.length === 0) {
-      if (repeat && playing) void audio.current?.play();
-      return;
-    }
-    const index = shuffle ? Math.floor(Math.random() * queue.length) : 0;
-    const next = queue[index];
-    if (!next) return;
-    setQueue((current) => current.filter((_, position) => position !== index));
-    play({
-      title: String(next['title']),
-      artist: String(next['artist'] ?? ''),
-      url: String(next['previewUrl'] ?? ''),
-    });
+  const playFromLibrary = (track: StoredRecord): void => {
+    const list = inPlaylist.map(fromLibraryTrack);
+    const index = list.findIndex((item) => item.id === String(track.id));
+    // Whatever comes after it in the current view becomes the queue, so
+    // pressing play on a library track starts listening through the list.
+    player.play(fromLibraryTrack(track), index >= 0 ? list.slice(index + 1) : []);
   };
 
   const save = async (track: ProviderTrack): Promise<void> => {
@@ -138,15 +142,52 @@ export default function Music(): JSX.Element {
     }
   };
 
+  const uploadTrack = async (file: File): Promise<void> => {
+    setUploading(true);
+    try {
+      const result = await api.post<{ url: string }>(
+        '/api/media/upload',
+        undefined,
+        {
+          raw: {
+            body: file,
+            contentType: file.type || 'audio/mpeg',
+            headers: { 'x-file-name': encodeURIComponent(file.name).slice(0, 180) },
+          },
+          timeoutMs: 120_000,
+        },
+      );
+      await tracks.create({
+        playlistId,
+        title: file.name.replace(/\.[^./]+$/, '').trim() || 'Uploaded track',
+        previewUrl: result.url,
+        provider: 'upload',
+        sortOrder: inPlaylist.length,
+      });
+      toast.success('Uploaded — it plays start to finish');
+    } catch (cause) {
+      toast.fromError(cause, 'That file did not upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
         title="Music"
-        description="Search a public catalogue, keep what you like, and build playlists."
+        description="Search a public catalogue, upload your own files, and build playlists."
         actions={
-          <Button variant="primary" icon="plus" onClick={() => playlistEditor.show()}>
-            New playlist
-          </Button>
+          <>
+            <FileButton
+              label={uploading ? 'Uploading…' : 'Upload a track'}
+              accept="audio/mpeg,audio/ogg,audio/wav"
+              onFile={(file) => void uploadTrack(file)}
+            />
+            <Button variant="primary" icon="plus" onClick={() => playlistEditor.show()}>
+              New playlist
+            </Button>
+          </>
         }
       />
 
@@ -184,7 +225,7 @@ export default function Music(): JSX.Element {
                 body={
                   query.trim().length >= 2
                     ? 'Try a different spelling, or an artist rather than a track.'
-                    : 'Results come from a public catalogue. Where a preview exists, it plays here; otherwise the link opens the provider.'
+                    : 'Results come from a public catalogue and only ever preview for 30 seconds; otherwise the link opens the provider.'
                 }
               />
             </Card>
@@ -209,7 +250,7 @@ export default function Music(): JSX.Element {
                         variant="ghost"
                         size="sm"
                         disabled={!track.previewUrl}
-                        onClick={() => play({ title: track.title, artist: track.artist, url: track.previewUrl })}
+                        onClick={() => player.play(fromProviderTrack(track))}
                       />
                       <IconButton
                         icon="plus"
@@ -263,7 +304,7 @@ export default function Music(): JSX.Element {
             onRetry={tracks.reload}
             empty={{
               title: 'Nothing saved yet',
-              body: term('Search for a track, or add one by hand. Playlists can belong to the {{system}} or to one {{member}}.'),
+              body: term('Search for a track, or upload one of your own. Playlists can belong to the {{system}} or to one {{member}}.'),
               icon: 'music',
               action: { label: 'Search', run: () => setTab('search') },
             }}
@@ -292,13 +333,7 @@ export default function Music(): JSX.Element {
                           variant="ghost"
                           size="sm"
                           disabled={!track['previewUrl']}
-                          onClick={() =>
-                            play({
-                              title: String(track['title']),
-                              artist: String(track['artist'] ?? ''),
-                              url: String(track['previewUrl'] ?? ''),
-                            })
-                          }
+                          onClick={() => playFromLibrary(track)}
                         />
                         <IconButton
                           icon="list"
@@ -306,7 +341,7 @@ export default function Music(): JSX.Element {
                           variant="ghost"
                           size="sm"
                           onClick={() => {
-                            setQueue((current) => [...current, track]);
+                            player.addToQueue(fromLibraryTrack(track));
                             toast.success('Added to the queue');
                           }}
                         />
@@ -334,48 +369,6 @@ export default function Music(): JSX.Element {
         </>
       )}
 
-      {playing ? (
-        <Card raised style={{ position: 'sticky', bottom: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-          <div className="row row--between row--nowrap">
-            <div style={{ minWidth: 0 }}>
-              <div className="truncate small" style={{ fontWeight: 'var(--weight-medium)' }}>
-                {playing.title}
-              </div>
-              <div className="tiny faint truncate">{playing.artist}</div>
-            </div>
-            <div className="row row--nowrap">
-              <IconButton
-                icon="shuffle"
-                label="Shuffle the queue"
-                variant={shuffle ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setShuffle((value) => !value)}
-              />
-              <IconButton
-                icon="repeat"
-                label="Repeat this track"
-                variant={repeat ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setRepeat((value) => !value)}
-              />
-              <IconButton icon="skipNext" label="Next in queue" variant="ghost" size="sm" onClick={playNext} />
-            </div>
-          </div>
-          <audio
-            ref={audio}
-            src={playing.url}
-            controls
-            onEnded={playNext}
-            style={{ width: '100%', marginTop: 'var(--space-3)' }}
-          />
-          {queue.length > 0 ? (
-            <p className="tiny faint" style={{ marginTop: 'var(--space-2)' }}>
-              {queue.length} in the queue
-            </p>
-          ) : null}
-        </Card>
-      ) : null}
-
       <PlaylistDialog dialog={playlistEditor} playlists={playlists} />
 
       <ConfirmDialog
@@ -391,8 +384,9 @@ export default function Music(): JSX.Element {
       />
 
       <p className="tiny faint" style={{ marginTop: 'var(--space-5)' }}>
-        Track information comes from a public catalogue and playback uses the previews that provider
-        publishes. PluralNova does not store or stream audio itself.
+        Search results come from a public catalogue and are capped at a 30-second preview — a limit
+        the catalogue sets, not PluralNova. Upload your own audio files above for playback that runs
+        start to finish.
       </p>
     </>
   );
