@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatDuration, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useQuery } from '../core/data.js';
-import { useDateFormat } from '../core/i18n.js';
+import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useLiveSession } from '../core/liveSession.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
@@ -34,6 +34,7 @@ interface WorkStats {
 }
 
 export default function Work(): JSX.Element {
+  const { term } = useI18n();
   const dates = useDateFormat();
   const toast = useToast();
 
@@ -395,7 +396,7 @@ export default function Work(): JSX.Element {
           onRetry={coworkers.reload}
           empty={{
             title: 'No coworkers recorded',
-            body: 'Useful when a member who has not met someone needs to know how they are.',
+            body: term('Useful when a {{member}} who has not met someone needs to know how they are.'),
             icon: 'contact',
             action: { label: 'Add a coworker', run: () => editor.show({ collection: 'coworkers', record: null }) },
           }}

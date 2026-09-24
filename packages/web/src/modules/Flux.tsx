@@ -54,7 +54,7 @@ const REACTIONS = ['★', '♡', '✧', '☾', '◍', '✓'];
 export default function Flux(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, term } = useI18n();
   const toast = useToast();
 
   const [scope, setScope] = useState<'friends' | 'mine' | 'public'>('friends');
@@ -112,7 +112,7 @@ export default function Flux(): JSX.Element {
     <>
       <PageHeader
         title="Flux"
-        description="Posts from you and the systems you are friends with."
+        description={term('Posts from you and the {{systems}} you are friends with.')}
         actions={
           <Button variant="primary" icon="plus" onClick={() => composer.show()}>
             {t('social.newPost')}
@@ -144,7 +144,7 @@ export default function Flux(): JSX.Element {
             title={t('social.noPosts')}
             body={t('social.noPostsBody')}
             action={{ label: t('social.newPost'), run: () => composer.show() }}
-            secondaryAction={{ label: 'Find systems', run: () => navigate('/constellations') }}
+            secondaryAction={{ label: term('Find {{systems}}'), run: () => navigate('/constellations') }}
           />
         </Card>
       ) : (
@@ -429,7 +429,7 @@ function Composer({
   dialog: ReturnType<typeof useDialog<true>>;
   onPosted: () => void;
 }): JSX.Element {
-  const { t } = useI18n();
+  const { t, term } = useI18n();
   const toast = useToast();
   const systemMode = useSystemMode();
   const members = useCollection('members', { enabled: systemMode });
@@ -486,7 +486,7 @@ function Composer({
           <span className="field__label">{t('social.postAs')}</span>
           <div className="row">
             <Chip selected={memberId === null} onClick={() => setMemberId(null)}>
-              The system
+              {term('The {{system}}')}
             </Chip>
             {members.items.map((member) => (
               <Chip

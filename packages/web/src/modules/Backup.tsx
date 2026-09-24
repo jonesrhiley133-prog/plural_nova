@@ -43,7 +43,7 @@ interface AccountSummary {
 
 export default function Backup(): JSX.Element {
   const { settings, refresh } = useAuth();
-  const { t } = useI18n();
+  const { t, term } = useI18n();
   const dates = useDateFormat();
   const toast = useToast();
 
@@ -231,10 +231,9 @@ export default function Backup(): JSX.Element {
 
           <div style={{ marginTop: 'var(--space-4)' }}>
             <DescriptiveNote>
-              "Export everything" is the file to keep — plain JSON with a version number and a checksum,
-              and restoring it into a future version of PluralNova migrates it forward automatically.
-              "Export as Open Plural" is a second copy in the shared PluralPort format, for moving members
-              and front history to another tracker that reads it.
+              {term(
+                '"Export everything" is the file to keep — plain JSON with a version number and a checksum, and restoring it into a future version of PluralNova migrates it forward automatically. "Export as Open Plural" is a second copy in the shared PluralPort format, for moving {{members}} and {{front}} history to another tracker that reads it.',
+              )}
             </DescriptiveNote>
           </div>
         </Card>

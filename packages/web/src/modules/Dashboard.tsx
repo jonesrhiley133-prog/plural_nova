@@ -676,6 +676,7 @@ function FriendsWidget(): JSX.Element {
 }
 
 function DailySummaryWidget(): JSX.Element {
+  const { term } = useI18n();
   const navigate = useNavigate();
   const today = dayKey(new Date());
   const summary = useQuery<{
@@ -700,7 +701,7 @@ function DailySummaryWidget(): JSX.Element {
         <ErrorLine message={summary.error} />
       ) : summary.data ? (
         <div className="stat-grid">
-          <Stat label="Fronts" value={summary.data.fronting.length} />
+          <Stat label={term('{{Fronts}}')} value={summary.data.fronting.length} />
           <Stat label="Moods" value={summary.data.moods.length} />
           <Stat label="Entries" value={summary.data.journal.length} />
           <Stat label="Tasks done" value={summary.data.completedTasks.length} />

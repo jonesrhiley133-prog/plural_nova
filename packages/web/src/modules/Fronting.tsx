@@ -202,14 +202,14 @@ export default function Fronting(): JSX.Element {
                           ) : null}
                           <IconButton
                             icon="edit"
-                            label="Edit this front"
+                            label={term('Edit this {{front}}')}
                             variant="ghost"
                             size="sm"
                             onClick={() => editor.show(event)}
                           />
                           <IconButton
                             icon="trash"
-                            label="Delete this front"
+                            label={term('Delete this {{front}}')}
                             variant="ghost"
                             size="sm"
                             onClick={() => confirm.show(event)}

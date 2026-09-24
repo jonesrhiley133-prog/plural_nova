@@ -20,6 +20,7 @@ import { DEMO_PERIODS, type DemoPeriod } from '@pluralnova/shared';
 type Screen = 'welcome' | 'signIn' | 'register' | 'forgot' | 'reset' | 'recover';
 
 export function AuthScreens(): JSX.Element {
+  const { t } = useI18n();
   const [screen, setScreen] = useState<Screen>('welcome');
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
 
@@ -32,7 +33,7 @@ export function AuthScreens(): JSX.Element {
             <Logo size={44} />
             <div>
               <h1 className="auth-card__title">PluralNova</h1>
-              <p className="auth-card__tagline">A private constellation for your system.</p>
+              <p className="auth-card__tagline">{t('app.tagline')}</p>
             </div>
           </div>
 

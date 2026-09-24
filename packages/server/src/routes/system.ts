@@ -249,7 +249,7 @@ systemRouter.post(
       userId: context.user.id,
       category: 'systemChat',
       kind: 'systemChat.new',
-      title: 'New system chat message',
+      title: 'New {{system}} chat message',
       body: body.body.slice(0, 120),
       link: '/system-chat',
       ...(body.memberId ? { actorMemberId: body.memberId } : {}),

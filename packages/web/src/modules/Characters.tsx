@@ -1,13 +1,15 @@
 import { CollectionScreen } from '../ui/CollectionScreen.js';
 import { Avatar, Card, Chip } from '../ui/primitives.js';
+import { useI18n } from '../core/i18n.js';
 
 /** A character database, separate from members and linkable to stories. */
 export default function Characters(): JSX.Element {
+  const { term } = useI18n();
   return (
     <CollectionScreen
       collection="characters"
       layout="grid"
-      description="People you write, draw or keep track of. Separate from your system's members."
+      description={term("People you write, draw or keep track of. Separate from your {{system}}'s {{members}}.")}
       emptyTitle="No characters yet"
       emptyBody="Add one, then link them to the stories they appear in."
       renderRow={(record, helpers) => (

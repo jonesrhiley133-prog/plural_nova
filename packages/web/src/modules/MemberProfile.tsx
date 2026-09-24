@@ -120,7 +120,7 @@ export default function MemberProfile(): JSX.Element {
                 <IconButton icon="edit" label="Edit profile" onClick={() => editor.show()} />
                 <IconButton
                   icon="trash"
-                  label="Delete member"
+                  label={term('Delete {{member}}')}
                   variant="ghost"
                   onClick={() => confirm.show()}
                 />

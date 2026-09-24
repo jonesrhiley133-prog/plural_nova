@@ -42,7 +42,7 @@ interface Request {
 
 export default function Friends(): JSX.Element {
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, term } = useI18n();
   const dates = useDateFormat();
   const toast = useToast();
 
@@ -192,7 +192,7 @@ export default function Friends(): JSX.Element {
             <EmptyState
               icon="friend"
               title="No friends yet"
-              body="Find a system on Constellations, or send a request to a handle you already know."
+              body={term('Find a {{system}} on Constellations, or send a request to a handle you already know.')}
               action={{ label: 'Browse Constellations', run: () => navigate('/constellations') }}
               secondaryAction={{ label: t('social.addFriend'), run: () => adder.show() }}
             />
@@ -301,6 +301,7 @@ function AddFriendDialog({
   dialog: ReturnType<typeof useDialog<true>>;
   onSent: () => void;
 }): JSX.Element {
+  const { term } = useI18n();
   const toast = useToast();
   const [handle, setHandle] = useState('');
   const [message, setMessage] = useState('');
@@ -329,7 +330,7 @@ function AddFriendDialog({
       open={dialog.open}
       onClose={dialog.hide}
       title="Add a friend"
-      description="Requests respect the other system's privacy settings."
+      description={term("Requests respect the other {{system}}'s privacy settings.")}
       footer={
         <>
           <Button variant="ghost" onClick={dialog.hide}>

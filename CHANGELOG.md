@@ -10,6 +10,27 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.12] — 2026-09-24
+
+### Fixed
+
+- **Closed 30-odd terminology gaps** where a screen said "member," "system,"
+  "front" or "fronting" outright instead of asking what to call it. Delete
+  confirmations, the "who's this for" chips in Messages/Flux, and several
+  page descriptions across Contacts, Characters, Notes, Locations, Work,
+  Stats, Subsystems, Backup, Achievements, Constellations and the onboarding
+  screens now all resolve through the account's own words.
+- **Achievement titles and descriptions now honour your terms too** —
+  "Twenty members recorded" becomes "Twenty alters recorded" for an account
+  that renamed the term, the same as everywhere else in the app.
+- **Notifications and push alerts now carry your terminology as well.**
+  Previously only what rendered inside a React component ever resolved
+  `{{tokens}}` — a switch notification always said "is fronting" and an
+  achievement toast always said "system," regardless of what an account had
+  renamed those to. Terminology now resolves once, centrally, for every
+  notification's title and body before it is stored or sent, so the fix
+  covers future notification text too rather than one string at a time.
+
 ## [1.0.11] — 2026-09-24
 
 ### Added

@@ -2,6 +2,7 @@ import { useAuth } from '../core/auth.js';
 import { CollectionScreen } from '../ui/CollectionScreen.js';
 import { Card } from '../ui/primitives.js';
 import { DescriptiveNote } from '../ui/feedback.js';
+import { useI18n } from '../core/i18n.js';
 
 /**
  * Places, recorded by hand.
@@ -11,6 +12,7 @@ import { DescriptiveNote } from '../ui/feedback.js';
  * in privacy settings.
  */
 export default function Locations(): JSX.Element {
+  const { term } = useI18n();
   const { settings } = useAuth();
   const precise = settings.privacy.allowPreciseLocation;
 
@@ -19,7 +21,7 @@ export default function Locations(): JSX.Element {
       collection="locationEntries"
       description="Somewhere you went, when, and who was out for it."
       emptyTitle="No places recorded"
-      emptyBody="Useful alongside fronting — where someone was often explains a lot about a day."
+      emptyBody={term('Useful alongside {{fronting}} — where someone was often explains a lot about a day.')}
       {...(precise ? {} : { formOmit: ['latitude', 'longitude', 'address'] })}
       newRecordDefaults={{ visitedAt: new Date().toISOString() }}
       above={

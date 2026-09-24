@@ -976,6 +976,7 @@ function Navigation(): JSX.Element {
 }
 
 function Account(): JSX.Element {
+  const { term } = useI18n();
   const { user, signOut, refresh } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
@@ -1100,7 +1101,9 @@ function Account(): JSX.Element {
         open={deleteDialog.open}
         onClose={deleteDialog.hide}
         title="Delete this account?"
-        body="Everything in it goes: members, journals, fronting history, messages, all of it. Export a backup first if there is anything you want to keep."
+        body={term(
+          'Everything in it goes: {{members}}, journals, {{fronting}} history, messages, all of it. Export a backup first if there is anything you want to keep.',
+        )}
         confirmLabel="Delete for good"
         typeToConfirm="DELETE"
         recoverable={false}

@@ -78,6 +78,7 @@ function SubsystemTree({
   membersIn: (id: string) => StoredRecord[];
   depth: number;
 }): JSX.Element {
+  const { term } = useI18n();
   return (
     <ul style={{ listStyle: 'none', paddingLeft: depth === 0 ? 0 : 'var(--space-5)', margin: 0 }}>
       {nodes.map((node) => {
@@ -91,7 +92,7 @@ function SubsystemTree({
               <strong className="small">{String(node.record['name'])}</strong>
               {people.length > 0 ? (
                 <span className="tiny faint">
-                  {people.length} {people.length === 1 ? 'member' : 'members'}
+                  {people.length} {term(people.length === 1 ? '{{member}}' : '{{members}}')}
                 </span>
               ) : null}
             </div>

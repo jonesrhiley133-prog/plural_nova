@@ -244,7 +244,7 @@ frontingRouter.post(
       userId: context.user.id,
       category: 'fronting',
       kind: 'front.started',
-      title: `${name} is fronting`,
+      title: `${name} is {{fronting}}`,
       body: body.activity ? `Activity: ${body.activity}` : '',
       link: '/whos-there',
     });
@@ -357,7 +357,7 @@ frontingRouter.post(
       userId: context.user.id,
       category: 'fronting',
       kind: 'front.switched',
-      title: `${to} is fronting`,
+      title: `${to} is {{fronting}}`,
       body: `Switched from ${from}.`,
       link: '/whos-there',
     });
