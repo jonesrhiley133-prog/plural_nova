@@ -105,6 +105,56 @@ describe('with no connection', () => {
     const { page } = session;
     await page.goto(`${BASE}/search`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
+
+    // Temporary: this step has failed in CI on a timeout while passing
+    // locally every time it's been tried, so dump exactly what the browser
+    // can see right at the point of failure — including timing a direct
+    // fetch and a direct dynamic import of the Search chunk in isolation,
+    // to tell a slow render apart from the module genuinely never arriving.
+    const diagnostic = await page.evaluate(async () => {
+      const names = await caches.keys();
+      const cacheContents = {};
+      for (const name of names) {
+        const cache = await caches.open(name);
+        const keys = await cache.keys();
+        cacheContents[name] = keys.map((k) => new URL(k.url).pathname);
+      }
+      const reg = await navigator.serviceWorker.getRegistration();
+      const manifest = await fetch('/precache-manifest.json')
+        .then((r) => r.json())
+        .catch((err) => `manifest fetch failed: ${err}`);
+      const searchChunk = Array.isArray(manifest) ? manifest.find((u) => u.includes('/Search-')) : null;
+
+      let directFetch;
+      const fetchStart = Date.now();
+      try {
+        const res = await fetch(searchChunk);
+        directFetch = { ok: res.ok, status: res.status, ms: Date.now() - fetchStart };
+      } catch (err) {
+        directFetch = { error: String(err), ms: Date.now() - fetchStart };
+      }
+
+      let directImport;
+      const importStart = Date.now();
+      try {
+        await import(searchChunk);
+        directImport = { ok: true, ms: Date.now() - importStart };
+      } catch (err) {
+        directImport = { error: String(err), ms: Date.now() - importStart };
+      }
+
+      return {
+        cacheContents,
+        swState: reg?.active?.state ?? null,
+        bodySnippet: document.body.innerText.slice(0, 300),
+        searchboxCount: document.querySelectorAll('[role="searchbox"]').length,
+        searchChunk,
+        directFetch,
+        directImport,
+      };
+    });
+    console.log('OFFLINE SEARCH DIAGNOSTIC:', JSON.stringify(diagnostic, null, 2));
+
     await page.getByRole('searchbox', { name: 'Search' }).fill('no signal');
     await page.waitForTimeout(600);
     const body = await page.textContent('body');
