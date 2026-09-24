@@ -246,7 +246,7 @@ frontingRouter.post(
       kind: 'front.started',
       title: `${name} is {{fronting}}`,
       body: body.activity ? `Activity: ${body.activity}` : '',
-      link: '/whos-there',
+      link: '/fronting',
     });
     await checkAchievements(context.scope);
 
@@ -359,7 +359,7 @@ frontingRouter.post(
       kind: 'front.switched',
       title: `${to} is {{fronting}}`,
       body: `Switched from ${from}.`,
-      link: '/whos-there',
+      link: '/fronting',
     });
     ok(res, started, 201);
   }),

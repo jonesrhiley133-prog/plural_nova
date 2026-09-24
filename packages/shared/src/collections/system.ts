@@ -42,7 +42,7 @@ export const members: CollectionDef = {
   indexes: [['systemId', 'name'], ['systemId', 'frontStatus']],
   description: 'Everyone in the system, with as much or as little detail as they want recorded.',
   fields: [
-    f.text('name', 'Display name', { required: true, inList: true, searchable: true, group: 'Identity' }),
+    f.text('name', 'Display name', { required: true, inList: true, searchable: true }),
     f.text('privateName', 'Private name', {
       group: 'Identity',
       sensitive: true,

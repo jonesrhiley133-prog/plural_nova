@@ -41,7 +41,6 @@ export const NAVIGATION: readonly NavCategory[] = [
     icon: 'home',
     items: [
       { id: 'dashboard', path: '/', label: 'Dashboard', icon: 'home', primary: true, description: 'Your day at a glance.' },
-      { id: 'whos-there', path: '/whos-there', label: "Who's there", icon: 'front', primary: true, systemOnly: true, description: 'Who is fronting right now.' },
       { id: 'quick-front', path: '/quick-front', label: 'Quick front', icon: 'bolt', systemOnly: true, quickAction: true, description: 'Log a front in one step.' },
       { id: 'daily-summary', path: '/daily-summary', label: 'Daily summary', icon: 'summary', description: 'Everything recorded on a given day.' },
       { id: 'search', path: '/search', label: 'Search', icon: 'search', keywords: ['find', 'global'] },
@@ -165,7 +164,7 @@ export function categoriesForMode(mode: AppMode, hidden: readonly string[] = [])
 /** Default bottom-bar layout. Users can replace any slot from settings. */
 export const DEFAULT_MOBILE_TABS: readonly string[] = [
   'dashboard',
-  'whos-there',
+  'fronting',
   'journal',
   'tasks',
   'more',

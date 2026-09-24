@@ -25,8 +25,8 @@ const AREAS = [
     icon: 'front' as const,
     title: '{{Fronting}}',
     body: 'One step to record who is out. Several people at once, nobody, or someone unnamed. A full tracker with timeline, day, week and month views, every entry editable, and statistics that describe rather than conclude.',
-    items: ['Quick {{front}}', "Who's there", '{{Front}} tracker', 'Statistics'],
-    path: '/whos-there',
+    items: ['Quick {{front}}', '{{Front}} tracker', 'Statistics'],
+    path: '/fronting',
   },
   {
     icon: 'journal' as const,

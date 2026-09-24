@@ -24,7 +24,7 @@ describe('an account across visits', () => {
     const { page } = session;
     await signUp(page, { name: 'Empty System', mode: 'system' });
 
-    for (const route of ['whos-there', 'quick-front', 'fronting', 'stats', 'members', 'profiles', 'organize']) {
+    for (const route of ['quick-front', 'fronting', 'stats', 'members', 'profiles', 'organize']) {
       await page.goto(`${BASE}/${route}`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(600);
 
@@ -59,7 +59,7 @@ describe('an account across visits', () => {
     await page.waitForTimeout(2200);
 
     const nav = ((await page.locator('.app-bottom-nav').textContent()) ?? '').replace(/\s+/g, ' ');
-    assert.match(nav, /Who's there/, 'signing back in dropped the account out of System Mode');
+    assert.match(nav, /Fronting/, 'signing back in dropped the account out of System Mode');
   });
 
   it('keeps a demo account and its data across a reload', async () => {

@@ -263,19 +263,26 @@ function MemberCard({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      aria-label={String(member['name'])}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onOpen();
-        }
-      }}
       className="card card--interactive card--flush"
-      style={{ textAlign: 'left', overflow: 'hidden', cursor: 'pointer' }}
+      style={{ position: 'relative', textAlign: 'left', overflow: 'hidden' }}
     >
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={String(member['name'])}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          margin: 0,
+          cursor: 'pointer',
+          zIndex: 1,
+        }}
+      />
       <div
         style={{
           aspectRatio: '1',
@@ -287,7 +294,7 @@ function MemberCard({
               } 32%, var(--bg-subtle)), var(--bg-subtle))`,
         }}
       >
-        <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 1 }}>
+        <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
           <IconButton
             icon="bolt"
             label={term('Quick {{front}}')}
@@ -366,20 +373,27 @@ function MemberCircleCard({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      aria-label={String(member['name'])}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onOpen();
-        }
-      }}
       className="card card--interactive"
-      style={{ textAlign: 'center', position: 'relative', cursor: 'pointer', padding: 'var(--space-3)' }}
+      style={{ textAlign: 'center', position: 'relative', padding: 'var(--space-3)' }}
     >
-      <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 1 }}>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={String(member['name'])}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          margin: 0,
+          cursor: 'pointer',
+          zIndex: 1,
+        }}
+      />
+      <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
         <IconButton
           icon="bolt"
           label={term('Quick {{front}}')}
@@ -425,20 +439,24 @@ function MemberBannerRow({
   const minutes = Number(member['frontMinutes'] ?? 0);
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={String(member['name'])}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onOpen();
-        }
-      }}
-      className="list-row"
-      style={{ cursor: 'pointer' }}
-    >
+    <div className="list-row" style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={String(member['name'])}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          margin: 0,
+          cursor: 'pointer',
+          zIndex: 1,
+        }}
+      />
       <Avatar
         name={String(member['name'])}
         src={(member['avatarUrl'] as string) ?? null}
@@ -465,7 +483,7 @@ function MemberBannerRow({
           </span>
         ) : null}
       </span>
-      <span className="list-row__trailing">
+      <span className="list-row__trailing" style={{ position: 'relative', zIndex: 2 }}>
         <IconButton
           icon="bolt"
           label={term('Quick {{front}}')}

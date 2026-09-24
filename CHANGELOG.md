@@ -10,6 +10,34 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.14] — 2026-09-24
+
+### Changed
+
+- **The Who's There nav page is gone, replaced by a startup ritual.** Once a
+  day, the first thing the app asks a system is the thing it exists to
+  answer — who's out — as a quick, dismissible check-in rather than a
+  screen you have to remember to visit: a confirm-or-end if someone already
+  is, a one-tap way to log it if not. Ending, switching, and browsing who's
+  around now live where they already fit — the dashboard's current-front
+  card gained inline End, Switch and Clear actions, and the fronting
+  tracker and Quick Front cover the rest. The bottom bar's second slot is
+  now Fronting instead.
+
+### Fixed
+
+- A member's "Display name" — the one required field on the form — was
+  filed under a collapsed "Identity" section along with a dozen optional
+  ones, so a brand new member's own name was hidden until that section was
+  opened. It's no longer grouped, so it's there from the first tap of "Add
+  a member."
+- Three of the member-directory card layouts nested a real button (the
+  quick-front bolt) inside another element acting as a button (the card
+  itself), which is invalid and an accessibility violation. Restructured so
+  the card's click-to-open is its own button and the bolt is a sibling
+  layered above it — both still independently tappable, neither swallowing
+  the other's clicks.
+
 ## [1.0.13] — 2026-09-24
 
 ### Added

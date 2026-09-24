@@ -152,13 +152,14 @@ function CurrentFrontWidget(): JSX.Element {
   const { t, term } = useI18n();
   const dates = useDateFormat();
   const navigate = useNavigate();
-  const { state, loading } = useFronting();
+  const toast = useToast();
+  const { state, loading, end, clear } = useFronting();
 
   return (
     <Card
       title={t('front.current')}
       actions={
-        <Button variant="ghost" size="sm" onClick={() => navigate('/whos-there')}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/fronting')}>
           {t('action.viewAll')}
         </Button>
       }
@@ -176,12 +177,7 @@ function CurrentFrontWidget(): JSX.Element {
         <div className="stack stack--tight">
           <div className="front-row">
             {state.active.map((event) => (
-              <button
-                key={event.id}
-                type="button"
-                className="front-person"
-                onClick={() => navigate('/whos-there')}
-              >
+              <div key={event.id} className="front-person">
                 <Avatar
                   name={String(event.member?.['name'] ?? t('front.unknown'))}
                   src={(event.member?.['avatarUrl'] as string) ?? null}
@@ -195,13 +191,42 @@ function CurrentFrontWidget(): JSX.Element {
                   {String(event.member?.['name'] ?? t('front.unknown'))}
                 </span>
                 <span className="front-person__since">{formatDuration(event.minutes)}</span>
-              </button>
+              </div>
             ))}
           </div>
           <p className="tiny faint">
-            {t('front.since', { time: dates.time(String(state.active[0]?.['startedAt'] ?? '')) })} ·{' '}
-            {term('tap someone to end or change the {{front}}.')}
+            {t('front.since', { time: dates.time(String(state.active[0]?.['startedAt'] ?? '')) })}
           </p>
+          <div className="row">
+            {state.active.length === 1 ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  void end(state.active[0]!.id)
+                    .then(() => toast.success(term('{{Front}} ended')))
+                    .catch((cause: unknown) => toast.fromError(cause));
+                }}
+              >
+                {t('front.end')}
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  void clear()
+                    .then(() => toast.success(term('{{Front}} cleared')))
+                    .catch((cause: unknown) => toast.fromError(cause));
+                }}
+              >
+                {t('front.clear')}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => navigate('/quick-front?switch=1')}>
+              {t('front.switch')}
+            </Button>
+          </div>
         </div>
       )}
     </Card>

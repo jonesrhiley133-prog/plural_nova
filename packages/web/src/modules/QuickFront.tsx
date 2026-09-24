@@ -100,7 +100,7 @@ export default function QuickFront(): JSX.Element {
       else await start({ ...payload, endOthers: false });
 
       toast.success(t('front.logged'));
-      navigate('/whos-there');
+      navigate('/');
     } catch (cause) {
       toast.fromError(cause, term('Could not record the {{front}}'));
       setSaving(false);
@@ -122,7 +122,7 @@ export default function QuickFront(): JSX.Element {
         await addCoFronter(primaryEvent.id, memberId);
       }
       toast.success(term('Added to the {{front}}'));
-      navigate('/whos-there');
+      navigate('/');
     } catch (cause) {
       toast.fromError(cause, term('Could not add them'));
       setSaving(false);
