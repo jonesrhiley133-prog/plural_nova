@@ -152,7 +152,7 @@ export default function Stories(): JSX.Element {
         }}
       >
         {(records) => (
-          <div className="grid grid--columns" style={{ ['--grid-columns' as never]: 3, marginBottom: 'var(--space-6)' }}>
+          <div className="grid" style={{ ['--grid-min' as never]: '260px', marginBottom: 'var(--space-6)' }}>
             {records.map((story) => {
               const words = wordsFor(String(story.id));
               const chapterCount = chapters.items.filter((chapter) => chapter['storyId'] === story.id).length;
@@ -192,7 +192,7 @@ export default function Stories(): JSX.Element {
       <h2 className="tiny faint" style={{ letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 var(--space-3)' }}>
         Templates
       </h2>
-      <div className="grid grid--columns" style={{ ['--grid-columns' as never]: 3 }}>
+      <div className="grid" style={{ ['--grid-min' as never]: '260px' }}>
         {TEMPLATES.map((template) => (
           <Card key={template.id} title={template.label} subtitle="Built-in">
             <p className="small muted">{template.description}</p>
