@@ -479,11 +479,34 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
   const isLight = settings.base === 'light';
 
   let accent = parseHex(settings.accent) ? settings.accent : base.accent;
-  let guard = 0;
-  while (contrastRatio(accent, tokens.bg) < 3 && guard < 24) {
-    accent = mix(accent, isLight ? '#000000' : '#ffffff', 0.08);
-    guard += 1;
+  const towardEdge = (): void => {
+    let guard = 0;
+    while (contrastRatio(accent, tokens.bg) < 3 && guard < 24) {
+      accent = mix(accent, isLight ? '#000000' : '#ffffff', 0.08);
+      guard += 1;
+    }
+  };
+  towardEdge();
+
+  /*
+   * The page background otherwise stays a flat, base-only colour with no
+   * hint of the chosen accent — on the solid surface this app now defaults
+   * to, that is the only place accent shows up at all, since the colour
+   * fields below are hidden there. A light wash of the accent gives the
+   * whole page an undertone that actually answers "did the theme change?"
+   * without bringing a glow back. AMOLED keeps its true black regardless.
+   *
+   * Moving bg toward the accent can only ever lower the contrast between
+   * them, so the guard above has to run again against the tinted value —
+   * checking it once against the untinted background is not enough.
+   */
+  if (settings.base !== 'amoled') {
+    const tint = isLight ? 0.035 : 0.06;
+    tokens.bg = mix(base.bg, accent, tint);
+    tokens.bgSubtle = mix(base.bgSubtle, accent, tint);
+    towardEdge();
   }
+
   tokens.accent = accent;
   tokens.accentText = readableTextOn(accent);
   tokens.accentSoft = withAlpha(accent, isLight ? 0.12 : 0.16);

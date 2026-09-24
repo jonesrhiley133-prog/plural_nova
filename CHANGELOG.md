@@ -10,6 +10,20 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.9] — 2026-09-24
+
+### Fixed
+
+- **Changing the theme now changes the background, not just a few buttons.**
+  The page background was a flat, base-only colour with no memory of the
+  chosen accent — on the solid surface the app defaults to, that made
+  picking a different accent or preset invisible outside a handful of small
+  controls. It now carries a light wash of the accent, subtle enough to
+  stay calm and cozy rather than glowing, so two systems running different
+  presets actually look different at a glance. AMOLED keeps its true black
+  regardless, and the accent's contrast against the background is
+  re-checked after the tint rather than before, so readability holds.
+
 ## [1.0.8] — 2026-09-24
 
 ### Added

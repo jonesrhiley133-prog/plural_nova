@@ -25,6 +25,6 @@ export const APP_NAME = 'PluralNova';
  * once — the Android versionCode is derived from the npm version, and a
  * mismatch would have the app reporting a version it is not.
  */
-export const APP_VERSION = '1.0.8';
+export const APP_VERSION = '1.0.9';
 /** Bumped whenever the wire shape of the API changes incompatibly. */
 export const API_VERSION = 1;
