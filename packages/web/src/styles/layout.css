@@ -259,7 +259,6 @@
 .app-nav__group-label {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
   padding: var(--space-2);
   background: none;
@@ -270,6 +269,23 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
+  gap: var(--space-2);
+}
+
+/* A dot of the category's own colour ahead of its label. */
+.app-nav__group-label::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cat-color, var(--accent));
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.app-nav__group-label > :last-child {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .app-nav__group-label:hover {
@@ -291,14 +307,15 @@
 }
 
 .app-nav__item:hover {
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--cat-color, var(--accent)) 14%, transparent);
   color: var(--text);
 }
 
 .app-nav__item[aria-current='page'] {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--cat-color, var(--accent)) 18%, transparent);
+  color: var(--text);
   font-weight: var(--weight-medium);
+  box-shadow: inset 3px 0 0 var(--cat-color, var(--accent));
 }
 
 .app-nav__item-label {

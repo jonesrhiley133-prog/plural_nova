@@ -31,6 +31,8 @@ export interface NavCategory {
   label: string;
   icon: string;
   systemOnly?: boolean;
+  /** Context colour for this category — used by the sidebar and tiles. */
+  color?: string;
   items: readonly NavItem[];
 }
 
@@ -39,6 +41,7 @@ export const NAVIGATION: readonly NavCategory[] = [
     id: 'home',
     label: 'Home',
     icon: 'home',
+    color: '#8b5cf6',
     items: [
       { id: 'dashboard', path: '/', label: 'Dashboard', icon: 'home', primary: true, description: 'Your day at a glance.' },
       { id: 'quick-front', path: '/quick-front', label: 'Quick front', icon: 'bolt', systemOnly: true, quickAction: true, description: 'Log a front in one step.' },
@@ -51,6 +54,7 @@ export const NAVIGATION: readonly NavCategory[] = [
     label: 'System',
     icon: 'system',
     systemOnly: true,
+    color: '#ec4899',
     items: [
       { id: 'members', path: '/members', label: 'Members', icon: 'member', primary: true, systemOnly: true, quickAction: true },
       { id: 'profile-select', path: '/profiles', label: 'Profile select', icon: 'profiles', systemOnly: true, description: 'Pick who is using the app.' },
@@ -73,6 +77,7 @@ export const NAVIGATION: readonly NavCategory[] = [
     id: 'life',
     label: 'Life',
     icon: 'life',
+    color: '#6366f1',
     items: [
       { id: 'calendar', path: '/calendar', label: 'Calendar', icon: 'calendar', primary: true, quickAction: true },
       { id: 'tasks', path: '/tasks', label: 'Tasks', icon: 'task', primary: true, quickAction: true },
@@ -95,6 +100,7 @@ export const NAVIGATION: readonly NavCategory[] = [
     id: 'social',
     label: 'Social',
     icon: 'social',
+    color: '#10b981',
     items: [
       { id: 'constellations', path: '/constellations', label: 'Constellations', icon: 'constellation' },
       { id: 'friends', path: '/friends', label: 'Friends', icon: 'friend', badge: 'friendRequests' },
@@ -106,6 +112,7 @@ export const NAVIGATION: readonly NavCategory[] = [
     id: 'create',
     label: 'Create',
     icon: 'create',
+    color: '#f59e0b',
     items: [
       { id: 'media', path: '/media', label: 'Media library', icon: 'media' },
       { id: 'music', path: '/music', label: 'Music', icon: 'music' },
@@ -122,6 +129,7 @@ export const NAVIGATION: readonly NavCategory[] = [
     id: 'more',
     label: 'More',
     icon: 'more',
+    color: '#94a3b8',
     items: [
       { id: 'notifications', path: '/notifications', label: 'Notifications', icon: 'notification', badge: 'notifications' },
       { id: 'vault', path: '/vault', label: 'Private vault', icon: 'vault' },

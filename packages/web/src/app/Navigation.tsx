@@ -69,8 +69,9 @@ export function SidebarNav(): JSX.Element {
 
       {categories.map((category) => {
         const isCollapsed = collapsed.has(category.id);
+        const catColor = category.color ?? 'var(--accent)';
         return (
-          <div className="app-nav__group" key={category.id}>
+          <div className="app-nav__group" key={category.id} style={{ '--cat-color': catColor } as never}>
             <button
               type="button"
               className="app-nav__group-label"
