@@ -584,7 +584,13 @@ export function RecoveryCodeDialog({
           variant="secondary"
           icon={copied ? 'check' : 'link'}
           onClick={() => {
-            void navigator.clipboard?.writeText(code ?? '').then(() => setCopied(true));
+            void navigator.clipboard
+              ?.writeText(code ?? '')
+              .then(() => setCopied(true))
+              .catch(() => {
+                // Clipboard access can be denied by the browser; the code is
+                // still on screen to copy by hand.
+              });
           }}
         >
           {copied ? 'Copied' : 'Copy code'}

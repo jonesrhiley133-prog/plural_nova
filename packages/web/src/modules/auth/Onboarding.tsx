@@ -153,7 +153,9 @@ export function Onboarding(): JSX.Element {
             style={{ textAlign: 'left' }}
             aria-pressed={settings.mode === value}
             onClick={() => {
-              void saveSettings({ mode: value }).then(onDone);
+              void saveSettings({ mode: value })
+                .then(onDone)
+                .catch((cause: unknown) => toast.fromError(cause, 'Could not save that'));
             }}
           >
             <div className="row row--between row--nowrap">
@@ -274,13 +276,14 @@ function SystemProfileStep(): JSX.Element {
 function TerminologyStep(): JSX.Element {
   const { settings, saveSettings } = useAuth();
   const { t } = useI18n();
+  const toast = useToast();
   const [overrides, setOverrides] = useState<TermOverrides>(settings.terminology ?? {});
   const shown = useMemo(() => TERMS.slice(0, 4), []);
 
   const choose = (key: string, one: string, other: string): void => {
     const next = { ...overrides, [key]: { one, other } };
     setOverrides(next);
-    void saveSettings({ terminology: next });
+    void saveSettings({ terminology: next }).catch((cause: unknown) => toast.fromError(cause, 'Could not save that'));
   };
 
   return (
@@ -456,7 +459,9 @@ function NotificationsStep(): JSX.Element {
           hint="Hold notifications overnight. In-app ones still arrive."
           checked={settings.quietHours.enabled}
           onChange={(enabled) =>
-            void saveSettings({ quietHours: { ...settings.quietHours, enabled } })
+            void saveSettings({ quietHours: { ...settings.quietHours, enabled } }).catch((cause: unknown) =>
+              toast.fromError(cause, 'Could not save that'),
+            )
           }
         />
       </Card>

@@ -290,11 +290,17 @@ function Thread({
     if (markedRead.current === threadId) return;
     markedRead.current = threadId;
     const unread = conversation.unreadCount;
-    void api.post(`/api/messages/threads/${threadId}/read`).then(() => {
-      decrementBadge('messages', unread);
-      void refreshBadges();
-      notifyChanged.current();
-    });
+    void api
+      .post(`/api/messages/threads/${threadId}/read`)
+      .then(() => {
+        decrementBadge('messages', unread);
+        void refreshBadges();
+        notifyChanged.current();
+      })
+      .catch(() => {
+        // A background read receipt failing is not worth a toast; the badge
+        // just stays as it was, the same way a missed count refresh does.
+      });
   }, [conversation, threadId]);
 
   // New messages arrive over the socket and are appended, so the list never
@@ -513,10 +519,13 @@ function Thread({
               variant="primary"
               size="sm"
               onClick={() => {
-                void api.post(`/api/messages/threads/${threadId}/accept`).then(() => {
-                  void load();
-                  toast.success('Accepted');
-                });
+                void api
+                  .post(`/api/messages/threads/${threadId}/accept`)
+                  .then(() => {
+                    void load();
+                    toast.success('Accepted');
+                  })
+                  .catch((cause: unknown) => toast.fromError(cause, 'Could not accept that'));
               }}
             >
               Accept

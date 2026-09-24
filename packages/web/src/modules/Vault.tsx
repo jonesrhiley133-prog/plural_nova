@@ -192,10 +192,13 @@ export default function Vault(): JSX.Element {
               variant="secondary"
               icon="lock"
               onClick={() => {
-                void api.post('/api/vault/lock').then(() => {
-                  void load();
-                  toast.success('Vault locked');
-                });
+                void api
+                  .post('/api/vault/lock')
+                  .then(() => {
+                    void load();
+                    toast.success('Vault locked');
+                  })
+                  .catch((cause: unknown) => toast.fromError(cause, 'Could not lock the vault'));
               }}
             >
               Lock now

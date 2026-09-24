@@ -888,7 +888,14 @@ function Performance(): JSX.Element {
           icon="refresh"
           style={{ marginTop: 'var(--space-3)' }}
           onClick={() => {
-            void syncEngine.run().then(() => toast.success('Synced'));
+            // run() always resolves — offline and a real failure are both
+            // recorded on the status rather than thrown — so the toast has
+            // to read that status instead of treating "it returned" as success.
+            void syncEngine.run().then((status) => {
+              if (status.state === 'offline') toast.info('No connection', 'Nothing to sync right now.');
+              else if (status.state === 'error') toast.error('Sync did not finish', status.lastError ?? undefined);
+              else toast.success('Synced');
+            });
           }}
         >
           Sync now
@@ -1061,10 +1068,13 @@ function Account(): JSX.Element {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      void api.delete(`/api/auth/sessions/${session.id}`).then(() => {
-                        setSessions((current) => current.filter((row) => row.id !== session.id));
-                        toast.success('Signed out there');
-                      });
+                      void api
+                        .delete(`/api/auth/sessions/${session.id}`)
+                        .then(() => {
+                          setSessions((current) => current.filter((row) => row.id !== session.id));
+                          toast.success('Signed out there');
+                        })
+                        .catch((cause: unknown) => toast.fromError(cause, 'Could not sign that session out'));
                     }}
                   >
                     Sign out

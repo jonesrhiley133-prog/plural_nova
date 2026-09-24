@@ -6,7 +6,7 @@ import {
   type BackupValidation,
   type ConflictStrategy,
 } from '@pluralnova/shared';
-import { api, getToken, messageFor } from '../core/api.js';
+import { NetworkError, api, getToken, messageFor } from '../core/api.js';
 import { useAuth } from '../core/auth.js';
 import { recordStore } from '../core/data.js';
 import { syncEngine } from '../core/sync.js';
@@ -84,10 +84,17 @@ export default function Backup(): JSX.Element {
     setExporting(true);
     try {
       // Fetched as a blob so the browser saves it as a file rather than the app
-      // holding the whole account in memory as a string.
-      const response = await fetch('/api/data/backup', {
-        headers: { authorization: `Bearer ${getToken() ?? ''}` },
-      });
+      // holding the whole account in memory as a string. Raw fetch, not the
+      // api client, means a dropped connection throws a bare "Failed to
+      // fetch" instead of the app's own wording — converted back below.
+      let response: Response;
+      try {
+        response = await fetch('/api/data/backup', {
+          headers: { authorization: `Bearer ${getToken() ?? ''}` },
+        });
+      } catch {
+        throw new NetworkError('This needs a connection — nothing was exported.');
+      }
       if (!response.ok) throw new Error('The export could not be prepared.');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -110,9 +117,14 @@ export default function Backup(): JSX.Element {
   const exportOpenPlural = async (): Promise<void> => {
     setExportingOpenPlural(true);
     try {
-      const response = await fetch('/api/data/export/openplural', {
-        headers: { authorization: `Bearer ${getToken() ?? ''}` },
-      });
+      let response: Response;
+      try {
+        response = await fetch('/api/data/export/openplural', {
+          headers: { authorization: `Bearer ${getToken() ?? ''}` },
+        });
+      } catch {
+        throw new NetworkError('This needs a connection — nothing was exported.');
+      }
       if (!response.ok) throw new Error('The export could not be prepared.');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);

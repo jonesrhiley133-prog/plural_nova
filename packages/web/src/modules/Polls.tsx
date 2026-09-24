@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { newId } from '@pluralnova/shared';
-import { api, messageFor } from '../core/api.js';
+import { NetworkError, api, isOffline, messageFor } from '../core/api.js';
 import { realtime } from '../core/realtime.js';
 import { useCollection } from '../core/data.js';
+import { getMeta, setMeta } from '../core/localdb.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useActiveMemberId } from '../core/auth.js';
@@ -63,7 +64,19 @@ export default function Polls(): JSX.Element {
       const result = await api.get<{ polls: Poll[] }>('/api/system/polls');
       setPolls(result.polls);
       setError(null);
+      void setMeta('polls.current', result.polls);
     } catch (cause) {
+      // Tallies are computed live and never stored on the record itself, so
+      // the last full answer this device saw — voters and all — is kept
+      // rather than falling back to the bare questions with no results.
+      if (isOffline(cause)) {
+        const cached = await getMeta<Poll[]>('polls.current');
+        if (cached) {
+          setPolls(cached);
+          setError('Shown from this device. Reconnect for the latest.');
+          return;
+        }
+      }
       setError(messageFor(cause));
     } finally {
       setLoading(false);
@@ -83,7 +96,12 @@ export default function Polls(): JSX.Element {
       await load();
       toast.success('Vote recorded');
     } catch (cause) {
-      toast.fromError(cause, 'Could not record that vote');
+      // A vote changes the tally everyone sees, so it is never queued —
+      // offline, the default "saved on this device" text would be false here.
+      toast.fromError(
+        isOffline(cause) ? new NetworkError('This needs a connection — the vote was not recorded.') : cause,
+        'Could not record that vote',
+      );
     }
   };
 
@@ -123,7 +141,7 @@ export default function Polls(): JSX.Element {
 
       {loading ? (
         <SkeletonList rows={3} />
-      ) : error ? (
+      ) : error && polls.length === 0 ? (
         <ErrorPanel message={error} onRetry={() => void load()} />
       ) : polls.length === 0 ? (
         <Card>
@@ -138,16 +156,20 @@ export default function Polls(): JSX.Element {
         </Card>
       ) : (
         <div className="stack">
+          {error ? <p className="tiny faint">{error}</p> : null}
           {[...open, ...closed].map((poll) => (
             <PollCard
               key={poll.id}
               poll={poll}
               onVote={(optionIds) => void vote(poll, optionIds)}
               onClose={() => {
-                void api.post(`/api/system/polls/${poll.id}/close`).then(() => {
-                  toast.success('Poll closed');
-                  void load();
-                });
+                void api
+                  .post(`/api/system/polls/${poll.id}/close`)
+                  .then(() => {
+                    toast.success('Poll closed');
+                    void load();
+                  })
+                  .catch((cause: unknown) => toast.fromError(cause, 'Could not close that poll'));
               }}
               dates={dates}
             />
