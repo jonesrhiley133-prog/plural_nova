@@ -10,6 +10,16 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+## [1.0.10] — 2026-09-24
+
+### Added
+
+- **Wellbeing opens on three calm, low-stakes things to do**, not a
+  dashboard: a guided breathing rhythm (box, 4-7-8, or a plain in-and-out),
+  bubble wrap that never runs out, and a walk through the five senses.
+  Nothing is timed, scored, or saved anywhere. The mood log and check-in
+  trends that used to be the whole page are still there, a tab away.
+
 ## [1.0.9] — 2026-09-24
 
 ### Fixed
