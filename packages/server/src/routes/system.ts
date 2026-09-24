@@ -23,6 +23,7 @@ import { historyPhrases, recordHistory } from '../services/history.js';
 import { notify } from '../services/notifications.js';
 import { publish } from '../realtime/hub.js';
 import { checkAchievements } from '../services/achievements.js';
+import { migrateLegacyCustomFields } from '../services/customFieldMigration.js';
 
 /**
  * System-level operations: the system profile itself, internal chat, the
@@ -465,6 +466,19 @@ systemRouter.post(
       memberId: member.id,
     });
     ok(res, updated);
+  }),
+);
+
+/**
+ * Safe to call every time a screen that needs shared custom fields mounts:
+ * it only ever does something the first time, for an account that still has
+ * the old per-member shape and nothing migrated yet.
+ */
+systemRouter.post(
+  '/custom-fields/migrate',
+  handler((req, res) => {
+    const context = requireSystemMode(req);
+    ok(res, migrateLegacyCustomFields(context.scope));
   }),
 );
 

@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './core/auth.js';
+import { api } from './core/api.js';
 import { DataProvider } from './core/data.js';
 import { I18nProvider } from './core/i18n.js';
 import { ThemeProvider, usePreAuthTheme } from './core/theme.js';
@@ -34,6 +35,7 @@ const Members = load(() => import('./modules/Members.js'));
 const MemberProfile = load(() => import('./modules/MemberProfile.js'));
 const ProfileSelect = load(() => import('./modules/ProfileSelect.js'));
 const Organize = load(() => import('./modules/Organize.js'));
+const CustomFieldDefinitions = load(() => import('./modules/CustomFieldDefinitions.js'));
 const Subsystems = load(() => import('./modules/Subsystems.js'));
 const SystemHistory = load(() => import('./modules/SystemHistory.js'));
 const Journal = load(() => import('./modules/Journal.js'));
@@ -105,7 +107,7 @@ function SystemOnly({ children }: { children: JSX.Element }): JSX.Element {
 }
 
 function AppRoutes(): JSX.Element {
-  const { status, user } = useAuth();
+  const { status, user, settings } = useAuth();
 
   useEffect(() => {
     if (status !== 'authenticated') return;
@@ -115,11 +117,15 @@ function AppRoutes(): JSX.Element {
     // Published here rather than when a conversation is opened, so the first
     // message anyone sends this account can already be encrypted.
     void publishMessageKey();
+    // A no-op after the first successful run, on any account that still has
+    // fields in the old, per-member shape — safe to fire every login rather
+    // than tracking whether it already happened.
+    if (settings.mode === 'system') void api.post('/api/system/custom-fields/migrate').catch(() => {});
     return () => {
       stopSync();
       stopRealtime();
     };
-  }, [status]);
+  }, [status, settings.mode]);
 
   if (status === 'loading') {
     return (
@@ -148,6 +154,7 @@ function AppRoutes(): JSX.Element {
         <Route path="members/:id" element={<SystemOnly><MemberProfile /></SystemOnly>} />
         <Route path="profiles" element={<SystemOnly><ProfileSelect /></SystemOnly>} />
         <Route path="organize" element={<SystemOnly><Organize /></SystemOnly>} />
+        <Route path="custom-fields" element={<SystemOnly><CustomFieldDefinitions /></SystemOnly>} />
         <Route path="subsystems" element={<SystemOnly><Subsystems /></SystemOnly>} />
         <Route path="system-history" element={<SystemOnly><SystemHistory /></SystemOnly>} />
         <Route path="relationships" element={<SystemOnly><Relationships /></SystemOnly>} />
