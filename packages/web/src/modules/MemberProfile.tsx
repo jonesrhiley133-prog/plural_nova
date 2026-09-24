@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { formatDuration, upgradeLegacyCustomFields, type StoredRecord } from '@pluralnova/shared';
+import { customFieldValues, formatDuration, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -11,7 +11,7 @@ import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { SwitchRow } from '../ui/forms.js';
-import { CustomFieldsEditor, CustomFieldsView } from '../ui/CustomFields.js';
+import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
 import { Icon } from '../ui/Icon.js';
 
 /**
@@ -283,8 +283,11 @@ function About({
   onChange: (id: string, patch: Record<string, unknown>) => Promise<StoredRecord>;
 }): JSX.Element {
   const toast = useToast();
+  const navigate = useNavigate();
   const editor = useDialog();
-  const customFields = useMemo(() => upgradeLegacyCustomFields(member['customFields']), [member]);
+  const definitions = useCollection('customFieldDefinitions');
+  const members = useCollection('members');
+  const values = useMemo(() => customFieldValues(member['customFieldValues']), [member]);
 
   return (
     <div className="stack">
@@ -300,12 +303,19 @@ function About({
         />
       </Card>
 
-      <CustomFieldsView
-        fields={customFields}
+      <MemberCustomFieldsView
+        definitions={definitions.items}
+        values={values}
+        members={members.items}
         actions={
-          <Button variant="ghost" size="sm" icon="edit" onClick={() => editor.show()}>
-            Edit
-          </Button>
+          <span className="row row--nowrap">
+            <Button variant="ghost" size="sm" icon="settings" onClick={() => navigate('/custom-fields')}>
+              Manage fields
+            </Button>
+            <Button variant="ghost" size="sm" icon="edit" onClick={() => editor.show()}>
+              Edit
+            </Button>
+          </span>
         }
       />
 
@@ -315,12 +325,14 @@ function About({
         </Card>
       ) : null}
 
-      <Dialog open={editor.open} onClose={editor.hide} title="Custom fields">
-        <CustomFieldsEditor
-          value={customFields}
+      <Dialog open={editor.open} onClose={editor.hide} title="Custom fields" wide>
+        <MemberCustomFieldsEditor
+          definitions={definitions.items}
+          values={values}
+          members={members.items}
           onCancel={editor.hide}
           onSave={async (next) => {
-            await onChange(member.id, { customFields: next });
+            await onChange(member.id, { customFieldValues: next });
             toast.success('Saved');
             editor.hide();
           }}

@@ -59,6 +59,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'members', path: '/members', label: 'Members', icon: 'member', primary: true, systemOnly: true, quickAction: true },
       { id: 'profile-select', path: '/profiles', label: 'Profile select', icon: 'profiles', systemOnly: true, description: 'Pick who is using the app.' },
       { id: 'organize', path: '/organize', label: 'Organise', icon: 'organize', systemOnly: true, keywords: ['groups', 'folders', 'sort'] },
+      { id: 'custom-fields', path: '/custom-fields', label: 'Custom fields', icon: 'tag', systemOnly: true, keywords: ['profile', 'schema', 'alter'] },
       { id: 'subsystems', path: '/subsystems', label: 'Subsystems', icon: 'subsystem', systemOnly: true },
       { id: 'fronting', path: '/fronting', label: 'Fronting', icon: 'front', systemOnly: true, keywords: ['front tracker', 'timeline'] },
       { id: 'stats', path: '/stats', label: 'Stats', icon: 'stats', systemOnly: true, keywords: ['analytics', 'charts'] },

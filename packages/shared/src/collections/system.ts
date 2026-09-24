@@ -1,4 +1,5 @@
 import { f, OPTIONS, type CollectionDef } from './schema.js';
+import { CUSTOM_FIELD_TYPES, CUSTOM_FIELD_TYPE_LABELS } from '../customFields.js';
 
 const HISTORY_CATEGORIES = [
   { value: 'settings', label: 'Settings' },
@@ -196,7 +197,16 @@ export const members: CollectionDef = {
       group: 'Flags',
       defaultValue: true,
     }),
-    f.json('customFields', 'Custom fields', { group: 'Custom' }),
+    /*
+     * The very first shape custom fields had: kept exactly as it was written,
+     * read only by the one-time migration into `customFieldDefinitions` +
+     * `customFieldValues` below. Nothing writes it any more.
+     */
+    f.json('customFields', 'Custom fields (legacy)', { group: 'Custom' }),
+    f.json('customFieldValues', 'Custom field values', {
+      group: 'Custom',
+      hint: 'Answers against the system-wide fields defined once for everyone.',
+    }),
     f.json('customSections', 'Custom profile sections', {
       group: 'Custom',
       hint: 'Headed blocks of their own, in the order they choose.',
@@ -209,6 +219,43 @@ export const members: CollectionDef = {
     f.text('pinHash', 'Profile PIN', { sensitive: true, group: 'Privacy' }),
     f.json('preferences', 'Member preferences', { group: 'Privacy' }),
     f.bool('archived', 'Archived'),
+  ],
+};
+
+/**
+ * The custom fields themselves — defined once for the system, not per
+ * member. "Species", once added here with its preset choices, is the same
+ * field and the same choice list on every member's profile; each member's
+ * own answer lives on their own record in `customFieldValues`.
+ */
+export const customFieldDefinitions: CollectionDef = {
+  name: 'customFieldDefinitions',
+  label: 'Custom fields',
+  singular: 'Custom field',
+  icon: 'tag',
+  area: 'system',
+  scope: 'system',
+  systemOnly: true,
+  titleField: 'label',
+  sortField: 'sortOrder',
+  sortDir: 'asc',
+  description: 'Fields any member can fill in about themselves, defined once for the whole system.',
+  fields: [
+    f.text('label', 'Label', { required: true, inList: true, searchable: true }),
+    f.enumOf(
+      'type',
+      'Type',
+      CUSTOM_FIELD_TYPES.map((type) => ({ value: type, label: CUSTOM_FIELD_TYPE_LABELS[type] })),
+      { required: true, inList: true },
+    ),
+    f.text('group', 'Group', {
+      hint: 'Fields sharing a group appear together under that heading on a profile.',
+    }),
+    f.json('options', 'Options', { hint: 'Preset choices, for a field that offers a pick list.' }),
+    f.real('min', 'Minimum'),
+    f.real('max', 'Maximum'),
+    f.text('unit', 'Unit', { maxLength: 20 }),
+    f.int('sortOrder', 'Order', { defaultValue: 0 }),
   ],
 };
 
@@ -786,6 +833,7 @@ export const tags: CollectionDef = {
 
 export const SYSTEM_COLLECTIONS = [
   members,
+  customFieldDefinitions,
   subsystems,
   memberGroups,
   frontEvents,

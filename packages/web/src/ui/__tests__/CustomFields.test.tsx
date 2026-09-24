@@ -1,27 +1,56 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { CustomFieldDef } from '@pluralnova/shared';
-import { CustomFieldsEditor, CustomFieldsView } from '../CustomFields.js';
+import type { CustomFieldValueEntry, StoredRecord } from '@pluralnova/shared';
+import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../CustomFields.js';
 
 /**
- * The editor and the view it feeds share no hooks of their own — they take
- * the array and a save callback as plain props — so these tests exercise
- * them directly rather than through a member's profile.
+ * Definitions are shared and values are per member, so these tests build both
+ * separately — a `StoredRecord`-shaped definition plus the small array of
+ * answers one member gave against it — the same split the real screens work
+ * with, rather than through a member's profile.
  */
 
-describe('CustomFieldsView', () => {
-  it('shows a placeholder when nothing has been added yet', () => {
-    render(<CustomFieldsView fields={[]} />);
-    expect(screen.getByText('No custom fields yet.')).toBeInTheDocument();
+function definition(overrides: { id: string; label: string; type: string } & Record<string, unknown>): StoredRecord {
+  return {
+    userId: 'u1',
+    systemId: 's1',
+    memberId: null,
+    visibility: 'system',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    deletedAt: null,
+    version: 1,
+    sortOrder: 0,
+    ...overrides,
+  } as StoredRecord;
+}
+
+describe('MemberCustomFieldsView', () => {
+  it('shows a placeholder when no fields have been defined for the system', () => {
+    render(<MemberCustomFieldsView definitions={[]} values={[]} />);
+    expect(screen.getByText('No custom fields set up for this system yet.')).toBeInTheDocument();
   });
 
-  it('renders an ungrouped field inline and a named group as its own card', () => {
-    const fields: CustomFieldDef[] = [
-      { id: 'cf_1', label: 'Favourite drink', type: 'text', value: 'Tea' },
-      { id: 'cf_2', label: 'Height', type: 'number', value: '170', unit: 'cm', group: 'Physical' },
+  it('hides a defined field this member never answered', () => {
+    const definitions = [definition({ id: 'cfd_1', label: 'Favourite drink', type: 'text' })];
+    render(<MemberCustomFieldsView definitions={definitions} values={[]} />);
+    expect(screen.queryByText('Favourite drink')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Nothing filled in here. Every field is optional — a blank one is not a gap.'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders an ungrouped field inline and a named group as its own card, for the member who answered them', () => {
+    const definitions = [
+      definition({ id: 'cfd_1', label: 'Favourite drink', type: 'text' }),
+      definition({ id: 'cfd_2', label: 'Height', type: 'number', unit: 'cm', group: 'Physical' }),
     ];
-    render(<CustomFieldsView fields={fields} />);
+    const values: CustomFieldValueEntry[] = [
+      { definitionId: 'cfd_1', value: 'Tea' },
+      { definitionId: 'cfd_2', value: '170' },
+    ];
+    render(<MemberCustomFieldsView definitions={definitions} values={values} />);
     expect(screen.getByText('Favourite drink')).toBeInTheDocument();
     expect(screen.getByText('Tea')).toBeInTheDocument();
     expect(screen.getByText('Physical')).toBeInTheDocument();
@@ -29,68 +58,104 @@ describe('CustomFieldsView', () => {
   });
 
   it('renders a checkbox field as Yes or No rather than the raw stored string', () => {
-    const fields: CustomFieldDef[] = [{ id: 'cf_1', label: 'Verified', type: 'checkbox', value: 'true' }];
-    render(<CustomFieldsView fields={fields} />);
+    const definitions = [definition({ id: 'cfd_1', label: 'Verified', type: 'checkbox' })];
+    const values: CustomFieldValueEntry[] = [{ definitionId: 'cfd_1', value: 'true' }];
+    render(<MemberCustomFieldsView definitions={definitions} values={values} />);
     expect(screen.getByText('Yes')).toBeInTheDocument();
+  });
+
+  it('shares one definition’s choices across whichever member answered it', () => {
+    const definitions = [
+      definition({
+        id: 'cfd_1',
+        label: 'Species',
+        type: 'choice',
+        options: [
+          { id: 'opt_human', label: 'Human' },
+          { id: 'opt_fictive', label: 'Fictive' },
+        ],
+      }),
+    ];
+    render(
+      <MemberCustomFieldsView definitions={definitions} values={[{ definitionId: 'cfd_1', value: 'opt_fictive' }]} />,
+    );
+    expect(screen.getByText('Fictive')).toBeInTheDocument();
   });
 });
 
-describe('CustomFieldsEditor', () => {
-  function renderEditor(value: CustomFieldDef[] = []) {
-    const onSave = vi.fn(async (_next: CustomFieldDef[]) => undefined);
+describe('MemberCustomFieldsEditor', () => {
+  function renderEditor(definitions: StoredRecord[], values: CustomFieldValueEntry[] = []) {
+    const onSave = vi.fn(async (_next: CustomFieldValueEntry[]) => undefined);
     const onCancel = vi.fn();
-    render(<CustomFieldsEditor value={value} onSave={onSave} onCancel={onCancel} />);
+    render(<MemberCustomFieldsEditor definitions={definitions} values={values} onSave={onSave} onCancel={onCancel} />);
     return { onSave, onCancel, user: userEvent.setup() };
   }
 
-  it('adds a field, opened for editing, and saves it with the label typed in', async () => {
-    const { onSave, user } = renderEditor();
-    await user.click(screen.getByRole('button', { name: /Add field/i }));
-
-    const labelInput = screen.getByLabelText('Label');
-    await user.clear(labelInput);
-    await user.type(labelInput, 'Star sign');
-
-    await user.click(screen.getByRole('button', { name: /^Save$/i }));
-
-    expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0]?.[0] as CustomFieldDef[];
-    expect(saved).toHaveLength(1);
-    expect(saved[0]).toMatchObject({ label: 'Star sign', type: 'text' });
+  it('explains there is nothing to answer yet when the system has no fields', () => {
+    renderEditor([]);
+    expect(screen.getByText(/No custom fields have been set up for this system yet/)).toBeInTheDocument();
   });
 
-  it('drops a field left with a blank label rather than saving a nameless row', async () => {
-    const { onSave, user } = renderEditor();
-    await user.click(screen.getByRole('button', { name: /Add field/i }));
-    await user.clear(screen.getByLabelText('Label'));
+  it('saves a typed value against the right definition', async () => {
+    const definitions = [definition({ id: 'cfd_1', label: 'Star sign', type: 'text' })];
+    const { onSave, user } = renderEditor(definitions);
+
+    await user.type(screen.getByLabelText('Star sign'), 'Libra');
     await user.click(screen.getByRole('button', { name: /^Save$/i }));
 
-    expect(onSave).toHaveBeenCalledWith([]);
+    expect(onSave).toHaveBeenCalledWith([{ definitionId: 'cfd_1', value: 'Libra' }]);
   });
 
-  it('removes a field from what gets saved', async () => {
-    const existing: CustomFieldDef[] = [{ id: 'cf_1', label: 'Keep me', type: 'text', value: '' }];
-    const { onSave, user } = renderEditor(existing);
+  it('leaves a field out of what gets saved when it is left blank', async () => {
+    const definitions = [definition({ id: 'cfd_1', label: 'Star sign', type: 'text' })];
+    const { onSave, user } = renderEditor(definitions);
 
-    await user.click(screen.getByRole('button', { name: 'Remove field' }));
     await user.click(screen.getByRole('button', { name: /^Save$/i }));
 
     expect(onSave).toHaveBeenCalledWith([]);
   });
 
-  it('switches a field to checkbox and records a true value from the switch', async () => {
-    const { onSave, user } = renderEditor();
-    await user.click(screen.getByRole('button', { name: /Add field/i }));
+  it('records a true value from a checkbox field', async () => {
+    const definitions = [definition({ id: 'cfd_1', label: 'Verified', type: 'checkbox' })];
+    const { onSave, user } = renderEditor(definitions);
 
-    const labelInput = screen.getByLabelText('Label');
-    await user.clear(labelInput);
-    await user.type(labelInput, 'Verified');
-
-    await user.selectOptions(screen.getByLabelText('Type'), 'Yes / no');
     await user.click(screen.getByRole('switch', { name: 'Verified' }));
     await user.click(screen.getByRole('button', { name: /^Save$/i }));
 
-    const saved = onSave.mock.calls[0]?.[0] as CustomFieldDef[];
-    expect(saved[0]).toMatchObject({ label: 'Verified', type: 'checkbox', value: 'true' });
+    expect(onSave).toHaveBeenCalledWith([{ definitionId: 'cfd_1', value: 'true' }]);
+  });
+
+  it('starts from an existing answer and saves a changed one', async () => {
+    const definitions = [definition({ id: 'cfd_1', label: 'Star sign', type: 'text' })];
+    const { onSave, user } = renderEditor(definitions, [{ definitionId: 'cfd_1', value: 'Libra' }]);
+
+    const input = screen.getByLabelText('Star sign') as HTMLInputElement;
+    expect(input.value).toBe('Libra');
+    await user.clear(input);
+    await user.type(input, 'Scorpio');
+    await user.click(screen.getByRole('button', { name: /^Save$/i }));
+
+    expect(onSave).toHaveBeenCalledWith([{ definitionId: 'cfd_1', value: 'Scorpio' }]);
+  });
+
+  it('picks one of the shared choices for a choice field', async () => {
+    const definitions = [
+      definition({
+        id: 'cfd_1',
+        label: 'Species',
+        type: 'choice',
+        options: [
+          { id: 'opt_human', label: 'Human' },
+          { id: 'opt_fictive', label: 'Fictive' },
+        ],
+      }),
+    ];
+    const { onSave, user } = renderEditor(definitions);
+
+    await user.click(screen.getByRole('button', { name: /Species/i }));
+    await user.click(screen.getByRole('button', { name: 'Fictive' }));
+    await user.click(screen.getByRole('button', { name: /^Save$/i }));
+
+    expect(onSave).toHaveBeenCalledWith([{ definitionId: 'cfd_1', value: 'opt_fictive' }]);
   });
 });
