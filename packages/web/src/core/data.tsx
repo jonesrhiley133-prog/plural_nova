@@ -302,6 +302,8 @@ export interface CollectionResult {
   items: StoredRecord[];
   all: StoredRecord[];
   loading: boolean;
+  /** 0 until the store has a real answer (cache or network); never goes back to 0 after. */
+  loadedAt: number;
   error: string | null;
   reload: () => Promise<void>;
   create: (input: Record<string, unknown>) => Promise<StoredRecord>;
@@ -364,6 +366,7 @@ export function useCollection(collection: string, query: CollectionQuery = {}): 
     items,
     all: entry.records,
     loading: entry.loading && entry.records.length === 0,
+    loadedAt: entry.loadedAt,
     error: entry.error,
     reload,
     create,
