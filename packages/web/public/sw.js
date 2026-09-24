@@ -165,7 +165,17 @@ async function handleAsset(request) {
     // rather than handing the cache's own object back untouched, sidesteps
     // whatever that is.
     const body = await cached.clone().arrayBuffer();
-    return new Response(body, { status: cached.status, statusText: cached.statusText, headers: cached.headers });
+    const headers = new Headers(cached.headers);
+    // Express's static serving sends `.js` as the older `application/javascript`.
+    // Every browser accepts that for a classic <script>, but a module load is
+    // held to the current, narrower "JavaScript MIME type" list — where
+    // `text/javascript` is the one IANA and the HTML spec both settled on —
+    // and this is the one property of the response the last fix never tried
+    // changing.
+    if (/\.(?:m?js)$/.test(new URL(request.url).pathname)) {
+      headers.set('content-type', 'text/javascript; charset=utf-8');
+    }
+    return new Response(body, { status: cached.status, statusText: cached.statusText, headers });
   }
   return (await network) || Response.error();
 }
