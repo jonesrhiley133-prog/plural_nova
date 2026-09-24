@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dayKey, formatDuration } from '@pluralnova/shared';
-import { useAuth } from '../core/auth.js';
+import { useAuth, useSystemMode } from '../core/auth.js';
 import { useCollection } from '../core/data.js';
 import { useFronting } from '../core/fronting.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
@@ -28,6 +28,7 @@ const STORAGE_KEY = 'pluralnova.frontingRitual.lastShown';
 export function FrontingRitual(): JSX.Element | null {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isSystem = useSystemMode();
   const { t, term } = useI18n();
   const dates = useDateFormat();
   const toast = useToast();
@@ -39,7 +40,7 @@ export function FrontingRitual(): JSX.Element | null {
   useEffect(() => {
     if (decided.current || loading || members.loading || user?.isGuest) return;
     decided.current = true;
-    if (members.items.length === 0) return;
+    if (!isSystem || members.items.length === 0) return;
     const today = dayKey(new Date());
     let shownToday = false;
     try {
@@ -49,7 +50,7 @@ export function FrontingRitual(): JSX.Element | null {
       // Private browsing or blocked storage: the ritual just shows every time.
     }
     if (!shownToday) setOpen(true);
-  }, [loading, members.loading, members.items.length, user?.isGuest]);
+  }, [loading, members.loading, members.items.length, user?.isGuest, isSystem]);
 
   const close = (): void => setOpen(false);
   const goTo = (path: string): void => {

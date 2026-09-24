@@ -58,8 +58,9 @@ async function openSheetAndPick(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getAllByRole('button', { name: /log an emotion/i })[0]!);
   const sheet = screen.getByRole('dialog');
   await user.click(within(sheet).getByRole('button', { name: /^Sadness$/i }));
-  // Choosing an emotion moves straight on to the intensity step.
   await user.click(within(sheet).getByRole('button', { name: /Grieving/ }));
+  // Choosing at least one emotion is what unlocks moving on to the intensity step.
+  await user.click(within(sheet).getByRole('button', { name: /next/i }));
   return sheet;
 }
 
@@ -143,5 +144,27 @@ describe('logging an emotion', () => {
       note: 'after the phone call',
     });
     expect(String(created[0]?.['recordedAt'])).not.toBe('');
+  });
+
+  it('logs one entry per emotion when more than one is picked', async () => {
+    created.length = 0;
+    const user = userEvent.setup();
+    render(<Emotions />);
+
+    await user.click(screen.getAllByRole('button', { name: /log an emotion/i })[0]!);
+    const sheet = screen.getByRole('dialog');
+    await user.click(within(sheet).getByRole('button', { name: /^Sadness$/i }));
+    await user.click(within(sheet).getByRole('button', { name: /Grieving/ }));
+    await user.click(within(sheet).getByRole('button', { name: /Heartbroken/ }));
+    await user.click(within(sheet).getByRole('button', { name: /next/i }));
+    await user.click(within(sheet).getByRole('button', { name: /next/i }));
+    await user.click(within(sheet).getByRole('button', { name: /save/i }));
+
+    expect(created).toHaveLength(2);
+    expect(created.map((entry) => entry['emotionId'])).toEqual(
+      expect.arrayContaining(['sadness.grieving', 'sadness.heartbroken']),
+    );
+    // Both share the one intensity and note chosen for the whole batch.
+    expect(created[0]?.['intensity']).toBe(created[1]?.['intensity']);
   });
 });
