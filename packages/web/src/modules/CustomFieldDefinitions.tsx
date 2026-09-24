@@ -14,7 +14,6 @@ import {
 import { useCollection } from '../core/data.js';
 import { useToast } from '../core/toast.js';
 import { useI18n } from '../core/i18n.js';
-import { PageHeader } from '../app/PageHeader.js';
 import { Button, Card, IconButton } from '../ui/primitives.js';
 import { TextField } from '../ui/forms.js';
 import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
@@ -71,17 +70,19 @@ export default function CustomFieldDefinitions(): JSX.Element {
 
   return (
     <>
-      <PageHeader
-        title="Custom fields"
-        description={term(
-          'Defined once for the whole system — every {{member}} sees the same fields, and the same choices for one that offers a pick list.',
-        )}
-        actions={
-          <Button variant="primary" icon="plus" onClick={() => typePicker.show()}>
-            Add field
-          </Button>
-        }
-      />
+      {/* No PageHeader of its own: this lives inside the Settings shell, which
+          already has one, and the sidebar it is opened from already says
+          "Custom fields" — a second title here would just repeat both. */}
+      <Card title="Custom fields">
+        <p className="small muted prose" style={{ marginBottom: 'var(--space-3)' }}>
+          {term(
+            'Defined once for the whole system — every {{member}} sees the same fields, and the same choices for one that offers a pick list.',
+          )}
+        </p>
+        <Button variant="primary" icon="plus" onClick={() => typePicker.show()}>
+          Add field
+        </Button>
+      </Card>
 
       <AsyncContent
         loading={definitions.loading}

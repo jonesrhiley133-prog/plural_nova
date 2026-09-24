@@ -40,7 +40,6 @@ const Members = load(() => import('./modules/Members.js'));
 const MemberProfile = load(() => import('./modules/MemberProfile.js'));
 const ProfileSelect = load(() => import('./modules/ProfileSelect.js'));
 const Organize = load(() => import('./modules/Organize.js'));
-const CustomFieldDefinitions = load(() => import('./modules/CustomFieldDefinitions.js'));
 const Subsystems = load(() => import('./modules/Subsystems.js'));
 const SystemHistory = load(() => import('./modules/SystemHistory.js'));
 const Journal = load(() => import('./modules/Journal.js'));
@@ -158,7 +157,6 @@ function AppRoutes(): JSX.Element {
         <Route path="members/:id" element={<SystemOnly><MemberProfile /></SystemOnly>} />
         <Route path="profiles" element={<SystemOnly><ProfileSelect /></SystemOnly>} />
         <Route path="organize" element={<SystemOnly><Organize /></SystemOnly>} />
-        <Route path="custom-fields" element={<SystemOnly><CustomFieldDefinitions /></SystemOnly>} />
         <Route path="subsystems" element={<SystemOnly><Subsystems /></SystemOnly>} />
         <Route path="system-history" element={<SystemOnly><SystemHistory /></SystemOnly>} />
         <Route path="relationships" element={<SystemOnly><Relationships /></SystemOnly>} />
