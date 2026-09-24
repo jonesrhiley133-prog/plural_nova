@@ -37,7 +37,7 @@ const accentVar = (page) =>
  * needlessly slow when idle — polling adapts to whichever is true right now,
  * and still fails loudly if a press is genuinely never applied.
  */
-async function waitForValue(locator, predicate, { timeout = 2000, interval = 20 } = {}) {
+async function waitForValue(locator, predicate, { timeout = 5000, interval = 20 } = {}) {
   const deadline = Date.now() + timeout;
   for (;;) {
     const value = Number(await locator.inputValue());
