@@ -347,7 +347,11 @@
   display: flex;
   align-items: flex-end;
   gap: var(--space-2);
-  max-width: 78%;
+  /* 78% keeps a phone-width bubble reading naturally; the pixel cap is what
+     stops the same rule stretching a one-line message across most of a wide
+     desktop pane, where the pane's own width has nothing to do with how long
+     a message actually is. */
+  max-width: min(78%, 480px);
   margin-bottom: var(--chat-msg-gap, 2px);
 }
 
