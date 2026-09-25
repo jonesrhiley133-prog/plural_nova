@@ -827,6 +827,36 @@ export const contactInteractions: CollectionDef = {
   ],
 };
 
+/**
+ * A short list of places worth one tap — Home, Work, a therapist's office —
+ * so starting a location session doesn't mean typing the same name out again.
+ * Each one is a template: the session it starts is its own `locationEntries`
+ * row, so editing or removing a saved place never rewrites a past visit.
+ */
+export const savedLocations: CollectionDef = {
+  name: 'savedLocations',
+  label: 'Saved places',
+  singular: 'Saved place',
+  icon: 'location',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'name',
+  sortField: 'sortOrder',
+  sortDir: 'asc',
+  neverPublic: true,
+  description: 'Places you go often, ready to start a session from in one tap.',
+  fields: [
+    f.text('name', 'Name', { required: true, inList: true, searchable: true }),
+    f.text('icon', 'Icon', { maxLength: 8, hint: 'An emoji works well.' }),
+    f.color('color', 'Colour'),
+    f.text('category', 'Kind of place', { inList: true }),
+    f.long('note', 'Note'),
+    f.text('address', 'Address', { sensitive: true }),
+    f.int('sortOrder', 'Order', { defaultValue: 0 }),
+  ],
+};
+
 export const locationEntries: CollectionDef = {
   name: 'locationEntries',
   label: 'Locations',
@@ -842,6 +872,9 @@ export const locationEntries: CollectionDef = {
   description: 'Places recorded by hand. Nothing is captured automatically unless explicitly enabled.',
   fields: [
     f.text('name', 'Place', { required: true, inList: true, searchable: true }),
+    f.ref('savedLocationId', 'Saved place', 'savedLocations', {
+      hint: 'Set automatically when a session is started from a saved place.',
+    }),
     f.datetime('visitedAt', 'When', { required: true, inList: true }),
     f.text('activity', 'Activity', { inList: true, searchable: true }),
     f.long('note', 'Note', { searchable: true }),
@@ -967,6 +1000,7 @@ export const LIFE_COLLECTIONS = [
   savingsGoals,
   contacts,
   emergencyContacts,
+  savedLocations,
   locationEntries,
   vaultItems,
 ] as const;

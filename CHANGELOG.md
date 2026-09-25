@@ -10,6 +10,17 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+### Added
+
+- **Saved places.** A short, one-tap list of the places you go often — home,
+  work, anywhere worth naming — on the Locations screen and as a Dashboard
+  widget. Tapping one starts a timed visit; a live counter shows how long
+  you've been there, ticking by the second, and "Stop" closes it out as an
+  ordinary entry in your location history. Add, rename, reorder and delete
+  saved places from the same screen. Deleting a saved place never touches
+  the visits it already started — the link between them is a convenience,
+  not a dependency.
+
 ### Changed
 
 - **Timed sessions now track to the exact second instead of rounding to the
@@ -22,6 +33,12 @@ different versions of PluralNova.
   being rounded separately, so totals across many short sessions no longer
   drift from the true sum. The live "Clocked in for…" and "Asleep for…"
   counters on Work and Sleep also now tick every second instead of every 30.
+
+### Fixed
+
+- A heatmap chart (used on the Stats page) rendered each of its rows without
+  a key on the outer element, which React warns about on every render past
+  a handful of rows.
 
 ## [1.0.14] — 2026-09-24
 

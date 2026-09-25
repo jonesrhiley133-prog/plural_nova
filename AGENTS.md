@@ -4,7 +4,7 @@
 
 A private PWA for plural systems. Monorepo with three npm workspaces:
 
-- `packages/shared` — TypeScript domain library (65 collections, terminology, themes). Must be built (`npm run build -w @pluralnova/shared`) before the server or web client can import it. Outputs to `packages/shared/dist/`.
+- `packages/shared` — TypeScript domain library (71 collections, terminology, themes). Must be built (`npm run build -w @pluralnova/shared`) before the server or web client can import it. Outputs to `packages/shared/dist/`.
 - `packages/server` — Express + SQLite (`better-sqlite3`, native module). Dev: `tsx watch src/index.ts` on port 4000. Auto-creates the database, push keys, and uploads dir under `PLURALNOVA_DATA_DIR` on first run.
 - `packages/web` — React 18 + Vite 5 client. Dev: `vite` on port 5173, proxies `/api`, `/uploads`, `/realtime` to the server.
 

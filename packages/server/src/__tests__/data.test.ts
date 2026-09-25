@@ -69,6 +69,48 @@ describe('records, settings, backup and sync', () => {
     }
   });
 
+  it('starts and stops a location session from a saved place, linked and timed', async () => {
+    const place = await client.request('POST', '/api/records/savedLocations', {
+      token,
+      body: { name: 'Library', icon: '📚' },
+    });
+    expect(place.status).toBe(201);
+
+    const startedAt = new Date(Date.now() - 90_000).toISOString();
+    const started = await client.request('POST', '/api/records/locationEntries', {
+      token,
+      body: {
+        name: place.body.data.name,
+        savedLocationId: place.body.data.id,
+        visitedAt: startedAt,
+        arrivedAt: startedAt,
+        isCurrent: true,
+      },
+    });
+    expect(started.status).toBe(201);
+    expect(started.body.data.savedLocationId).toBe(place.body.data.id);
+    expect(started.body.data.leftAt).toBeNull();
+
+    const stopped = await client.request('PATCH', `/api/records/locationEntries/${started.body.data.id}`, {
+      token,
+      body: { leftAt: new Date().toISOString(), durationSeconds: 90, durationMinutes: 2, isCurrent: false },
+    });
+    expect(stopped.status).toBe(200);
+    expect(stopped.body.data.durationSeconds).toBe(90);
+    expect(stopped.body.data.savedLocationId).toBe(place.body.data.id);
+
+    // Deleting the saved place leaves the session it started untouched — the
+    // link is a convenience, not something the visit's history depends on.
+    await client.request('DELETE', `/api/records/savedLocations/${place.body.data.id}`, { token });
+    const visitAfterDelete = await client.request(
+      'GET',
+      `/api/records/locationEntries/${started.body.data.id}`,
+      { token },
+    );
+    expect(visitAfterDelete.status).toBe(200);
+    expect(visitAfterDelete.body.data.savedLocationId).toBe(place.body.data.id);
+  });
+
   it('never returns another account’s records', async () => {
     const mine = await client.request('POST', '/api/records/notes', {
       token,

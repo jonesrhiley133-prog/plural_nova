@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { CHART_INK, magnitudeColor, memberColor, seriesColor, chartMode } from './palette.js';
 import { ChartFrame, ChartTooltip, type ChartSeries } from './ChartFrame.js';
 
@@ -550,8 +550,8 @@ export function Heatmap({
             </span>
           ))}
           {rows.map((row, rowIndex) => (
-            <>
-              <span key={`label-${row}`} className="tiny faint" style={{ paddingRight: 6, fontSize: 9 }}>
+            <Fragment key={row}>
+              <span className="tiny faint" style={{ paddingRight: 6, fontSize: 9 }}>
                 {row}
               </span>
               {columns.map((column, columnIndex) => {
@@ -569,7 +569,7 @@ export function Heatmap({
                   />
                 );
               })}
-            </>
+            </Fragment>
           ))}
         </div>
       </div>

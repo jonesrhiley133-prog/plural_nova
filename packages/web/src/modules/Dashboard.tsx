@@ -4,6 +4,7 @@ import {
   DASHBOARD_WIDGETS,
   dayKey,
   formatDuration,
+  formatDurationPrecise,
   getEmotion,
   type StoredRecord,
   type WidgetSetting,
@@ -14,6 +15,7 @@ import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useOptimisticSettings } from '../core/settings.js';
 import { useBadges } from '../core/badges.js';
 import { useFronting } from '../core/fronting.js';
+import { useLiveSession } from '../core/liveSession.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, ListRow, Stat } from '../ui/primitives.js';
@@ -293,6 +295,7 @@ function QuickActionsWidget(): JSX.Element {
     { icon: 'emotion' as const, label: 'Log an emotion', path: '/emotions?new=1' },
     { icon: 'note' as const, label: 'New note', path: '/notes?new=1' },
     { icon: 'task' as const, label: 'New task', path: '/tasks?new=1' },
+    { icon: 'location' as const, label: 'Start a location session', path: '/locations' },
     ...(systemMode ? [{ icon: 'front' as const, label: term('Log a {{front}}'), path: '/quick-front' }] : []),
   ];
 
@@ -837,20 +840,74 @@ function FrontingStatsWidget(): JSX.Element {
 function LocationWidget(): JSX.Element {
   const navigate = useNavigate();
   const dates = useDateFormat();
+  const toast = useToast();
+  const saved = useCollection('savedLocations', {
+    sort: (a, b) => Number(a['sortOrder'] ?? 0) - Number(b['sortOrder'] ?? 0),
+    limit: 6,
+  });
   const locations = useCollection('locationEntries', { limit: 1 });
+  const session = useLiveSession(locations, 'arrivedAt', 'leftAt');
   const latest = locations.items[0];
+
+  const activePlaceName =
+    saved.items.find((place) => place.id === session.active?.['savedLocationId'])?.['name'] ??
+    session.active?.['name'] ??
+    'somewhere';
+
+  const startSession = async (place: StoredRecord): Promise<void> => {
+    try {
+      await session.start({
+        visitedAt: new Date().toISOString(),
+        name: String(place['name']),
+        savedLocationId: place.id,
+        isCurrent: true,
+      });
+    } catch (cause) {
+      toast.fromError(cause, 'Could not start the session');
+    }
+  };
+
+  const stopSession = async (): Promise<void> => {
+    try {
+      await session.stop((durationSeconds) => ({
+        isCurrent: false,
+        durationMinutes: Math.round(durationSeconds / 60),
+      }));
+    } catch (cause) {
+      toast.fromError(cause, 'Could not end the session');
+    }
+  };
 
   return (
     <Card
-      title="Last place"
+      title={session.active ? 'At a location' : 'Locations'}
       actions={
         <Button variant="ghost" size="sm" onClick={() => navigate('/locations')}>
           Open
         </Button>
       }
     >
-      {locations.loading ? (
-        <LoadingLine label="Loading location…" />
+      {session.active ? (
+        <div className="row row--between">
+          <div>
+            <div style={{ fontWeight: 'var(--weight-semibold)' }}>{String(activePlaceName)}</div>
+            <div className="tiny faint numeric">{formatDurationPrecise(session.elapsedSeconds)}</div>
+          </div>
+          <Button variant="secondary" size="sm" icon="pause" onClick={() => void stopSession()}>
+            Stop
+          </Button>
+        </div>
+      ) : saved.loading ? (
+        <LoadingLine label="Loading locations…" />
+      ) : saved.items.length > 0 ? (
+        <div className="row">
+          {saved.items.map((place) => (
+            <Chip key={place.id} onClick={() => void startSession(place)}>
+              {place['icon'] ? `${String(place['icon'])} ` : ''}
+              {String(place['name'])}
+            </Chip>
+          ))}
+        </div>
       ) : locations.error ? (
         <ErrorLine message={locations.error} />
       ) : !latest ? (
