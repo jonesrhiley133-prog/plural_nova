@@ -86,6 +86,8 @@ export const SUPPORT_TABLES: string[] = [
     "settings" TEXT NOT NULL DEFAULT '{}',
     "vaultPinHash" TEXT,
     "vaultPinSalt" TEXT,
+    "appLockPinHash" TEXT,
+    "appLockPinSalt" TEXT,
     "recoveryCodeHash" TEXT,
     "resetCodeHash" TEXT,
     "resetExpiresAt" TEXT,
@@ -104,6 +106,8 @@ export const SUPPORT_TABLES: string[] = [
     "lastSeenAt" TEXT NOT NULL,
     "userAgent" TEXT,
     "vaultUnlockedUntil" TEXT,
+    "appLockUnlockedUntil" TEXT,
+    "webauthnChallenge" TEXT,
     "revokedAt" TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS "idx_sessions_user" ON "sessions" ("userId")`,
@@ -153,6 +157,24 @@ export const SUPPORT_TABLES: string[] = [
     "key" TEXT PRIMARY KEY,
     "value" TEXT NOT NULL
   )`,
+  /*
+   * One row per registered authenticator (a laptop's fingerprint reader, a
+   * phone's Face ID), for the app lock's optional biometric unlock. Plural,
+   * not a column on `users`, because a device is not the account and someone
+   * reasonably has more than one.
+   */
+  `CREATE TABLE IF NOT EXISTS "webauthnCredentials" (
+    "id" TEXT PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "credentialId" TEXT NOT NULL UNIQUE,
+    "publicKey" TEXT NOT NULL,
+    "counter" INTEGER NOT NULL DEFAULT 0,
+    "transports" TEXT,
+    "label" TEXT,
+    "createdAt" TEXT NOT NULL,
+    "lastUsedAt" TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS "idx_webauthn_user" ON "webauthnCredentials" ("userId")`,
 ];
 
 export function allStatements(): string[] {

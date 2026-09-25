@@ -35,6 +35,9 @@ const ALLOWED: Record<string, { extension: string; kind: 'image' | 'video' | 'au
   'audio/mpeg': { extension: '.mp3', kind: 'audio' },
   'audio/ogg': { extension: '.ogg', kind: 'audio' },
   'audio/wav': { extension: '.wav', kind: 'audio' },
+  // The browser MediaRecorder API's default output for a microphone
+  // recording, used by the chat composer's voice messages.
+  'audio/webm': { extension: '.webm', kind: 'audio' },
   'application/pdf': { extension: '.pdf', kind: 'document' },
   'text/plain': { extension: '.txt', kind: 'document' },
 };

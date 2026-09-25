@@ -3,6 +3,7 @@ import { newId, now, requireCollection, type StoredRecord } from '@pluralnova/sh
 import { handler, ok } from '../http/respond.js';
 import { badRequest, forbidden, notFound } from '../http/errors.js';
 import { auth, requireAuth } from '../auth/middleware.js';
+import { rateLimit } from '../http/rateLimit.js';
 import { getDb, transaction } from '../db/index.js';
 import { deserialize, getRecord } from '../db/repository.js';
 import { notify } from '../services/notifications.js';
@@ -35,6 +36,13 @@ export const messagesRouter: Router = Router();
 messagesRouter.use(requireAuth);
 
 const db = () => getDb();
+
+const sendLimiter = rateLimit({
+  max: 60,
+  windowMs: 60_000,
+  message: 'Sending too many messages. Slow down for a moment.',
+});
+const newConversationLimiter = rateLimit({ max: 20, windowMs: 60_000 });
 
 interface ThreadRow {
   id: string;
@@ -175,6 +183,7 @@ messagesRouter.get(
 
 messagesRouter.post(
   '/conversations',
+  newConversationLimiter,
   handler((req, res) => {
     const context = auth(req);
     const { handle, userId } = req.body as { handle?: string; userId?: string };
@@ -299,6 +308,7 @@ messagesRouter.get(
 
 messagesRouter.post(
   '/threads/:threadId',
+  sendLimiter,
   handler(async (req, res) => {
     const context = auth(req);
     const threadId = String(req.params['threadId']);
@@ -315,6 +325,8 @@ messagesRouter.post(
       encryptionKeyId?: string;
       attachments?: unknown[];
       asMemberId?: string | null;
+      replyToId?: string | null;
+      forwardedFrom?: Record<string, unknown> | null;
     };
     const text = body.body ?? '';
     if (!text && (body.attachments?.length ?? 0) === 0) throw badRequest('Write something first.');
@@ -342,8 +354,8 @@ messagesRouter.post(
           `INSERT INTO "messages"
             ("id","userId","systemId","memberId","visibility","createdAt","updatedAt","deletedAt","version",
              "threadId","senderUserId","senderMemberId","body","sentAt","sequence","attachments","readBy",
-             "edited","encrypted","encryptionKeyId","clientId")
-           VALUES (?,?,?,NULL,'private',?,?,NULL,1,?,?,?,?,?,?,?,?,0,?,?,?)`,
+             "edited","encrypted","encryptionKeyId","clientId","replyToId","reactions","forwardedFrom")
+           VALUES (?,?,?,NULL,'private',?,?,NULL,1,?,?,?,?,?,?,?,?,0,?,?,?,?,NULL,?)`,
         )
         .run(
           id,
@@ -362,6 +374,8 @@ messagesRouter.post(
           body.encrypted ? 1 : 0,
           body.encryptionKeyId ?? '',
           body.clientId ?? '',
+          body.replyToId ?? null,
+          body.forwardedFrom ? JSON.stringify(body.forwardedFrom) : null,
         );
 
       db()
@@ -472,5 +486,46 @@ messagesRouter.delete(
       .run(now(), now(), String(req.params['id']), context.user.id);
     if (result.changes === 0) throw notFound('That message');
     ok(res, { deleted: true });
+  }),
+);
+
+/**
+ * Toggles the caller's own reaction. DMs are 1:1, so `reactions` never grows
+ * past two userIds per emoji — kept as the same emoji-keyed map shape System
+ * Chat uses so the client can render both with one component.
+ */
+messagesRouter.post(
+  '/messages/:id/reactions',
+  handler((req, res) => {
+    const context = auth(req);
+    const { emoji } = req.body as { emoji?: string };
+    if (!emoji) throw badRequest('Choose a reaction.');
+
+    const row = db()
+      .prepare('SELECT * FROM "messages" WHERE "id" = ? AND "deletedAt" IS NULL')
+      .get(String(req.params['id'])) as Record<string, unknown> | undefined;
+    if (!row) throw notFound('That message');
+
+    const threadId = row['threadId'] as string;
+    const conversation = requireParticipant(context.user.id, threadId);
+    const otherUserId = conversation['otherUserId'] as string;
+    if (isBlockedEitherWay(context.user.id, otherUserId)) throw forbidden('You cannot react in this conversation.');
+
+    const reactions = (row['reactions'] ? JSON.parse(String(row['reactions'])) : {}) as Record<string, string[]>;
+    const current = reactions[emoji] ?? [];
+    reactions[emoji] = current.includes(context.user.id)
+      ? current.filter((id) => id !== context.user.id)
+      : [...current, context.user.id];
+    if (reactions[emoji].length === 0) delete reactions[emoji];
+
+    db()
+      .prepare('UPDATE "messages" SET "reactions" = ?, "updatedAt" = ? WHERE "id" = ?')
+      .run(JSON.stringify(reactions), now(), row['id']);
+
+    const messageId = String(row['id']);
+    publish(otherUserId, { type: 'reaction.new', threadId, messageId, kind: 'dm' });
+    publish(context.user.id, { type: 'reaction.new', threadId, messageId, kind: 'dm' });
+
+    ok(res, { reactions });
   }),
 );

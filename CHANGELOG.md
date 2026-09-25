@@ -29,8 +29,34 @@ different versions of PluralNova.
   that changed mid-shift. The Work overview also gained a day/week/month
   toggle on estimated earnings, alongside the existing hours-by-day and
   by-workplace charts, and shift-by-shift estimates in the schedule list.
+- **A much bigger emotion catalogue, with favourites, custom words and a way
+  to browse all of it.** The built-in list grew from 144 to 212 words across
+  the same 12 families. The log-an-emotion picker now offers an "All" view
+  alongside the existing family filter and search, a starred Favourites
+  section above Recently used, and — when a search turns up nothing — an
+  inline way to add your own word to one of the 12 families. A custom
+  emotion is usable everywhere a built-in one is, immediately.
+- **App lock.** An optional 4–8 digit PIN over the whole app, separate from
+  your account password, the private vault's own PIN, and any per-alter
+  profile PINs. Turn it on from Settings → Privacy. Once set, PluralNova
+  shows a lock screen instead of any of your data on launch, whenever the
+  app is backgrounded (its own switch, on by default), and after a set
+  number of minutes of not using it — nothing behind it is ever fetched
+  while it's showing. Devices that support it can register fingerprint or
+  face unlock as an alternative to typing the PIN. Forgot the PIN? Your
+  account password sets a new one without losing anything. Change or turn
+  it off again from the same Settings card, which also needs the current
+  PIN.
 
 ### Changed
+
+- **The Emotions screen is no longer a separate destination in the nav, the
+  bottom bar or the Hub.** Logging an emotion is unaffected — the Dashboard's
+  "Log an emotion" quick action and the check-in ritual's own emotion step
+  both still open the same picker exactly as before, and the screen itself
+  still exists for anyone who navigates to it directly. It's just no longer
+  a tile to browse to on its own, since logging was always meant to happen
+  from wherever you already are.
 
 - **Timed sessions now track to the exact second instead of rounding to the
   nearest minute.** Fronting, sleep, and clocking in for a shift all store
@@ -52,6 +78,13 @@ different versions of PluralNova.
   even for a shift that had been given its own rate override — the override
   existed as a field but nothing read it. It's now used wherever a shift's
   earnings are estimated, individually and in every stats total.
+- The rate limiter on sensitive endpoints (sign-in, vault unlock, and now
+  app lock) keyed its attempt counter on the request path alone, so two
+  different endpoints that both end in the same word — the vault's
+  `/unlock` and app lock's own `/unlock` — shared one counter instead of
+  each having their own. Guessing one PIN too many times could have quietly
+  eaten into the other's attempt budget. It now also keys on which router
+  is handling the request.
 
 ## [1.0.14] — 2026-09-24
 

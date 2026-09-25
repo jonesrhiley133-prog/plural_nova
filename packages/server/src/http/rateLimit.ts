@@ -26,7 +26,10 @@ export interface RateLimitOptions {
 export function rateLimit(options: RateLimitOptions) {
   const { max, windowMs } = options;
   return (req: Request, _res: Response, next: NextFunction): void => {
-    const key = `${req.path}:${options.keyOf?.(req) ?? req.ip ?? 'unknown'}`;
+    // req.path is relative to whichever router is currently handling the
+    // request, so two routers that both happen to expose e.g. "/unlock" would
+    // otherwise share one bucket; req.baseUrl keeps them independent.
+    const key = `${req.baseUrl}${req.path}:${options.keyOf?.(req) ?? req.ip ?? 'unknown'}`;
     const nowMs = Date.now();
     const window = windows.get(key);
 

@@ -108,6 +108,11 @@ export const members: CollectionDef = {
       { group: 'Appearance', defaultValue: 'default' },
     ),
     f.text('icon', 'Symbol', { group: 'Appearance', maxLength: 8, hint: 'A short glyph or emoji.' }),
+    f.text('chatPrefix', 'Chat prefix', {
+      group: 'Chat',
+      maxLength: 24,
+      hint: 'Shown next to their name in chat, and selectable when composing as them — for example "J:".',
+    }),
     f.long('bio', 'Biography', { group: 'About', searchable: true }),
     f.tags('roles', 'Roles', { group: 'About' }),
     f.ref('subsystemId', 'Subsystem', 'subsystems', { group: 'About' }),
@@ -535,6 +540,50 @@ export const flagAssignments: CollectionDef = {
   ],
 };
 
+export const systemChatThreads: CollectionDef = {
+  name: 'systemChatThreads',
+  label: 'System chat threads',
+  singular: 'Chat thread',
+  icon: 'chat',
+  area: 'system',
+  scope: 'system',
+  systemOnly: true,
+  titleField: 'name',
+  sortField: 'lastMessageAt',
+  sortDir: 'desc',
+  indexes: [['systemId', 'lastMessageAt']],
+  description:
+    'Who an internal chat is between: the whole system, a chosen group of members, or one other member. Replaces the old single shared room with named channels — those become threads of kind "system" on migration.',
+  neverPublic: true,
+  fields: [
+    f.enumOf(
+      'kind',
+      'Kind',
+      [
+        { value: 'system', label: 'Whole system' },
+        { value: 'group', label: 'Group' },
+        { value: 'direct', label: 'Direct' },
+      ],
+      { required: true, defaultValue: 'system', inList: true },
+    ),
+    f.text('name', 'Name', { inList: true, searchable: true }),
+    f.refs('participantMemberIds', 'Participants', 'members', {
+      hint: 'Empty means everyone in the system.',
+    }),
+    f.datetime('lastMessageAt', 'Last message', { inList: true }),
+    f.text('lastMessagePreview', 'Preview'),
+    f.datetime('lastReadAt', 'Last read', {
+      hint: 'When this account last opened the thread — there is only one reader, so one cursor is enough.',
+    }),
+    f.bool('pinned', 'Pinned'),
+    f.bool('muted', 'Muted'),
+    f.bool('archived', 'Archived'),
+    f.json('settings', 'Chat settings', {
+      hint: 'Per-thread appearance and notification choices.',
+    }),
+  ],
+};
+
 export const systemChatMessages: CollectionDef = {
   name: 'systemChatMessages',
   label: 'System chat',
@@ -547,7 +596,7 @@ export const systemChatMessages: CollectionDef = {
   titleField: 'body',
   sortField: 'sentAt',
   sortDir: 'asc',
-  indexes: [['systemId', 'sentAt']],
+  indexes: [['systemId', 'sentAt'], ['threadId', 'sentAt']],
   description: 'Internal, system-only conversation. Never leaves the account.',
   neverPublic: true,
   fields: [
@@ -558,6 +607,12 @@ export const systemChatMessages: CollectionDef = {
     f.json('reactions', 'Reactions'),
     f.refs('attachmentIds', 'Attachments', 'mediaItems'),
     f.bool('edited', 'Edited'),
+    f.ref('threadId', 'Thread', 'systemChatThreads', {
+      hint: 'Replaces the free-text channel for new messages; channel is kept for older rows.',
+    }),
+    f.json('forwardedFrom', 'Forwarded from', {
+      hint: 'Where this was forwarded from, if it was: { kind, threadId, messageId, senderLabel }.',
+    }),
   ],
 };
 
@@ -843,6 +898,7 @@ export const SYSTEM_COLLECTIONS = [
   relationships,
   flags,
   flagAssignments,
+  systemChatThreads,
   systemChatMessages,
   bulletinPosts,
   polls,

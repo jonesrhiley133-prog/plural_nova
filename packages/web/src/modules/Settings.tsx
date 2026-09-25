@@ -20,6 +20,7 @@ import {
 import { api, messageFor } from '../core/api.js';
 import { useQuery, useRecord } from '../core/data.js';
 import { useAuth } from '../core/auth.js';
+import { useAppLock } from '../core/appLock.js';
 import { useOptimisticSettings } from '../core/settings.js';
 import { useTheme } from '../core/theme.js';
 import { useI18n } from '../core/i18n.js';
@@ -826,6 +827,233 @@ function Privacy(): JSX.Element {
           suffix="minutes"
         />
       </Card>
+
+      <AppLockCard />
+    </>
+  );
+}
+
+function AppLockCard(): JSX.Element {
+  const { settings, update } = useOptimisticSettings();
+  const lock = useAppLock();
+  const toast = useToast();
+  const manage = useDialog();
+
+  const [newPin, setNewPin] = useState('');
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const [currentPin, setCurrentPin] = useState('');
+  const [changePin, setChangePin] = useState('');
+  const [manageError, setManageError] = useState<string | null>(null);
+  const [manageBusy, setManageBusy] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
+
+  const set = (patch: Partial<typeof settings.appLock>): void => {
+    update({ appLock: { ...settings.appLock, ...patch } });
+  };
+
+  const closeManage = (): void => {
+    setCurrentPin('');
+    setChangePin('');
+    setManageError(null);
+    manage.hide();
+  };
+
+  if (!lock.status) {
+    return (
+      <Card title="App lock">
+        <LoadingLine label="Checking…" />
+      </Card>
+    );
+  }
+
+  if (!lock.status.configured) {
+    return (
+      <Card title="App lock">
+        <DescriptiveNote>
+          A second PIN over the whole app, separate from your account password and from any{' '}
+          {settings.mode === 'system' ? 'alter' : 'profile'} PINs. While it is on, PluralNova shows a
+          lock screen instead of your data on launch, after being backgrounded, and after a while of
+          not being used.
+        </DescriptiveNote>
+        <TextField
+          label="Choose a PIN"
+          type="password"
+          inputMode="numeric"
+          hint="4 to 8 digits."
+          value={newPin}
+          onChange={setNewPin}
+          {...(setupError ? { error: setupError } : {})}
+        />
+        <Button
+          variant="primary"
+          disabled={!/^\d{4,8}$/.test(newPin)}
+          loading={busy}
+          onClick={() => {
+            setBusy(true);
+            setSetupError(null);
+            void lock
+              .setup(newPin)
+              .then(() => {
+                setNewPin('');
+                toast.success('App lock is on');
+              })
+              .catch((cause: unknown) => setSetupError(messageFor(cause)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          Turn on app lock
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card
+        title="App lock"
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="lock"
+            onClick={() => {
+              void lock.lock().then(() => toast.success('Locked'));
+            }}
+          >
+            Lock now
+          </Button>
+        }
+      >
+        <SwitchRow
+          label="Lock when the app is backgrounded"
+          hint="Re-locks the moment you switch away, rather than waiting for the timer below."
+          checked={settings.appLock.lockOnBackground}
+          onChange={(value) => set({ lockOnBackground: value })}
+        />
+        <NumberField
+          label="Lock again after"
+          value={settings.appLock.autoLockMinutes}
+          onChange={(value) => set({ autoLockMinutes: Math.max(1, value ?? 5) })}
+          min={1}
+          max={240}
+          suffix="minutes of not using it"
+        />
+
+        {lock.biometricSupported ? (
+          <div className="stack" style={{ marginTop: 'var(--space-3)' }}>
+            {lock.status.biometricLabels.length > 0 ? (
+              <div className="row" style={{ flexWrap: 'wrap' }}>
+                {lock.status.biometricLabels.map((label, index) => (
+                  <Chip key={`${label}-${index}`}>{label}</Chip>
+                ))}
+              </div>
+            ) : (
+              <DescriptiveNote>No device is set up for biometric unlock yet.</DescriptiveNote>
+            )}
+            <Button
+              variant="secondary"
+              icon="device"
+              loading={biometricBusy}
+              onClick={() => {
+                setBiometricBusy(true);
+                void lock
+                  .registerBiometric()
+                  .then(() => toast.success('Device added'))
+                  .catch((cause: unknown) => toast.fromError(cause, 'Could not add this device'))
+                  .finally(() => setBiometricBusy(false));
+              }}
+            >
+              {lock.status.biometricRegistered ? 'Add another device' : 'Set up biometric unlock'}
+            </Button>
+            {lock.status.biometricRegistered ? (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  void lock
+                    .removeBiometric()
+                    .then(() => toast.success('Biometric devices removed'))
+                    .catch((cause: unknown) => toast.fromError(cause, 'Could not remove those devices'));
+                }}
+              >
+                Remove all biometric devices
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <DescriptiveNote>Biometric unlock is not available on this browser or device.</DescriptiveNote>
+        )}
+
+        <Button variant="ghost" onClick={() => manage.show()} style={{ marginTop: 'var(--space-3)' }}>
+          Change or remove PIN
+        </Button>
+      </Card>
+
+      <Dialog open={manage.open} onClose={closeManage} title="Change or remove PIN">
+        <div className="stack">
+          <TextField
+            label="Current PIN"
+            type="password"
+            inputMode="numeric"
+            value={currentPin}
+            onChange={setCurrentPin}
+            {...(manageError ? { error: manageError } : {})}
+          />
+          <TextField
+            label="New PIN"
+            type="password"
+            inputMode="numeric"
+            hint="Leave blank to only remove the PIN below."
+            value={changePin}
+            onChange={setChangePin}
+          />
+          <Button
+            variant="primary"
+            disabled={currentPin.length < 4 || !/^\d{4,8}$/.test(changePin)}
+            loading={manageBusy}
+            onClick={() => {
+              setManageBusy(true);
+              setManageError(null);
+              void lock
+                .setup(changePin, currentPin)
+                .then(() => {
+                  toast.success('PIN changed');
+                  closeManage();
+                })
+                .catch((cause: unknown) => setManageError(messageFor(cause)))
+                .finally(() => setManageBusy(false));
+            }}
+          >
+            Change PIN
+          </Button>
+
+          <Card>
+            <p className="small prose muted">
+              Removing the PIN turns app lock off. Your data is not affected either way.
+            </p>
+          </Card>
+          <Button
+            variant="danger"
+            disabled={currentPin.length < 4}
+            loading={manageBusy}
+            onClick={() => {
+              setManageBusy(true);
+              setManageError(null);
+              void lock
+                .removePin(currentPin)
+                .then(() => {
+                  toast.success('App lock is off');
+                  closeManage();
+                })
+                .catch((cause: unknown) => setManageError(messageFor(cause)))
+                .finally(() => setManageBusy(false));
+            }}
+          >
+            Remove PIN
+          </Button>
+        </div>
+      </Dialog>
     </>
   );
 }

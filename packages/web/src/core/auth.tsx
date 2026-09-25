@@ -249,6 +249,15 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     }
     setToken(null);
     writeCachedSession(null);
+    // The app lock keeps its own small offline cache (core/appLock.tsx) so a
+    // launch with no connection is not treated as locked out of an app that
+    // may never have had a PIN — it is cleared here too so a PIN configured by
+    // this account is never assumed for whoever signs in next on this device.
+    try {
+      localStorage.removeItem('pluralnova.appLockCache');
+    } catch {
+      // Nothing was cached if storage is unavailable.
+    }
     await recordStore.clear();
     await clearAll();
     await syncEngine.reset();

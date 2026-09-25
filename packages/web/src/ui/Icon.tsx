@@ -115,6 +115,14 @@ const PATHS = {
   list: 'M8 6h12M8 12h12M8 18h12M4 6h.5M4 12h.5M4 18h.5',
   menu: 'M4 7h16M4 12h16M4 17h16',
   logout: 'M9 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3M16 8l4 4-4 4M20 12H10',
+  mic: 'M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6',
+  attach: 'M17 7 9 15a2.5 2.5 0 0 0 3.5 3.5L21 10a4.5 4.5 0 0 0-6.5-6.5L6 12a1.5 1.5 0 0 0 2 2l6.5-6.5',
+  reply: 'M9 8 4 12l5 4M4 12h9a6 6 0 0 1 6 6v1',
+  forward: 'M15 8l5 4-5 4M20 12h-9a6 6 0 0 0-6 6v1',
+  mute: 'M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 12 6 8M10 18.5a2 2 0 0 0 4 0M3 3l18 18',
+  emoji: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M8.5 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2M15.5 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2M8 14.5a5 5 0 0 0 8 0',
+  checkDouble: 'M2 12.5 6.5 17 15 7M9 12.5 13.5 17 22 7',
+  camera: 'M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1M12 18a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
 } as const;
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

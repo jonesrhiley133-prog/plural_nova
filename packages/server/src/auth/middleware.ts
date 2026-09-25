@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { forbidden, unauthorized } from '../http/errors.js';
 import type { Scope } from '../db/repository.js';
-import { findSession, isVaultUnlocked, touchSession, type SessionRow } from './sessions.js';
+import { findSession, isAppUnlocked, isVaultUnlocked, touchSession, type SessionRow } from './sessions.js';
 import { findUserById, readSettings, type UserRow } from './users.js';
 import type { AppSettings } from '@pluralnova/shared';
 
@@ -20,6 +20,7 @@ export interface AuthContext {
   settings: AppSettings;
   scope: Scope;
   vaultUnlocked: boolean;
+  appLockUnlocked: boolean;
 }
 
 function readToken(req: Request): string | null {
@@ -70,6 +71,7 @@ export function buildContext(user: UserRow, session: SessionRow): AuthContext {
     settings: readSettings(user),
     scope: { userId: user.id, systemId: user.activeSystemId },
     vaultUnlocked: isVaultUnlocked(session),
+    appLockUnlocked: isAppUnlocked(session),
   };
 }
 
