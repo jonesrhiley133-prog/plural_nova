@@ -248,6 +248,24 @@ messagesRouter.patch(
   }),
 );
 
+/**
+ * Removes the conversation from the caller's own list only — conversations are
+ * one row per side, so this cannot touch the other party's copy, the shared
+ * thread, or its messages. They reappear (as a request, unless already
+ * friends) the moment either side sends another message.
+ */
+messagesRouter.delete(
+  '/conversations/:id',
+  handler((req, res) => {
+    const context = auth(req);
+    const result = db()
+      .prepare('UPDATE "conversations" SET "deletedAt" = ?, "updatedAt" = ? WHERE "id" = ? AND "userId" = ?')
+      .run(now(), now(), String(req.params['id']), context.user.id);
+    if (result.changes === 0) throw notFound('That conversation');
+    ok(res, { deleted: true });
+  }),
+);
+
 // — Messages ————————————————————————————————————————————————
 
 function messageView(message: StoredRecord, viewerId: string): Record<string, unknown> {
@@ -384,17 +402,22 @@ messagesRouter.post(
 
       // A preview is stored on each side's own conversation row. The recipient's
       // copy is written here because it is their row, not the sender's.
+      //
+      // Both clear deletedAt: a conversation either side deleted from their own
+      // list is only hidden, not gone (the row and the shared thread survive),
+      // so it belongs back on screen the moment the conversation continues —
+      // the same way it reappears in any other messaging app.
       const preview = body.encrypted ? '' : text.slice(0, 120);
       db()
         .prepare(
-          `UPDATE "conversations" SET "lastMessageAt" = ?, "lastMessagePreview" = ?, "updatedAt" = ?
+          `UPDATE "conversations" SET "lastMessageAt" = ?, "lastMessagePreview" = ?, "updatedAt" = ?, "deletedAt" = NULL
            WHERE "threadId" = ? AND "userId" = ?`,
         )
         .run(timestamp, preview, timestamp, threadId, context.user.id);
       db()
         .prepare(
           `UPDATE "conversations"
-           SET "lastMessageAt" = ?, "lastMessagePreview" = ?, "unreadCount" = "unreadCount" + 1, "updatedAt" = ?
+           SET "lastMessageAt" = ?, "lastMessagePreview" = ?, "unreadCount" = "unreadCount" + 1, "updatedAt" = ?, "deletedAt" = NULL
            WHERE "threadId" = ? AND "userId" = ?`,
         )
         .run(timestamp, preview, timestamp, threadId, otherUserId);
@@ -481,10 +504,22 @@ messagesRouter.delete(
   '/messages/:id',
   handler((req, res) => {
     const context = auth(req);
-    const result = db()
-      .prepare('UPDATE "messages" SET "deletedAt" = ?, "updatedAt" = ? WHERE "id" = ? AND "senderUserId" = ?')
-      .run(now(), now(), String(req.params['id']), context.user.id);
-    if (result.changes === 0) throw notFound('That message');
+    const row = db()
+      .prepare('SELECT * FROM "messages" WHERE "id" = ? AND "deletedAt" IS NULL')
+      .get(String(req.params['id'])) as Record<string, unknown> | undefined;
+    if (!row || row['senderUserId'] !== context.user.id) throw notFound('That message');
+
+    db()
+      .prepare('UPDATE "messages" SET "deletedAt" = ?, "updatedAt" = ? WHERE "id" = ?')
+      .run(now(), now(), row['id']);
+
+    const threadId = row['threadId'] as string;
+    const messageId = String(row['id']);
+    const conversation = requireParticipant(context.user.id, threadId);
+    const otherUserId = conversation['otherUserId'] as string;
+    publish(otherUserId, { type: 'message.deleted', threadId, messageId });
+    publish(context.user.id, { type: 'message.deleted', threadId, messageId });
+
     ok(res, { deleted: true });
   }),
 );

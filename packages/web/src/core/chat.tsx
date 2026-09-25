@@ -64,6 +64,18 @@ export interface ChatThreadSummary {
   raw: StoredRecord;
 }
 
+export interface ChatAttachment {
+  id: string;
+  url: string;
+  mediaType: 'image' | 'video' | 'audio' | 'document';
+  mimeType: string;
+  sizeBytes: number;
+  title: string;
+  durationSeconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+}
+
 export interface ChatMessage {
   id: string;
   threadId: string;
@@ -74,7 +86,7 @@ export interface ChatMessage {
   sender: ChatPerson | null;
   replyToId: string | null;
   reactions: Record<string, string[]>;
-  attachments: unknown[];
+  attachments: ChatAttachment[];
   forwardedFrom: ChatForwardInfo | null;
   encrypted: boolean;
   sequence: number;
@@ -108,6 +120,26 @@ function personFromCounterpart(counterpart: Record<string, unknown> | null | und
 
 function toReactions(raw: unknown): Record<string, string[]> {
   return raw && typeof raw === 'object' ? (raw as Record<string, string[]>) : {};
+}
+
+const MEDIA_TYPES = new Set(['image', 'video', 'audio', 'document']);
+
+function toAttachments(raw: unknown): ChatAttachment[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => ({
+      id: String(item['id'] ?? ''),
+      url: String(item['url'] ?? ''),
+      mediaType: (MEDIA_TYPES.has(String(item['mediaType'])) ? item['mediaType'] : 'document') as ChatAttachment['mediaType'],
+      mimeType: String(item['mimeType'] ?? ''),
+      sizeBytes: Number(item['sizeBytes'] ?? 0),
+      title: String(item['title'] ?? ''),
+      durationSeconds: item['durationSeconds'] != null ? Number(item['durationSeconds']) : null,
+      width: item['width'] != null ? Number(item['width']) : null,
+      height: item['height'] != null ? Number(item['height']) : null,
+    }))
+    .filter((attachment) => attachment.url);
 }
 
 function toForwardedFrom(raw: unknown): ChatForwardInfo | null {
@@ -209,10 +241,13 @@ export function useChatThreads(kind: ChatKind): {
   useEffect(() => {
     void load();
     return realtime.on((event) => {
-      if (kind === 'dm' && (event.type === 'message.new' || event.type === 'message.read')) void load();
+      if (kind === 'dm' && (event.type === 'message.new' || event.type === 'message.read' || event.type === 'message.deleted')) {
+        void load();
+      }
       if (kind === 'system' && (event.type === 'systemChat.new' || event.type === 'systemChat.thread.new')) {
         void load();
       }
+      if (kind === 'system' && event.type === 'record.changed' && event.collection === 'systemChatMessages') void load();
       if (event.type === 'reaction.new' && event.kind === kind) void load();
     });
   }, [kind, load]);
@@ -234,8 +269,7 @@ interface ConversationState {
 export interface SendOptions {
   replyToId?: string | null;
   forwardedFrom?: ChatForwardInfo | null;
-  attachments?: unknown[];
-  attachmentIds?: string[];
+  attachments?: ChatAttachment[];
   /** Which alter this message is from — overrides the conversation's default for dm, and is the sender for system. */
   asMemberId?: string | null;
 }
@@ -255,6 +289,7 @@ export function useChatConversation(
   retry: (message: ChatMessage) => Promise<void>;
   react: (messageId: string, emoji: string) => Promise<void>;
   forward: (messageId: string, targetThreadIds: string[]) => Promise<void>;
+  remove: (messageId: string) => Promise<void>;
   markRead: () => void;
   refreshThread: () => Promise<void>;
 } {
@@ -309,7 +344,7 @@ export function useChatConversation(
         sender,
         replyToId: (raw['replyToId'] as string) ?? null,
         reactions: toReactions(raw['reactions']),
-        attachments: (raw['attachments'] as unknown[]) ?? (raw['attachmentIds'] as unknown[]) ?? [],
+        attachments: toAttachments(raw['attachments']),
         forwardedFrom: toForwardedFrom(raw['forwardedFrom']),
         encrypted: raw['encrypted'] === true,
         sequence: Number(raw['sequence'] ?? 0),
@@ -352,6 +387,18 @@ export function useChatConversation(
     return [...list, ...stillPending];
   })();
 
+  // Confirmed optimistic sends are only ever hidden by the filter above, not
+  // actually dropped from `pending` — so a later action on the real message
+  // (deleting it, say) would remove it from `rawMessages` and un-hide its
+  // now-stale "Sending…" ghost. This is what actually retires it.
+  useEffect(() => {
+    const confirmedClientIds = new Set(rawMessages.map((message) => message['clientId']).filter(Boolean));
+    setPending((current) => {
+      const next = current.filter((message) => !confirmedClientIds.has(message.clientId));
+      return next.length === current.length ? current : next;
+    });
+  }, [rawMessages]);
+
   useEffect(() => {
     setRawMessages([]);
     setPending([]);
@@ -370,6 +417,11 @@ export function useChatConversation(
           if (!theirKey) setKeyAttempt((attempt) => attempt + 1);
         }
         if (kind === 'system' && event.type === 'systemChat.new' && event.threadId === threadId) void load();
+        if (kind === 'dm' && event.type === 'message.deleted' && event.threadId === threadId) void load();
+        // The generic record event carries no threadId, so this reloads on any
+        // system chat message deletion rather than just this thread's — an
+        // infrequent action, and load() is cheap and idempotent either way.
+        if (kind === 'system' && event.type === 'record.changed' && event.collection === 'systemChatMessages') void load();
         if (event.type === 'reaction.new' && event.kind === kind && event.threadId === threadId) void load();
       }),
     [kind, threadId, load, theirKey],
@@ -431,7 +483,7 @@ export function useChatConversation(
   const send = useCallback(
     async (text: string, options: SendOptions = {}) => {
       const body = text.trim();
-      if (!body || !threadId) return;
+      if ((!body && (options.attachments?.length ?? 0) === 0) || !threadId) return;
       const clientId = newId('cli').slice(4);
       const optimistic: ChatMessage = {
         id: `pending-${clientId}`,
@@ -468,15 +520,21 @@ export function useChatConversation(
             encrypted,
             encryptionKeyId: encrypted ? 'browser' : '',
             replyToId: options.replyToId ?? null,
+            // Attachments ride along in the clear even on an encrypted
+            // message: the files themselves are plain uploads on this
+            // server's disk, so sealing only the caption would be a false
+            // promise of privacy the file itself does not keep.
+            attachments: options.attachments ?? [],
             forwardedFrom: options.forwardedFrom ?? null,
             ...(options.asMemberId !== undefined ? { asMemberId: options.asMemberId } : {}),
           });
         } else {
           await api.post(`/api/system/chat/threads/${threadId}/messages`, {
             body,
+            clientId,
             memberId: options.asMemberId ?? viewerMemberId,
             replyToId: options.replyToId ?? null,
-            attachmentIds: options.attachmentIds ?? [],
+            attachmentIds: (options.attachments ?? []).map((attachment) => attachment.id),
             forwardedFrom: options.forwardedFrom ?? null,
           });
         }
@@ -540,11 +598,25 @@ export function useChatConversation(
         await api.post(`/api/messages/threads/${targetThreadId}`, {
           body: source.body,
           clientId: newId('cli').slice(4),
+          attachments: source.attachments,
           forwardedFrom: info,
         });
       }
     },
     [kind, displayMessages],
+  );
+
+  const remove = useCallback(
+    async (messageId: string) => {
+      if (kind === 'dm') {
+        await api.delete(`/api/messages/messages/${messageId}`);
+      } else {
+        await api.delete(`/api/records/systemChatMessages/${messageId}`);
+      }
+      setRawMessages((current) => current.filter((message) => String(message['id']) !== messageId));
+      setPending((current) => current.filter((message) => message.id !== messageId));
+    },
+    [kind],
   );
 
   const markedRead = useRef<string | null>(null);
@@ -571,7 +643,38 @@ export function useChatConversation(
     react,
     refreshThread: load,
     forward,
+    remove,
     markRead,
+  };
+}
+
+/**
+ * Uploads a file or a recorded voice clip and returns the attachment object a
+ * message carries. Goes through the same `/api/media/upload` endpoint (and so
+ * the same media library) as the rest of the app — a photo sent in chat is a
+ * media item like any other, not a second, chat-only copy of the concept.
+ */
+export async function uploadChatAttachment(file: File | Blob, filename: string): Promise<ChatAttachment> {
+  const contentType = file.type || 'application/octet-stream';
+  const result = await api.post<{ id: string; url: string; mediaType: string; sizeBytes: number; title: string }>(
+    '/api/media/upload',
+    undefined,
+    {
+      raw: {
+        body: file,
+        contentType,
+        headers: { 'x-file-name': encodeURIComponent(filename).slice(0, 180) },
+      },
+      timeoutMs: 120_000,
+    },
+  );
+  return {
+    id: result.id,
+    url: result.url,
+    mediaType: (MEDIA_TYPES.has(result.mediaType) ? result.mediaType : 'document') as ChatAttachment['mediaType'],
+    mimeType: contentType,
+    sizeBytes: result.sizeBytes,
+    title: result.title,
   };
 }
 
@@ -606,5 +709,20 @@ export async function updateChatThread(
     await api.patch(`/api/messages/conversations/${id}`, body);
   } else {
     await api.patch(`/api/records/systemChatThreads/${id}`, patch);
+  }
+}
+
+/**
+ * Removes a conversation from this account's list. For a dm this only ever
+ * touches the caller's own side (see the server route) — the other party,
+ * the thread and its messages are untouched, and it reappears if the
+ * conversation continues. For system chat, the account is the only viewer
+ * there is, so this removes the thread itself.
+ */
+export async function deleteChatThread(kind: ChatKind, id: string): Promise<void> {
+  if (kind === 'dm') {
+    await api.delete(`/api/messages/conversations/${id}`);
+  } else {
+    await api.delete(`/api/records/systemChatThreads/${id}`);
   }
 }

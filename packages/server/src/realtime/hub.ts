@@ -14,6 +14,7 @@ export type RealtimeEvent =
   | { type: 'record.changed'; collection: string; id: string; action: 'created' | 'updated' | 'deleted' }
   | { type: 'message.new'; threadId: string; messageId: string; fromUserId: string }
   | { type: 'message.read'; threadId: string; byUserId: string }
+  | { type: 'message.deleted'; threadId: string; messageId: string }
   | { type: 'reaction.new'; threadId: string; messageId: string; kind: 'dm' | 'system' }
   | { type: 'front.changed'; systemId: string }
   | { type: 'notification.new'; notificationId: string; category: string }

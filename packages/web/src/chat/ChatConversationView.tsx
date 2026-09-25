@@ -2,19 +2,31 @@ import { useEffect, useRef, useState } from 'react';
 import { useCollection } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
-import { useChatConversation, type ChatKind, type ChatMessage } from '../core/chat.js';
+import {
+  useChatConversation,
+  uploadChatAttachment,
+  type ChatAttachment,
+  type ChatKind,
+  type ChatMessage,
+} from '../core/chat.js';
 import { Avatar, AvatarStack, Button, IconButton } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
+import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
 import { MessageBubble } from './MessageBubble.js';
+import { PendingAttachmentChip } from './ChatAttachmentView.js';
+import { useVoiceRecorder, VoiceRecorderPanel } from './VoiceRecorder.js';
 import { SendAsStrip } from './SendAsStrip.js';
 import { ChatInfoDialog } from './ChatInfoDialog.js';
+import { ForwardDialog } from './ForwardDialog.js';
+
+const ATTACH_ACCEPT = 'image/*,video/*,audio/*,.pdf,.txt';
 
 /**
- * One open conversation: header, the message history, and the composer.
- * Text-only for now — media, voice and the message action menu (reply,
- * react, forward, delete) land in the next pass; this already carries the
- * data for replies/reactions/forwards so that pass only adds interaction.
+ * One open conversation: header, the message history, and the composer. The
+ * composer itself adapts to what is happening — a plain text row normally,
+ * queued attachment thumbnails above it once something is picked, and the
+ * whole row replaced by the recorder while a voice message is in progress.
  */
 interface ChatConversationViewProps {
   kind: ChatKind;
@@ -42,6 +54,13 @@ export function ChatConversationView({
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [asMemberId, setAsMemberId] = useState<string | null>(viewerMemberId);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [lightbox, setLightbox] = useState<ChatAttachment | null>(null);
+  const forwardDialog = useDialog<ChatMessage>();
+  const deleteDialog = useDialog<ChatMessage>();
+  const recorder = useVoiceRecorder();
+  const attachInputRef = useRef<HTMLInputElement>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const userScrolledUp = useRef(false);
@@ -50,6 +69,7 @@ export function ChatConversationView({
     setAsMemberId(viewerMemberId);
     setReplyTo(null);
     setDraft('');
+    setPendingAttachments([]);
     userScrolledUp.current = false;
   }, [threadId, viewerMemberId]);
 
@@ -75,15 +95,49 @@ export function ChatConversationView({
 
   const send = async (): Promise<void> => {
     const text = draft;
-    if (!text.trim()) return;
+    if (!text.trim() && pendingAttachments.length === 0) return;
     setDraft('');
-    const options = { replyToId: replyTo?.id ?? null, asMemberId };
+    const attachments = pendingAttachments;
+    setPendingAttachments([]);
+    const options = { replyToId: replyTo?.id ?? null, asMemberId, attachments };
     setReplyTo(null);
     await conversation.send(text, options);
   };
 
+  const addFiles = async (files: FileList | null): Promise<void> => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const attachment = await uploadChatAttachment(file, file.name);
+        setPendingAttachments((current) => [...current, attachment]);
+      }
+    } catch (cause) {
+      toast.fromError(cause, 'That file did not upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const sendVoiceMessage = async (blob: Blob): Promise<void> => {
+    try {
+      const attachment = await uploadChatAttachment(blob, `voice-message.${blob.type.includes('mp4') ? 'm4a' : 'webm'}`);
+      await conversation.send('', { replyToId: replyTo?.id ?? null, asMemberId, attachments: [attachment] });
+      setReplyTo(null);
+    } catch (cause) {
+      toast.fromError(cause, 'That voice message did not send');
+    }
+  };
+
   const react = (messageId: string, emoji: string): void => {
     void conversation.react(messageId, emoji).catch((cause: unknown) => toast.fromError(cause, 'That reaction did not go through'));
+  };
+
+  const copy = (message: ChatMessage): void => {
+    void navigator.clipboard
+      .writeText(message.body)
+      .then(() => toast.success('Copied'))
+      .catch(() => toast.fromError(new Error('Copy failed'), 'Could not copy that message'));
   };
 
   if (conversation.loading && !conversation.thread) {
@@ -182,6 +236,13 @@ export function ChatConversationView({
                     timeLabel={dates.time(message.sentAt)}
                     onReact={(emoji) => react(message.id, emoji)}
                     onRetry={() => void conversation.retry(message)}
+                    onReply={() => setReplyTo(message)}
+                    onForward={() => forwardDialog.show(message)}
+                    onCopy={() => copy(message)}
+                    onDelete={() => deleteDialog.show(message)}
+                    onOpenAttachment={(attachment) => {
+                      if (attachment.mediaType === 'image') setLightbox(attachment);
+                    }}
                     onQuoteClick={quoted ? () => scrollToMessage(quoted.id) : undefined}
                   />
                 </div>
@@ -204,25 +265,74 @@ export function ChatConversationView({
         </div>
       ) : null}
 
-      <form
-        className="chat-composer"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send();
-        }}
-      >
-        <input
-          className="input chat-composer__input"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Type a message…"
-          aria-label="Message"
-          autoComplete="off"
-        />
-        <Button variant="primary" type="submit" aria-label="Send" disabled={!draft.trim()} loading={conversation.sending}>
-          <Icon name="send" size={17} />
-        </Button>
-      </form>
+      {recorder.state === 'recording' || recorder.state === 'recorded' ? (
+        <div className="chat-composer">
+          <VoiceRecorderPanel recorder={recorder} onSend={(blob) => void sendVoiceMessage(blob)} />
+        </div>
+      ) : (
+        <>
+          {pendingAttachments.length > 0 ? (
+            <div className="chat-composer-attachments">
+              {pendingAttachments.map((attachment) => (
+                <PendingAttachmentChip
+                  key={attachment.id}
+                  attachment={attachment}
+                  onRemove={() => setPendingAttachments((current) => current.filter((item) => item.id !== attachment.id))}
+                />
+              ))}
+              {uploading ? <span className="tiny faint">Uploading…</span> : null}
+            </div>
+          ) : null}
+
+          <form
+            className="chat-composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void send();
+            }}
+          >
+            <input
+              ref={attachInputRef}
+              type="file"
+              multiple
+              accept={ATTACH_ACCEPT}
+              className="visually-hidden"
+              tabIndex={-1}
+              onChange={(event) => {
+                void addFiles(event.target.files);
+                event.target.value = '';
+              }}
+            />
+            <IconButton
+              icon="attach"
+              label="Attach a file"
+              variant="ghost"
+              disabled={uploading}
+              onClick={() => attachInputRef.current?.click()}
+            />
+            <input
+              className="input chat-composer__input"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Type a message…"
+              aria-label="Message"
+              autoComplete="off"
+            />
+            {draft.trim() || pendingAttachments.length > 0 ? (
+              <Button variant="primary" type="submit" aria-label="Send" disabled={uploading} loading={conversation.sending}>
+                <Icon name="send" size={17} />
+              </Button>
+            ) : (
+              <IconButton icon="mic" label="Record a voice message" variant="primary" onClick={() => void recorder.start()} />
+            )}
+          </form>
+          {recorder.state === 'denied' ? (
+            <p className="chat-voice__denied" role="alert">
+              Could not reach the microphone.
+            </p>
+          ) : null}
+        </>
+      )}
 
       {kind === 'system' ? (
         <SendAsStrip members={members.items} value={asMemberId} onChange={setAsMemberId} />
@@ -231,6 +341,31 @@ export function ChatConversationView({
       {thread ? (
         <ChatInfoDialog open={infoOpen} onClose={() => setInfoOpen(false)} thread={thread} onChanged={conversation.refreshThread} />
       ) : null}
+
+      <ForwardDialog
+        open={forwardDialog.open}
+        onClose={forwardDialog.hide}
+        kind={kind}
+        excludeThreadId={threadId}
+        message={forwardDialog.value}
+        onForward={(targetThreadIds) => conversation.forward(forwardDialog.value!.id, targetThreadIds)}
+      />
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onClose={deleteDialog.hide}
+        onConfirm={async () => {
+          if (!deleteDialog.value) return;
+          await conversation.remove(deleteDialog.value.id);
+        }}
+        title="Delete this message?"
+        body="It will be removed for everyone in this conversation."
+        recoverable={false}
+      />
+
+      <Dialog open={lightbox !== null} onClose={() => setLightbox(null)} title={lightbox?.title || 'Image'} fullscreen>
+        {lightbox ? <img className="chat-lightbox__image" src={lightbox.url} alt={lightbox.title || 'Image'} /> : null}
+      </Dialog>
     </div>
   );
 }

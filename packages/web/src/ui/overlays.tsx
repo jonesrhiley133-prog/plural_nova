@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, IconButton } from './primitives.js';
+import { Icon, type IconName } from './Icon.js';
 
 /**
  * Lets a form rendered inside a dialog put its own save action in the header
@@ -303,4 +304,112 @@ export function useDialog<T = true>(): {
       window.setTimeout(() => setValue(null), 220);
     },
   };
+}
+
+// ── Action menu ─────────────────────────────────────────────────────────────
+
+export interface ActionMenuItem {
+  key: string;
+  label: string;
+  icon: IconName;
+  onSelect: () => void;
+  tone?: 'danger';
+}
+
+export interface ActionMenuPosition {
+  open: boolean;
+  x: number;
+  y: number;
+  /** Anchored from the near edge so the menu opens toward the middle of the
+   *  screen instead of running off it near an edge or corner. */
+  fromRight: boolean;
+  fromBottom: boolean;
+}
+
+const CLOSED_POSITION: ActionMenuPosition = { open: false, x: 0, y: 0, fromRight: false, fromBottom: false };
+
+/** Drives an `ActionMenu`'s open state and screen position from whatever triggered it. */
+export function useActionMenu(): {
+  position: ActionMenuPosition;
+  openFrom: (event: { clientX: number; clientY: number }) => void;
+  close: () => void;
+} {
+  const [position, setPosition] = useState<ActionMenuPosition>(CLOSED_POSITION);
+
+  return {
+    position,
+    openFrom: (event) => {
+      const fromRight = event.clientX > window.innerWidth / 2;
+      const fromBottom = event.clientY > window.innerHeight / 2;
+      setPosition({
+        open: true,
+        x: fromRight ? window.innerWidth - event.clientX : event.clientX,
+        y: fromBottom ? window.innerHeight - event.clientY : event.clientY,
+        fromRight,
+        fromBottom,
+      });
+    },
+    close: () => setPosition(CLOSED_POSITION),
+  };
+}
+
+/**
+ * A small context menu anchored to a point rather than an element — a
+ * long-press or right-click has a location, not a trigger button to measure.
+ */
+export function ActionMenu({
+  position,
+  onClose,
+  items,
+}: {
+  position: ActionMenuPosition;
+  onClose: () => void;
+  items: ActionMenuItem[];
+}): JSX.Element | null {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!position.open) return undefined;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (ref.current && !ref.current.contains(event.target as Node)) onClose();
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [position.open, onClose]);
+
+  if (!position.open) return null;
+
+  const style = {
+    position: 'fixed' as const,
+    [position.fromRight ? 'right' : 'left']: position.x,
+    [position.fromBottom ? 'bottom' : 'top']: position.y,
+  };
+
+  return createPortal(
+    <div className="action-menu" role="menu" style={style} ref={ref}>
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          role="menuitem"
+          className={item.tone === 'danger' ? 'action-menu__item action-menu__item--danger' : 'action-menu__item'}
+          onClick={() => {
+            onClose();
+            item.onSelect();
+          }}
+        >
+          <Icon name={item.icon} size={16} />
+          {item.label}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
 }

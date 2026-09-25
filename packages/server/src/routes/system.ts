@@ -209,6 +209,29 @@ function resolveMembers(
     }));
 }
 
+/** Turns stored attachmentIds into the objects a bubble can render without a second fetch. */
+function resolveAttachments(scope: Scope, ids: string[]): Record<string, unknown>[] {
+  return ids
+    .map((id) => getRecord('mediaItems', scope, id))
+    .filter((item): item is StoredRecord => Boolean(item))
+    .map((item) => ({
+      id: item.id,
+      url: item['url'],
+      mediaType: item['mediaType'],
+      mimeType: item['mimeType'],
+      sizeBytes: item['sizeBytes'],
+      title: item['title'],
+      durationSeconds: item['durationSeconds'],
+      width: item['width'],
+      height: item['height'],
+    }));
+}
+
+function withAttachments(scope: Scope, message: StoredRecord): Record<string, unknown> {
+  const ids = (message['attachmentIds'] as string[]) ?? [];
+  return ids.length === 0 ? message : { ...message, attachments: resolveAttachments(scope, ids) };
+}
+
 function withParticipants(
   scope: Scope,
   thread: StoredRecord,
@@ -334,7 +357,7 @@ systemRouter.get(
     ok(res, {
       threadId,
       thread: withParticipants(context.scope, thread),
-      messages: [...result.items].reverse(),
+      messages: [...result.items].reverse().map((message) => withAttachments(context.scope, message)),
       hasMore: result.items.length === limit,
     });
   }),
@@ -355,6 +378,7 @@ systemRouter.post(
       replyToId?: string | null;
       attachmentIds?: string[];
       forwardedFrom?: Record<string, unknown> | null;
+      clientId?: string;
     };
     const text = body.body?.trim() ?? '';
     if (!text && (body.attachmentIds?.length ?? 0) === 0) throw badRequest('Write something first.');
@@ -371,6 +395,7 @@ systemRouter.post(
         reactions: null,
         forwardedFrom: body.forwardedFrom ?? null,
         edited: false,
+        clientId: body.clientId ?? '',
       },
       { memberId: body.memberId ?? context.user.activeMemberId, visibility: 'system' },
     );
@@ -393,7 +418,7 @@ systemRouter.post(
         ...(body.memberId ? { actorMemberId: body.memberId } : {}),
       });
     }
-    ok(res, message, 201);
+    ok(res, withAttachments(context.scope, message), 201);
   }),
 );
 
@@ -472,7 +497,7 @@ systemRouter.post(
       forwarded.push(message);
     }
     if (forwarded.length === 0) throw notFound('Those conversations');
-    ok(res, { forwarded }, 201);
+    ok(res, { forwarded: forwarded.map((message) => withAttachments(context.scope, message)) }, 201);
   }),
 );
 
