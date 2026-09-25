@@ -355,6 +355,7 @@ systemRouter.post(
       replyToId?: string | null;
       attachmentIds?: string[];
       forwardedFrom?: Record<string, unknown> | null;
+      clientId?: string;
     };
     const text = body.body?.trim() ?? '';
     if (!text && (body.attachmentIds?.length ?? 0) === 0) throw badRequest('Write something first.');
@@ -371,6 +372,7 @@ systemRouter.post(
         reactions: null,
         forwardedFrom: body.forwardedFrom ?? null,
         edited: false,
+        clientId: body.clientId ?? '',
       },
       { memberId: body.memberId ?? context.user.activeMemberId, visibility: 'system' },
     );

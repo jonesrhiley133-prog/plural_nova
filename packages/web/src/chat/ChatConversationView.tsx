@@ -5,10 +5,12 @@ import { useToast } from '../core/toast.js';
 import { useChatConversation, type ChatKind, type ChatMessage } from '../core/chat.js';
 import { Avatar, AvatarStack, Button, IconButton } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
+import { ConfirmDialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
 import { MessageBubble } from './MessageBubble.js';
 import { SendAsStrip } from './SendAsStrip.js';
 import { ChatInfoDialog } from './ChatInfoDialog.js';
+import { ForwardDialog } from './ForwardDialog.js';
 
 /**
  * One open conversation: header, the message history, and the composer.
@@ -42,6 +44,8 @@ export function ChatConversationView({
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [asMemberId, setAsMemberId] = useState<string | null>(viewerMemberId);
   const [infoOpen, setInfoOpen] = useState(false);
+  const forwardDialog = useDialog<ChatMessage>();
+  const deleteDialog = useDialog<ChatMessage>();
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const userScrolledUp = useRef(false);
@@ -84,6 +88,13 @@ export function ChatConversationView({
 
   const react = (messageId: string, emoji: string): void => {
     void conversation.react(messageId, emoji).catch((cause: unknown) => toast.fromError(cause, 'That reaction did not go through'));
+  };
+
+  const copy = (message: ChatMessage): void => {
+    void navigator.clipboard
+      .writeText(message.body)
+      .then(() => toast.success('Copied'))
+      .catch(() => toast.fromError(new Error('Copy failed'), 'Could not copy that message'));
   };
 
   if (conversation.loading && !conversation.thread) {
@@ -182,6 +193,10 @@ export function ChatConversationView({
                     timeLabel={dates.time(message.sentAt)}
                     onReact={(emoji) => react(message.id, emoji)}
                     onRetry={() => void conversation.retry(message)}
+                    onReply={() => setReplyTo(message)}
+                    onForward={() => forwardDialog.show(message)}
+                    onCopy={() => copy(message)}
+                    onDelete={() => deleteDialog.show(message)}
                     onQuoteClick={quoted ? () => scrollToMessage(quoted.id) : undefined}
                   />
                 </div>
@@ -231,6 +246,27 @@ export function ChatConversationView({
       {thread ? (
         <ChatInfoDialog open={infoOpen} onClose={() => setInfoOpen(false)} thread={thread} onChanged={conversation.refreshThread} />
       ) : null}
+
+      <ForwardDialog
+        open={forwardDialog.open}
+        onClose={forwardDialog.hide}
+        kind={kind}
+        excludeThreadId={threadId}
+        message={forwardDialog.value}
+        onForward={(targetThreadIds) => conversation.forward(forwardDialog.value!.id, targetThreadIds)}
+      />
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onClose={deleteDialog.hide}
+        onConfirm={async () => {
+          if (!deleteDialog.value) return;
+          await conversation.remove(deleteDialog.value.id);
+        }}
+        title="Delete this message?"
+        body="It will be removed for everyone in this conversation."
+        recoverable={false}
+      />
     </div>
   );
 }

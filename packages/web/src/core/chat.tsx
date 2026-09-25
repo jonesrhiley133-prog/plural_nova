@@ -209,10 +209,13 @@ export function useChatThreads(kind: ChatKind): {
   useEffect(() => {
     void load();
     return realtime.on((event) => {
-      if (kind === 'dm' && (event.type === 'message.new' || event.type === 'message.read')) void load();
+      if (kind === 'dm' && (event.type === 'message.new' || event.type === 'message.read' || event.type === 'message.deleted')) {
+        void load();
+      }
       if (kind === 'system' && (event.type === 'systemChat.new' || event.type === 'systemChat.thread.new')) {
         void load();
       }
+      if (kind === 'system' && event.type === 'record.changed' && event.collection === 'systemChatMessages') void load();
       if (event.type === 'reaction.new' && event.kind === kind) void load();
     });
   }, [kind, load]);
@@ -255,6 +258,7 @@ export function useChatConversation(
   retry: (message: ChatMessage) => Promise<void>;
   react: (messageId: string, emoji: string) => Promise<void>;
   forward: (messageId: string, targetThreadIds: string[]) => Promise<void>;
+  remove: (messageId: string) => Promise<void>;
   markRead: () => void;
   refreshThread: () => Promise<void>;
 } {
@@ -352,6 +356,18 @@ export function useChatConversation(
     return [...list, ...stillPending];
   })();
 
+  // Confirmed optimistic sends are only ever hidden by the filter above, not
+  // actually dropped from `pending` — so a later action on the real message
+  // (deleting it, say) would remove it from `rawMessages` and un-hide its
+  // now-stale "Sending…" ghost. This is what actually retires it.
+  useEffect(() => {
+    const confirmedClientIds = new Set(rawMessages.map((message) => message['clientId']).filter(Boolean));
+    setPending((current) => {
+      const next = current.filter((message) => !confirmedClientIds.has(message.clientId));
+      return next.length === current.length ? current : next;
+    });
+  }, [rawMessages]);
+
   useEffect(() => {
     setRawMessages([]);
     setPending([]);
@@ -370,6 +386,11 @@ export function useChatConversation(
           if (!theirKey) setKeyAttempt((attempt) => attempt + 1);
         }
         if (kind === 'system' && event.type === 'systemChat.new' && event.threadId === threadId) void load();
+        if (kind === 'dm' && event.type === 'message.deleted' && event.threadId === threadId) void load();
+        // The generic record event carries no threadId, so this reloads on any
+        // system chat message deletion rather than just this thread's — an
+        // infrequent action, and load() is cheap and idempotent either way.
+        if (kind === 'system' && event.type === 'record.changed' && event.collection === 'systemChatMessages') void load();
         if (event.type === 'reaction.new' && event.kind === kind && event.threadId === threadId) void load();
       }),
     [kind, threadId, load, theirKey],
@@ -474,6 +495,7 @@ export function useChatConversation(
         } else {
           await api.post(`/api/system/chat/threads/${threadId}/messages`, {
             body,
+            clientId,
             memberId: options.asMemberId ?? viewerMemberId,
             replyToId: options.replyToId ?? null,
             attachmentIds: options.attachmentIds ?? [],
@@ -547,6 +569,19 @@ export function useChatConversation(
     [kind, displayMessages],
   );
 
+  const remove = useCallback(
+    async (messageId: string) => {
+      if (kind === 'dm') {
+        await api.delete(`/api/messages/messages/${messageId}`);
+      } else {
+        await api.delete(`/api/records/systemChatMessages/${messageId}`);
+      }
+      setRawMessages((current) => current.filter((message) => String(message['id']) !== messageId));
+      setPending((current) => current.filter((message) => message.id !== messageId));
+    },
+    [kind],
+  );
+
   const markedRead = useRef<string | null>(null);
   const markRead = useCallback(() => {
     if (!threadId || !thread?.unread) return;
@@ -571,6 +606,7 @@ export function useChatConversation(
     react,
     refreshThread: load,
     forward,
+    remove,
     markRead,
   };
 }
@@ -606,5 +642,20 @@ export async function updateChatThread(
     await api.patch(`/api/messages/conversations/${id}`, body);
   } else {
     await api.patch(`/api/records/systemChatThreads/${id}`, patch);
+  }
+}
+
+/**
+ * Removes a conversation from this account's list. For a dm this only ever
+ * touches the caller's own side (see the server route) — the other party,
+ * the thread and its messages are untouched, and it reappears if the
+ * conversation continues. For system chat, the account is the only viewer
+ * there is, so this removes the thread itself.
+ */
+export async function deleteChatThread(kind: ChatKind, id: string): Promise<void> {
+  if (kind === 'dm') {
+    await api.delete(`/api/messages/conversations/${id}`);
+  } else {
+    await api.delete(`/api/records/systemChatThreads/${id}`);
   }
 }

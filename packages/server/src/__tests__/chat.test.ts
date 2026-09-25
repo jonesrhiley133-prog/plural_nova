@@ -108,6 +108,44 @@ describe('direct messages: replies, reactions, forwarding', () => {
       senderLabel: 'Alice',
     });
   });
+
+  it('lets the sender delete their own message, and no one else', async () => {
+    const sent = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: alice.token,
+      body: { body: 'delete me' },
+    });
+    const messageId = sent.body.data.message.id;
+
+    const refused = await client.request('DELETE', `/api/messages/messages/${messageId}`, { token: bob.token });
+    expect(refused.status).toBe(404);
+
+    const deleted = await client.request('DELETE', `/api/messages/messages/${messageId}`, { token: alice.token });
+    expect(deleted.status).toBe(200);
+
+    const fetched = await client.request('GET', `/api/messages/threads/${threadId}`, { token: alice.token });
+    expect(fetched.body.data.messages.some((m: any) => m.id === messageId)).toBe(false);
+  });
+
+  it('removes a deleted conversation from the list, and brings it back when the conversation continues', async () => {
+    const before = await client.request('GET', '/api/messages/conversations', { token: alice.token });
+    const conversationId = before.body.data.conversations.find((c: any) => c.threadId === threadId).id;
+
+    const deleted = await client.request('DELETE', `/api/messages/conversations/${conversationId}`, { token: alice.token });
+    expect(deleted.status).toBe(200);
+
+    const afterDelete = await client.request('GET', '/api/messages/conversations', { token: alice.token });
+    expect(afterDelete.body.data.conversations.some((c: any) => c.threadId === threadId)).toBe(false);
+
+    await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: bob.token,
+      body: { body: 'still here?' },
+    });
+
+    const afterReply = await client.request('GET', '/api/messages/conversations', { token: alice.token });
+    const revived = afterReply.body.data.conversations.find((c: any) => c.threadId === threadId);
+    expect(revived).toBeDefined();
+    expect(revived.lastMessagePreview).toBe('still here?');
+  });
 });
 
 describe('system chat threads', () => {
@@ -165,6 +203,23 @@ describe('system chat threads', () => {
     const messages = await client.request('GET', `/api/system/chat/threads/${threadId}/messages`, { token });
     expect(messages.body.data.messages).toHaveLength(1);
     expect(messages.body.data.messages[0].body).toBe('hello from Ash');
+  });
+
+  it('deletes a system chat message through the generic records route', async () => {
+    const threads = await client.request('GET', '/api/system/chat/threads', { token });
+    const threadId = threads.body.data.threads[0].id;
+
+    const sent = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'delete this one', memberId: ashId },
+    });
+    const messageId = sent.body.data.id;
+
+    const deleted = await client.request('DELETE', `/api/records/systemChatMessages/${messageId}`, { token });
+    expect(deleted.status).toBe(200);
+
+    const messages = await client.request('GET', `/api/system/chat/threads/${threadId}/messages`, { token });
+    expect(messages.body.data.messages.some((m: any) => m.id === messageId)).toBe(false);
   });
 
   it('creates a group thread with named participants and resolves them', async () => {

@@ -412,6 +412,33 @@
   max-width: 260px;
 }
 
+.chat-message__bubble-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.chat-message--mine .chat-message__bubble-row {
+  flex-direction: row-reverse;
+}
+
+.chat-message__more {
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.chat-message:hover .chat-message__more,
+.chat-message__more:focus-visible {
+  opacity: 1;
+}
+
+/* No hover on touch — the trigger has to already be visible to be found. */
+@media (hover: none) {
+  .chat-message__more {
+    opacity: 0.6;
+  }
+}
+
 .chat-bubble {
   background: var(--surface-raised);
   border-radius: var(--radius);
@@ -419,6 +446,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .chat-message--mine .chat-bubble {
@@ -550,4 +578,80 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+/* ── Message actions & reactions ────────────────────────────────────────── */
+
+.action-menu {
+  z-index: var(--z-modal);
+  min-width: 170px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.action-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.action-menu__item:hover,
+.action-menu__item:focus-visible {
+  background: var(--surface-sunken);
+}
+
+.action-menu__item--danger {
+  color: var(--critical);
+}
+
+.reaction-picker {
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lift);
+  padding: 4px;
+}
+
+.reaction-picker__option {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 50%;
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.reaction-picker__option:hover,
+.reaction-picker__option:focus-visible {
+  background: var(--surface-sunken);
+  transform: scale(1.15);
+}
+
+.reaction-picker__dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-faint);
+  padding: 6px;
+  display: flex;
 }

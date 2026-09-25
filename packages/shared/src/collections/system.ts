@@ -613,6 +613,9 @@ export const systemChatMessages: CollectionDef = {
     f.json('forwardedFrom', 'Forwarded from', {
       hint: 'Where this was forwarded from, if it was: { kind, threadId, messageId, senderLabel }.',
     }),
+    f.text('clientId', 'Client id', {
+      hint: 'Matches an optimistic send to the stored row it became, the way dm messages already do.',
+    }),
   ],
 };
 
