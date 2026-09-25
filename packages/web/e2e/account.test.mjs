@@ -82,6 +82,12 @@ describe('an account across visits', () => {
 
     const after = await page.textContent('body');
     assert.ok(!after.includes('Create an account'), 'a reload signed the demo account out');
-    assert.equal(after.length, before.length, 'a reload changed what the demo account held');
+    // The demo seeds one fronting event still in progress (see demo.ts), so its
+    // displayed duration keeps advancing in real time across these two page
+    // loads. Comparing raw text would flake the moment that crosses a digit
+    // boundary ("9m" -> "10m") with nothing about the account's data actually
+    // changing, so digits are normalized away before comparing.
+    const withoutLiveNumbers = (text) => text.replace(/\d+/g, '#');
+    assert.equal(withoutLiveNumbers(after), withoutLiveNumbers(before), 'a reload changed what the demo account held');
   });
 });
