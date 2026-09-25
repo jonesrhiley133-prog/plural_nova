@@ -240,6 +240,11 @@ export const messages: CollectionDef = {
     }),
     f.text('encryptionKeyId', 'Key id'),
     f.text('clientId', 'Client id', { hint: 'De-duplicates re-sends from an offline outbox.' }),
+    f.ref('replyToId', 'In reply to', 'messages'),
+    f.json('reactions', 'Reactions', { hint: 'Map of emoji to the userIds who used it.' }),
+    f.json('forwardedFrom', 'Forwarded from', {
+      hint: 'Where this was forwarded from, if it was: { kind, threadId, messageId, senderLabel }.',
+    }),
   ],
 };
 

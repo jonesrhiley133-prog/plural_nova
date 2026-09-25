@@ -23,6 +23,9 @@ ensurePushKeys();
 if (schema.addedColumns.length > 0) {
   console.log(`[pluralnova] schema updated: ${schema.addedColumns.length} new column(s)`);
 }
+if (schema.backfilledChatThreads > 0) {
+  console.log(`[pluralnova] system chat: ${schema.backfilledChatThreads} message(s) moved onto threads`);
+}
 
 const app = createApp();
 const server = createServer(app);
