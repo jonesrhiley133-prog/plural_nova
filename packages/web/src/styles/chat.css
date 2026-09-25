@@ -271,6 +271,13 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  --chat-msg-gap: 2px;
+  --chat-bubble-pad-y: var(--space-2);
+}
+
+.chat-conversation[data-spacing='compact'] {
+  --chat-msg-gap: 0px;
+  --chat-bubble-pad-y: 5px;
 }
 
 .chat-conversation__loading {
@@ -323,6 +330,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  background: var(--chat-wallpaper, transparent);
 }
 
 .chat-day-heading {
@@ -340,7 +348,7 @@
   align-items: flex-end;
   gap: var(--space-2);
   max-width: 78%;
-  margin-bottom: 2px;
+  margin-bottom: var(--chat-msg-gap, 2px);
 }
 
 .chat-message--theirs {
@@ -440,9 +448,9 @@
 }
 
 .chat-bubble {
-  background: var(--surface-raised);
+  background: var(--chat-bubble-theirs, var(--surface-raised));
   border-radius: var(--radius);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--chat-bubble-pad-y, var(--space-2)) var(--space-3);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -450,8 +458,8 @@
 }
 
 .chat-message--mine .chat-bubble {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--chat-bubble-mine, var(--accent));
+  color: var(--chat-bubble-mine-text, var(--accent-text));
 }
 
 .chat-bubble__text {
@@ -578,6 +586,15 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+.chat-info__section-title {
+  margin: var(--space-2) 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+  text-transform: uppercase;
 }
 
 /* ── Message actions & reactions ────────────────────────────────────────── */
