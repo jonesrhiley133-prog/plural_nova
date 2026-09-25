@@ -29,8 +29,23 @@ different versions of PluralNova.
   that changed mid-shift. The Work overview also gained a day/week/month
   toggle on estimated earnings, alongside the existing hours-by-day and
   by-workplace charts, and shift-by-shift estimates in the schedule list.
+- **A much bigger emotion catalogue, with favourites, custom words and a way
+  to browse all of it.** The built-in list grew from 144 to 212 words across
+  the same 12 families. The log-an-emotion picker now offers an "All" view
+  alongside the existing family filter and search, a starred Favourites
+  section above Recently used, and — when a search turns up nothing — an
+  inline way to add your own word to one of the 12 families. A custom
+  emotion is usable everywhere a built-in one is, immediately.
 
 ### Changed
+
+- **The Emotions screen is no longer a separate destination in the nav, the
+  bottom bar or the Hub.** Logging an emotion is unaffected — the Dashboard's
+  "Log an emotion" quick action and the check-in ritual's own emotion step
+  both still open the same picker exactly as before, and the screen itself
+  still exists for anyone who navigates to it directly. It's just no longer
+  a tile to browse to on its own, since logging was always meant to happen
+  from wherever you already are.
 
 - **Timed sessions now track to the exact second instead of rounding to the
   nearest minute.** Fronting, sleep, and clocking in for a shift all store
