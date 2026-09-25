@@ -30,6 +30,18 @@ const accentVar = (page) =>
   page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
 
 /**
+ * The accent is no longer the only `ColorPicker` on this page — Appearance
+ * also offers one per custom colour override — so a bare `.color-picker__*`
+ * selector is ambiguous. This scopes to the one field labelled "Accent",
+ * rather than to "whichever picker happens to be first" or "the only one
+ * open by default", either of which breaks again the next time a picker is
+ * added here.
+ */
+function accentPicker(page) {
+  return page.locator('.field').filter({ has: page.locator('.field__label', { hasText: /^Accent$/ }) });
+}
+
+/**
  * Waits for a locator's value to satisfy `predicate`, polling rather than
  * sleeping a fixed amount. A run alongside the rest of the suite gives the
  * renderer far less CPU time per event than running this file alone does, so
@@ -55,7 +67,7 @@ describe('the colour picker', () => {
     await page.goto(`${BASE}/settings/appearance`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(600);
 
-    const hue = page.locator('.color-picker__hue');
+    const hue = accentPicker(page).locator('.color-picker__hue');
     await hue.scrollIntoViewIfNeeded();
     const before = await accentVar(page);
     const box = await hue.boundingBox();
@@ -74,7 +86,7 @@ describe('the colour picker', () => {
     await page.goto(`${BASE}/settings/appearance`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(600);
 
-    const hue = page.locator('.color-picker__hue');
+    const hue = accentPicker(page).locator('.color-picker__hue');
     await hue.focus();
     const start = Number(await hue.inputValue());
 
@@ -95,7 +107,7 @@ describe('the colour picker', () => {
     await page.goto(`${BASE}/settings/appearance`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(600);
 
-    const sv = page.locator('.color-picker__sv');
+    const sv = accentPicker(page).locator('.color-picker__sv');
     await sv.scrollIntoViewIfNeeded();
     const box = await sv.boundingBox();
     const before = await accentVar(page);
@@ -108,7 +120,7 @@ describe('the colour picker', () => {
 
     assert.notEqual(await accentVar(page), before, 'dragging the SV square did not change the accent');
 
-    const thumb = page.locator('.color-picker__sv-thumb');
+    const thumb = accentPicker(page).locator('.color-picker__sv-thumb');
     const valuetext = await thumb.getAttribute('aria-valuetext');
     assert.match(valuetext ?? '', /Saturation \d+%, brightness \d+%/);
   });
@@ -118,7 +130,7 @@ describe('the colour picker', () => {
     await page.goto(`${BASE}/settings/appearance`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(600);
 
-    const text = page.locator('.color-picker__text');
+    const text = accentPicker(page).locator('.color-picker__text');
     await text.fill('#22c55e');
     await text.blur();
     await page.waitForTimeout(300);
@@ -131,7 +143,7 @@ describe('the colour picker', () => {
     await page.goto(`${BASE}/settings/appearance`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(600);
 
-    const text = page.locator('.color-picker__text');
+    const text = accentPicker(page).locator('.color-picker__text');
     await text.fill('#f472b6');
     await text.blur();
     await page.waitForTimeout(300);

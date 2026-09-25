@@ -309,7 +309,7 @@ function About({
         members={members.items}
         actions={
           <span className="row row--nowrap">
-            <Button variant="ghost" size="sm" icon="settings" onClick={() => navigate('/custom-fields')}>
+            <Button variant="ghost" size="sm" icon="settings" onClick={() => navigate('/settings/custom-fields')}>
               Manage fields
             </Button>
             <Button variant="ghost" size="sm" icon="edit" onClick={() => editor.show()}>

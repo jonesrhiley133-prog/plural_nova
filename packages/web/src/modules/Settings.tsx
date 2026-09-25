@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ACCENT_PRESETS,
+  BASE_TOKENS,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY_LABELS,
   TERMS,
@@ -13,6 +14,7 @@ import {
   sanitizeImportedPreset,
   type NotificationCategory,
   type TermOverrides,
+  type ThemeBase,
   type ThemePreset,
 } from '@pluralnova/shared';
 import { api, messageFor } from '../core/api.js';
@@ -26,6 +28,7 @@ import { disablePush, enablePush, isInstalled, pushStatus, pushSupported, sendTe
 import { syncEngine } from '../core/sync.js';
 import { offlineStorageProblem, storageEstimate } from '../core/localdb.js';
 import { PageHeader } from '../app/PageHeader.js';
+import CustomFieldDefinitions from './CustomFieldDefinitions.js';
 import { Avatar, Button, Card, Chip, IconButton, ListRow, Stat } from '../ui/primitives.js';
 import { NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
 import { ColorPicker, ColorSwatch } from '../ui/ColorPicker.js';
@@ -50,15 +53,26 @@ const SECTIONS = [
   { id: 'accessibility', label: 'Accessibility', icon: 'eye' as const },
   { id: 'performance', label: 'Performance', icon: 'bolt' as const },
   { id: 'navigation', label: 'Navigation', icon: 'menu' as const },
+  // Answered per member, so it means nothing in Singlet Mode, where there is
+  // only ever the one person.
+  { id: 'custom-fields', label: 'Custom fields', icon: 'tag' as const, systemOnly: true },
   { id: 'account', label: 'Account', icon: 'member' as const },
   { id: 'about', label: 'About', icon: 'info' as const },
 ];
+
+const BASE_LABELS: Record<ThemeBase, string> = {
+  dark: 'Dark',
+  amoled: 'AMOLED black',
+  light: 'Light',
+};
 
 export default function Settings(): JSX.Element {
   const { section } = useParams<{ section: string }>();
   const navigate = useNavigate();
   const { term } = useI18n();
-  const active = SECTIONS.find((candidate) => candidate.id === section)?.id ?? 'appearance';
+  const { settings } = useAuth();
+  const sections = SECTIONS.filter((candidate) => settings.mode === 'system' || !candidate.systemOnly);
+  const active = sections.find((candidate) => candidate.id === section)?.id ?? 'appearance';
 
   return (
     <>
@@ -70,7 +84,7 @@ export default function Settings(): JSX.Element {
         <nav aria-label="Settings sections">
           <Card flush>
             <div className="list">
-              {SECTIONS.map((candidate) => (
+              {sections.map((candidate) => (
                 <button
                   key={candidate.id}
                   type="button"
@@ -98,6 +112,7 @@ export default function Settings(): JSX.Element {
           {active === 'accessibility' ? <Accessibility /> : null}
           {active === 'performance' ? <Performance /> : null}
           {active === 'navigation' ? <Navigation /> : null}
+          {active === 'custom-fields' ? <CustomFieldDefinitions /> : null}
           {active === 'account' ? <Account /> : null}
           {active === 'about' ? <About /> : null}
         </div>
@@ -108,10 +123,10 @@ export default function Settings(): JSX.Element {
 
 /** Who this account is, at a glance, above the section list rather than buried in Account. */
 function ProfileHeader(): JSX.Element {
-  const { user } = useAuth();
+  const { user, settings } = useAuth();
   const navigate = useNavigate();
   const activeMember = useRecord('members', user?.activeMemberId ?? undefined);
-  const roleLabel = user?.mode === 'singlet' ? 'Singlet' : 'System';
+  const roleLabel = settings.mode === 'singlet' ? 'Singlet' : 'System';
 
   return (
     <Card style={{ marginBottom: 'var(--space-4)' }}>
@@ -170,7 +185,15 @@ function Appearance(): JSX.Element {
     'Adjusted from a preset, or built from scratch below.';
 
   const applyPreset = (preset: ThemePreset): void => {
-    void update({ ...preset.settings, presetId: preset.id });
+    // A preset is a complete, curated look — a custom colour left over from
+    // before would otherwise win over it forever (the override is applied
+    // last, on purpose, so it can survive everything else), which from here
+    // reads as the preset simply not doing anything.
+    void update({ ...preset.settings, presetId: preset.id, custom: null });
+  };
+
+  const setCustomColor = (key: 'bg' | 'surface' | 'border' | 'text', value: string): void => {
+    void update({ custom: { ...theme.custom, [key]: value }, presetId: null });
   };
 
   const saveCurrentAsPreset = async (): Promise<void> => {
@@ -347,17 +370,24 @@ function Appearance(): JSX.Element {
       />
 
       <Card title="Base">
-        <SelectField
-          label="Light or dark"
-          value={theme.base}
-          options={[
-            { value: 'dark', label: 'Dark' },
-            { value: 'amoled', label: 'AMOLED black' },
-            { value: 'light', label: 'Light' },
-          ]}
-          onChange={(value) => void update({ base: value as 'dark' | 'amoled' | 'light', presetId: null })}
-          placeholder="Dark"
-        />
+        <div className="field">
+          <span className="field__label">Light or dark</span>
+          <div className="row" style={{ marginTop: 'var(--space-1)' }}>
+            {(['dark', 'amoled', 'light'] as const).map((base) => (
+              <ColorSwatch
+                key={base}
+                color={BASE_TOKENS[base].bg}
+                label={BASE_LABELS[base]}
+                selected={theme.base === base}
+                onClick={() => void update({ base, presetId: null })}
+                size={36}
+              />
+            ))}
+          </div>
+          <p className="tiny faint" style={{ marginTop: 'var(--space-2)' }}>
+            {BASE_LABELS[theme.base]} — or set the page background to anything, below.
+          </p>
+        </div>
 
         <div className="field">
           <span className="field__label">Accent</span>
@@ -373,6 +403,33 @@ function Appearance(): JSX.Element {
             defaultOpen
           />
         </div>
+      </Card>
+
+      <Card
+        title="Custom colours"
+        subtitle="Override any of these with the wheel — picking a preset above starts fresh from its own colours"
+      >
+        {(
+          [
+            { key: 'bg', label: 'Page background' },
+            { key: 'surface', label: 'Card background' },
+            { key: 'border', label: 'Border' },
+            { key: 'text', label: 'Text' },
+          ] as const
+        ).map(({ key, label }) => (
+          <div className="field" key={key}>
+            <span className="field__label">{label}</span>
+            <ColorPicker
+              value={theme.custom?.[key] ?? tokens[key]}
+              onChange={(value) => setCustomColor(key, value)}
+              showContrastAgainst={key === 'text' ? tokens.bg : undefined}
+            />
+          </div>
+        ))}
+
+        <Button variant="secondary" icon="refresh" disabled={!theme.custom} onClick={() => void update({ custom: null })}>
+          Clear custom colours
+        </Button>
       </Card>
 
       <Card title="Surfaces">
@@ -992,7 +1049,7 @@ function Navigation(): JSX.Element {
 
 function Account(): JSX.Element {
   const { term } = useI18n();
-  const { user, signOut, refresh } = useAuth();
+  const { user, settings, signOut, refresh } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
   const passwordDialog = useDialog();
@@ -1018,7 +1075,7 @@ function Account(): JSX.Element {
         <div className="stat-grid">
           <Stat label="Name" value={user?.displayName ?? '—'} />
           <Stat label="Email" value={user?.email || 'Not set'} />
-          <Stat label="Mode" value={user?.mode === 'singlet' ? 'Singlet' : 'System'} />
+          <Stat label="Mode" value={settings.mode === 'singlet' ? 'Singlet' : 'System'} />
         </div>
 
         {user?.isGuest ? (

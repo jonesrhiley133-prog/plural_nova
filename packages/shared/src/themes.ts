@@ -491,6 +491,11 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
   };
   towardEdge();
 
+  // Reused below to carry the same undertone from the page onto cards, panels
+  // and wells — one number, so the two never drift apart into visibly
+  // different tints of the same accent.
+  const tint = isLight ? 0.035 : 0.06;
+
   /*
    * The page background otherwise stays a flat, base-only colour with no
    * hint of the chosen accent — on the solid surface this app now defaults
@@ -504,7 +509,6 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
    * checking it once against the untinted background is not enough.
    */
   if (settings.base !== 'amoled') {
-    const tint = isLight ? 0.035 : 0.06;
     tokens.bg = mix(base.bg, accent, tint);
     tokens.bgSubtle = mix(base.bgSubtle, accent, tint);
     towardEdge();
@@ -523,18 +527,6 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
    */
   tokens.glow = withAlpha(accent, isLight ? 0.2 : 0.34);
   tokens.nebulaCore = isLight ? mix(accent, '#ffffff', 0.62) : mix(accent, base.nebulaCore, 0.45);
-
-  if (settings.highContrast) {
-    tokens.text = isLight ? '#000000' : '#ffffff';
-    tokens.textMuted = isLight ? '#2b3348' : '#cfd8ec';
-    tokens.textFaint = isLight ? '#404a63' : '#aeb9d2';
-    tokens.border = isLight ? '#5a6784' : '#7d89a6';
-    tokens.borderStrong = isLight ? '#1d2438' : '#b6c1d8';
-    tokens.surface = isLight ? '#ffffff' : '#0d1120';
-    tokens.surfaceRaised = isLight ? '#ffffff' : '#141a2c';
-    tokens.glassSheen = 'transparent';
-    tokens.glassEdge = isLight ? '#5a6784' : '#b6c1d8';
-  }
 
   if (settings.surfaceStyle === 'clear') {
     tokens.surface = withAlpha(base.surface, isLight ? 0.55 : 0.4);
@@ -562,6 +554,38 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
     // not like glass. Both go, so a solid surface is genuinely one colour.
     tokens.glassSheen = 'transparent';
     tokens.glassEdge = 'transparent';
+  }
+
+  /*
+   * The same undertone as the page, carried onto cards, panels and wells —
+   * without this a different accent moved the background and left every card
+   * the one neutral grey no matter what was chosen. `mix` only understands a
+   * plain 6-digit hex, so this is a no-op on the 8-digit rgba glass and clear
+   * already computed above; solid, the default, is a plain hex and picks it
+   * up directly.
+   */
+  tokens.surface = mix(tokens.surface, accent, tint);
+  tokens.surfaceRaised = mix(tokens.surfaceRaised, accent, tint);
+  tokens.surfaceSunken = mix(tokens.surfaceSunken, accent, tint);
+
+  /*
+   * Last, so accessibility always has the final say: a decorative surface
+   * style or an accent tint is exactly the kind of thing high contrast exists
+   * to override, not lose to. Running this before the surface style used to
+   * mean a solid or clear preset picked afterwards quietly put the softer
+   * border and sheen back — the one thing turning high contrast on was
+   * supposed to change stuck around only until the next theme switch.
+   */
+  if (settings.highContrast) {
+    tokens.text = isLight ? '#000000' : '#ffffff';
+    tokens.textMuted = isLight ? '#2b3348' : '#cfd8ec';
+    tokens.textFaint = isLight ? '#404a63' : '#aeb9d2';
+    tokens.border = isLight ? '#5a6784' : '#7d89a6';
+    tokens.borderStrong = isLight ? '#1d2438' : '#b6c1d8';
+    tokens.surface = isLight ? '#ffffff' : '#0d1120';
+    tokens.surfaceRaised = isLight ? '#ffffff' : '#141a2c';
+    tokens.glassSheen = 'transparent';
+    tokens.glassEdge = isLight ? '#5a6784' : '#b6c1d8';
   }
 
   if (settings.custom) Object.assign(tokens, settings.custom);

@@ -197,6 +197,17 @@ describe('theming', () => {
     );
   });
 
+  it('keeps its border and surface treatment no matter which card style is picked', () => {
+    // Surface style used to be resolved after high contrast, so a solid or
+    // clear card style ran its own, separate assignment to these same fields
+    // afterwards and quietly put the softer, low-contrast values back.
+    for (const surfaceStyle of ['solid', 'glass', 'clear'] as const) {
+      const theme = buildTheme(normaliseThemeSettings({ base: 'dark', highContrast: true, surfaceStyle }));
+      expect(theme.glassEdge).toBe('#b6c1d8');
+      expect(theme.surface).toBe('#0d1120');
+    }
+  });
+
   it('repairs an invalid accent instead of rendering nothing', () => {
     const settings = normaliseThemeSettings({ accent: 'not-a-colour' });
     expect(settings.accent).toBe('#7aa2f7');
