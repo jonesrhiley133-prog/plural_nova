@@ -3,6 +3,7 @@ import { newId, now, requireCollection, type StoredRecord } from '@pluralnova/sh
 import { handler, ok } from '../http/respond.js';
 import { badRequest, conflict, notFound } from '../http/errors.js';
 import { auth, requireAuth, requireSystemMode } from '../auth/middleware.js';
+import { rateLimit } from '../http/rateLimit.js';
 import { getDb } from '../db/index.js';
 import {
   createRecord,
@@ -10,6 +11,7 @@ import {
   getRecord,
   listRecords,
   updateRecord,
+  type Scope,
 } from '../db/repository.js';
 import { updateUser } from '../auth/users.js';
 import {
@@ -178,18 +180,150 @@ systemRouter.post(
 );
 
 // — System chat —————————————————————————————————————————————
+//
+// Threads replaced the old single shared room with named channels (see the
+// boot-time backfill in db/index.ts): a thread is either `system` (the one
+// default, everyone), `group` (a named subset of members) or `direct` (one
+// other member). There is exactly one `system`-kind thread per account,
+// auto-created the first time it is needed.
+
+const systemChatSendLimiter = rateLimit({
+  max: 60,
+  windowMs: 60_000,
+  message: 'Sending too many messages. Slow down for a moment.',
+});
+
+function resolveMembers(
+  scope: Scope,
+  ids: string[],
+): Record<string, unknown>[] {
+  return ids
+    .map((id) => getRecord('members', scope, id))
+    .filter((member): member is StoredRecord => Boolean(member))
+    .map((member) => ({
+      id: member.id,
+      name: member['name'],
+      color: member['color'],
+      icon: member['icon'],
+      chatPrefix: member['chatPrefix'],
+    }));
+}
+
+function withParticipants(
+  scope: Scope,
+  thread: StoredRecord,
+): Record<string, unknown> {
+  const ids = (thread['participantMemberIds'] as string[]) ?? [];
+  return {
+    ...thread,
+    participants: resolveMembers(scope, ids),
+    unread: Boolean(
+      thread['lastMessageAt'] &&
+        (!thread['lastReadAt'] || (thread['lastReadAt'] as string) < (thread['lastMessageAt'] as string)),
+    ),
+  };
+}
+
+function ensureDefaultThread(scope: Scope): StoredRecord {
+  const existing = listRecords('systemChatThreads', scope, { limit: 1, filters: { kind: 'system' } }).items[0];
+  if (existing) return existing;
+  return createRecord(
+    'systemChatThreads',
+    scope,
+    {
+      kind: 'system',
+      name: 'General',
+      participantMemberIds: [],
+      pinned: false,
+      muted: false,
+      archived: false,
+      settings: null,
+    },
+    { visibility: 'system' },
+  );
+}
 
 systemRouter.get(
-  '/chat',
+  '/chat/threads',
   handler((req, res) => {
     const context = requireSystemMode(req);
-    const channel = String(req.query['channel'] ?? 'general');
+    ensureDefaultThread(context.scope);
+    const threads = listRecords('systemChatThreads', context.scope, { limit: 200 })
+      .items.filter((thread) => thread['archived'] !== true)
+      .sort((a, b) => {
+        const pinnedDiff = Number(b['pinned'] === true) - Number(a['pinned'] === true);
+        if (pinnedDiff !== 0) return pinnedDiff;
+        return String(b['lastMessageAt'] ?? '').localeCompare(String(a['lastMessageAt'] ?? ''));
+      })
+      .map((thread) => withParticipants(context.scope, thread));
+    ok(res, { threads });
+  }),
+);
+
+/** A group or direct thread — `system` kind is reserved for the one default. */
+systemRouter.post(
+  '/chat/threads',
+  handler((req, res) => {
+    const context = requireSystemMode(req);
+    const body = req.body as { kind?: 'group' | 'direct'; name?: string; participantMemberIds?: string[] };
+    const kind = body.kind === 'direct' ? 'direct' : 'group';
+    const participantMemberIds = [...new Set(body.participantMemberIds ?? [])];
+    if (participantMemberIds.length === 0) throw badRequest('Choose at least one member.');
+    if (kind === 'direct' && participantMemberIds.length !== 1) {
+      throw badRequest('A direct chat is with exactly one other member.');
+    }
+
+    const participants = resolveMembers(context.scope, participantMemberIds);
+    if (participants.length !== participantMemberIds.length) throw notFound('One of those members');
+
+    // Reuse an existing thread with the exact same participants rather than
+    // spawning a duplicate every time the same pair or group starts a chat.
+    const key = participantMemberIds.slice().sort().join(',');
+    const existing = listRecords('systemChatThreads', context.scope, { limit: 200, filters: { kind } }).items.find(
+      (thread) => ((thread['participantMemberIds'] as string[]) ?? []).slice().sort().join(',') === key,
+    );
+    if (existing) {
+      ok(res, { thread: withParticipants(context.scope, existing) });
+      return;
+    }
+
+    const defaultName =
+      kind === 'direct'
+        ? String(participants[0]?.['name'] ?? 'Direct message')
+        : participants.map((member) => member['name']).join(', ').slice(0, 120);
+
+    const thread = createRecord(
+      'systemChatThreads',
+      context.scope,
+      {
+        kind,
+        name: body.name?.trim() || defaultName,
+        participantMemberIds,
+        pinned: false,
+        muted: false,
+        archived: false,
+        settings: null,
+      },
+      { visibility: 'system' },
+    );
+    publish(context.user.id, { type: 'systemChat.thread.new', threadId: thread.id });
+    ok(res, { thread: withParticipants(context.scope, thread) }, 201);
+  }),
+);
+
+systemRouter.get(
+  '/chat/threads/:threadId/messages',
+  handler((req, res) => {
+    const context = requireSystemMode(req);
+    const threadId = String(req.params['threadId']);
+    const thread = getRecord('systemChatThreads', context.scope, threadId);
+    if (!thread) throw notFound('That conversation');
+
     const limit = Math.min(200, Math.max(1, Number(req.query['limit'] ?? 100)));
     const before = typeof req.query['before'] === 'string' ? req.query['before'] : undefined;
-
     const result = listRecords('systemChatMessages', context.scope, {
       limit,
-      filters: { channel },
+      filters: { threadId },
       sortField: 'sentAt',
       sortDir: 'desc',
       ...(before ? { range: { field: 'sentAt', to: before } } : {}),
@@ -198,69 +332,84 @@ systemRouter.get(
     // Fetched newest-first for the limit, then reversed so the caller always
     // gets OLD → NEW and can append at the bottom.
     ok(res, {
+      threadId,
+      thread: withParticipants(context.scope, thread),
       messages: [...result.items].reverse(),
       hasMore: result.items.length === limit,
-      channel,
-      channels: channelsIn(context.scope.userId, context.scope.systemId),
     });
   }),
 );
 
-function channelsIn(userId: string, systemId: string | null): string[] {
-  const rows = getDb()
-    .prepare(
-      `SELECT DISTINCT "channel" FROM "systemChatMessages"
-       WHERE "userId" = ? AND ("systemId" = ? OR ? IS NULL) AND "deletedAt" IS NULL`,
-    )
-    .all(userId, systemId, systemId) as { channel: string }[];
-  const names = rows.map((row) => row.channel).filter(Boolean);
-  return names.includes('general') ? names : ['general', ...names];
-}
-
 systemRouter.post(
-  '/chat',
+  '/chat/threads/:threadId/messages',
+  systemChatSendLimiter,
   handler(async (req, res) => {
     const context = requireSystemMode(req);
+    const threadId = String(req.params['threadId']);
+    const thread = getRecord('systemChatThreads', context.scope, threadId);
+    if (!thread) throw notFound('That conversation');
+
     const body = req.body as {
       body?: string;
       memberId?: string | null;
-      channel?: string;
-      replyToId?: string;
+      replyToId?: string | null;
       attachmentIds?: string[];
+      forwardedFrom?: Record<string, unknown> | null;
     };
-    if (!body.body?.trim()) throw badRequest('Write something first.');
+    const text = body.body?.trim() ?? '';
+    if (!text && (body.attachmentIds?.length ?? 0) === 0) throw badRequest('Write something first.');
 
     const message = createRecord(
       'systemChatMessages',
       context.scope,
       {
-        body: body.body.trim(),
+        body: text,
         sentAt: now(),
-        channel: body.channel?.trim() || 'general',
+        threadId,
         replyToId: body.replyToId ?? null,
         attachmentIds: body.attachmentIds ?? [],
         reactions: null,
+        forwardedFrom: body.forwardedFrom ?? null,
         edited: false,
       },
       { memberId: body.memberId ?? context.user.activeMemberId, visibility: 'system' },
     );
 
-    publish(context.user.id, { type: 'systemChat.new', messageId: message.id });
-    await notify({
-      userId: context.user.id,
-      category: 'systemChat',
-      kind: 'systemChat.new',
-      title: 'New {{system}} chat message',
-      body: body.body.slice(0, 120),
-      link: '/system-chat',
-      ...(body.memberId ? { actorMemberId: body.memberId } : {}),
+    const preview = text.slice(0, 120) || 'Sent an attachment';
+    updateRecord('systemChatThreads', context.scope, threadId, {
+      lastMessageAt: message['sentAt'] as string,
+      lastMessagePreview: preview,
     });
+
+    publish(context.user.id, { type: 'systemChat.new', threadId, messageId: message.id });
+    if (thread['muted'] !== true) {
+      await notify({
+        userId: context.user.id,
+        category: 'systemChat',
+        kind: 'systemChat.new',
+        title: `New message in ${String(thread['name'] ?? 'system chat')}`,
+        body: preview,
+        link: `/chat/system/${threadId}`,
+        ...(body.memberId ? { actorMemberId: body.memberId } : {}),
+      });
+    }
     ok(res, message, 201);
   }),
 );
 
 systemRouter.post(
-  '/chat/:id/reactions',
+  '/chat/threads/:threadId/read',
+  handler((req, res) => {
+    const context = requireSystemMode(req);
+    const threadId = String(req.params['threadId']);
+    if (!getRecord('systemChatThreads', context.scope, threadId)) throw notFound('That conversation');
+    updateRecord('systemChatThreads', context.scope, threadId, { lastReadAt: now() });
+    ok(res, { read: true });
+  }),
+);
+
+systemRouter.post(
+  '/chat/messages/:id/reactions',
   handler((req, res) => {
     const context = requireSystemMode(req);
     const { emoji, memberId } = req.body as { emoji?: string; memberId?: string };
@@ -276,7 +425,54 @@ systemRouter.post(
     if (current.size === 0) delete reactions[key];
     else reactions[key] = [...current];
 
-    ok(res, updateRecord('systemChatMessages', context.scope, message.id, { reactions }));
+    const updated = updateRecord('systemChatMessages', context.scope, message.id, { reactions });
+    const threadId = message['threadId'] as string | null;
+    if (threadId) publish(context.user.id, { type: 'reaction.new', threadId, messageId: message.id, kind: 'system' });
+    ok(res, updated);
+  }),
+);
+
+/** Copies a message into one or more other threads, tagged with where it came from. */
+systemRouter.post(
+  '/chat/messages/:id/forward',
+  handler((req, res) => {
+    const context = requireSystemMode(req);
+    const original = getRecord('systemChatMessages', context.scope, String(req.params['id']));
+    if (!original) throw notFound('That message');
+    const { threadIds } = req.body as { threadIds?: string[] };
+    if (!threadIds?.length) throw badRequest('Choose at least one conversation to forward to.');
+
+    const sourceMember = original['memberId'] ? getRecord('members', context.scope, String(original['memberId'])) : null;
+    const forwarded: StoredRecord[] = [];
+    for (const threadId of threadIds) {
+      if (!getRecord('systemChatThreads', context.scope, threadId)) continue;
+      const preview = String(original['body'] ?? '').slice(0, 120) || 'Sent an attachment';
+      const message = createRecord(
+        'systemChatMessages',
+        context.scope,
+        {
+          body: String(original['body'] ?? ''),
+          sentAt: now(),
+          threadId,
+          replyToId: null,
+          attachmentIds: original['attachmentIds'] ?? [],
+          reactions: null,
+          edited: false,
+          forwardedFrom: {
+            kind: 'system',
+            threadId: original['threadId'] ?? null,
+            messageId: original.id,
+            senderLabel: (sourceMember?.['name'] as string) ?? 'Someone',
+          },
+        },
+        { memberId: context.user.activeMemberId, visibility: 'system' },
+      );
+      updateRecord('systemChatThreads', context.scope, threadId, { lastMessageAt: message['sentAt'] as string, lastMessagePreview: preview });
+      publish(context.user.id, { type: 'systemChat.new', threadId, messageId: message.id });
+      forwarded.push(message);
+    }
+    if (forwarded.length === 0) throw notFound('Those conversations');
+    ok(res, { forwarded }, 201);
   }),
 );
 

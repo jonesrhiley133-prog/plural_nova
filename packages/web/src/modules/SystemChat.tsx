@@ -17,6 +17,10 @@ import type { StoredRecord } from '@pluralnova/shared';
  * Internal conversation, kept entirely inside the account — it is not part of
  * the social layer and it never leaves. Messages read oldest to newest and each
  * one is attributed to whoever wrote it.
+ *
+ * This talks to the default whole-system thread of the newer, thread-based
+ * chat API (see `routes/system.ts`) — one screen showing one conversation,
+ * pending the fuller multi-thread rebuild.
  */
 
 const REACTIONS = ['✓', '★', '♡', '◍', '!'];
@@ -28,9 +32,8 @@ export default function SystemChat(): JSX.Element {
   const activeMemberId = useActiveMemberId();
   const members = useCollection('members');
 
+  const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<StoredRecord[]>([]);
-  const [channels, setChannels] = useState<string[]>(['general']);
-  const [channel, setChannel] = useState('general');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -39,21 +42,28 @@ export default function SystemChat(): JSX.Element {
   const [replyTo, setReplyTo] = useState<StoredRecord | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    api
+      .get<{ threads: StoredRecord[] }>('/api/system/chat/threads')
+      .then((result) => setThreadId(String(result.threads[0]?.id ?? '')))
+      .catch((cause: unknown) => setError(messageFor(cause)));
+  }, []);
+
   const load = useCallback(async () => {
+    if (!threadId) return;
     try {
-      const result = await api.get<{ messages: StoredRecord[]; channels: string[] }>(
-        '/api/system/chat',
-        { channel, limit: 150 },
+      const result = await api.get<{ messages: StoredRecord[] }>(
+        `/api/system/chat/threads/${threadId}/messages`,
+        { limit: 150 },
       );
       setMessages(result.messages);
-      setChannels(result.channels.length > 0 ? result.channels : ['general']);
       setError(null);
     } catch (cause) {
       setError(messageFor(cause));
     } finally {
       setLoading(false);
     }
-  }, [channel]);
+  }, [threadId]);
 
   useEffect(() => {
     void load();
@@ -68,12 +78,11 @@ export default function SystemChat(): JSX.Element {
 
   const send = async (): Promise<void> => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || !threadId) return;
     setSending(true);
     try {
-      await api.post('/api/system/chat', {
+      await api.post(`/api/system/chat/threads/${threadId}/messages`, {
         body,
-        channel,
         memberId: asMemberId,
         replyToId: replyTo?.id ?? null,
       });
@@ -89,7 +98,7 @@ export default function SystemChat(): JSX.Element {
 
   const react = async (message: StoredRecord, emoji: string): Promise<void> => {
     try {
-      await api.post(`/api/system/chat/${message.id}/reactions`, { emoji, memberId: asMemberId });
+      await api.post(`/api/system/chat/messages/${message.id}/reactions`, { emoji, memberId: asMemberId });
       await load();
     } catch (cause) {
       toast.fromError(cause);
@@ -105,16 +114,6 @@ export default function SystemChat(): JSX.Element {
         title={term('{{System}} chat')}
         description={term('Between the {{members}}, and nowhere else. This never leaves your account.')}
       />
-
-      {channels.length > 1 ? (
-        <div className="row" style={{ marginBottom: 'var(--space-4)' }}>
-          {channels.map((name) => (
-            <Chip key={name} selected={channel === name} onClick={() => setChannel(name)}>
-              #{name}
-            </Chip>
-          ))}
-        </div>
-      ) : null}
 
       {loading ? (
         <SkeletonList rows={5} />
@@ -263,7 +262,7 @@ export default function SystemChat(): JSX.Element {
           className="input"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder={`Message #${channel}`}
+          placeholder="Type a message…"
           aria-label="Message"
           autoComplete="off"
         />

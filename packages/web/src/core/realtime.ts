@@ -19,13 +19,15 @@ export type RealtimeEvent =
   | { type: 'record.changed'; collection: string; id: string; action: string }
   | { type: 'message.new'; threadId: string; messageId: string; fromUserId: string }
   | { type: 'message.read'; threadId: string; byUserId: string }
+  | { type: 'reaction.new'; threadId: string; messageId: string; kind: 'dm' | 'system' }
   | { type: 'front.changed'; systemId: string }
   | { type: 'notification.new'; notificationId: string; category: string }
   | { type: 'friend.request'; requestId: string; fromUserId: string }
   | { type: 'friend.accepted'; userId: string }
   | { type: 'flux.activity'; postId: string; kind: string }
   | { type: 'poll.updated'; pollId: string }
-  | { type: 'systemChat.new'; messageId: string }
+  | { type: 'systemChat.new'; threadId: string; messageId: string }
+  | { type: 'systemChat.thread.new'; threadId: string }
   | { type: 'sync.hint'; cursor: string };
 
 type Handler = (event: RealtimeEvent) => void;
