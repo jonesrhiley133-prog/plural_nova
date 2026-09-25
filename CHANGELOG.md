@@ -10,6 +10,49 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+### Added
+
+- **Saved places.** A short, one-tap list of the places you go often — home,
+  work, anywhere worth naming — on the Locations screen and as a Dashboard
+  widget. Tapping one starts a timed visit; a live counter shows how long
+  you've been there, ticking by the second, and "Stop" closes it out as an
+  ordinary entry in your location history. Add, rename, reorder and delete
+  saved places from the same screen. Deleting a saved place never touches
+  the visits it already started — the link between them is a convenience,
+  not a dependency.
+- **Live estimated earnings while clocked in.** Clocking in now asks which
+  workplace when there's more than one, then shows elapsed time, that
+  workplace's hourly rate (or a shift's own rate override, when it has one),
+  and a running estimate of what the shift has earned so far — all updating
+  by the second. Every dollar figure across Work is now explicitly labelled
+  an estimate, since PluralNova has no way to know about tax, tips, or a rate
+  that changed mid-shift. The Work overview also gained a day/week/month
+  toggle on estimated earnings, alongside the existing hours-by-day and
+  by-workplace charts, and shift-by-shift estimates in the schedule list.
+
+### Changed
+
+- **Timed sessions now track to the exact second instead of rounding to the
+  nearest minute.** Fronting, sleep, and clocking in for a shift all store
+  the precise start and end timestamps they already had, plus an exact
+  duration in seconds — a front that lasted 5 minutes and 45 seconds is
+  recorded as 345 seconds, not rounded away to 6 minutes before it's even
+  saved. The minute-based figures shown throughout the app are unchanged in
+  how they read, but are now derived from that exact number rather than
+  being rounded separately, so totals across many short sessions no longer
+  drift from the true sum. The live "Clocked in for…" and "Asleep for…"
+  counters on Work and Sleep also now tick every second instead of every 30.
+
+### Fixed
+
+- A heatmap chart (used on the Stats page) rendered each of its rows without
+  a key on the outer element, which React warns about on every render past
+  a handful of rows.
+- Work's earnings estimate always used a workplace's standard hourly rate,
+  even for a shift that had been given its own rate override — the override
+  existed as a field but nothing read it. It's now used wherever a shift's
+  earnings are estimated, individually and in every stats total.
+
 ## [1.0.14] — 2026-09-24
 
 ### Changed

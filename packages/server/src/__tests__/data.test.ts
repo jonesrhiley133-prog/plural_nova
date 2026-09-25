@@ -46,6 +46,71 @@ describe('records, settings, backup and sync', () => {
     expect(restored.body.data.deletedAt).toBeNull();
   });
 
+  it('stores an exact-second duration on every collection with a timed session', async () => {
+    const now = new Date().toISOString();
+    for (const [collection, body] of [
+      ['sleepEntries', { startedAt: now, endedAt: now, durationSeconds: 27_045, durationMinutes: 451 }],
+      ['workShifts', { startsAt: now, endsAt: now, durationSeconds: 14_402 }],
+      [
+        'locationEntries',
+        { name: 'Library', visitedAt: now, arrivedAt: now, leftAt: now, durationSeconds: 3_723 },
+      ],
+    ] as const) {
+      const created = await client.request('POST', `/api/records/${collection}`, { token, body });
+      expect(created.status).toBe(201);
+      expect(created.body.data.durationSeconds).toBe(body.durationSeconds);
+
+      // A fresh GET is a separate round trip through SQLite, standing in for
+      // what a restart would read back — not just the value the POST echoed.
+      const fetched = await client.request('GET', `/api/records/${collection}/${created.body.data.id}`, {
+        token,
+      });
+      expect(fetched.body.data.durationSeconds).toBe(body.durationSeconds);
+    }
+  });
+
+  it('starts and stops a location session from a saved place, linked and timed', async () => {
+    const place = await client.request('POST', '/api/records/savedLocations', {
+      token,
+      body: { name: 'Library', icon: '📚' },
+    });
+    expect(place.status).toBe(201);
+
+    const startedAt = new Date(Date.now() - 90_000).toISOString();
+    const started = await client.request('POST', '/api/records/locationEntries', {
+      token,
+      body: {
+        name: place.body.data.name,
+        savedLocationId: place.body.data.id,
+        visitedAt: startedAt,
+        arrivedAt: startedAt,
+        isCurrent: true,
+      },
+    });
+    expect(started.status).toBe(201);
+    expect(started.body.data.savedLocationId).toBe(place.body.data.id);
+    expect(started.body.data.leftAt).toBeNull();
+
+    const stopped = await client.request('PATCH', `/api/records/locationEntries/${started.body.data.id}`, {
+      token,
+      body: { leftAt: new Date().toISOString(), durationSeconds: 90, durationMinutes: 2, isCurrent: false },
+    });
+    expect(stopped.status).toBe(200);
+    expect(stopped.body.data.durationSeconds).toBe(90);
+    expect(stopped.body.data.savedLocationId).toBe(place.body.data.id);
+
+    // Deleting the saved place leaves the session it started untouched — the
+    // link is a convenience, not something the visit's history depends on.
+    await client.request('DELETE', `/api/records/savedLocations/${place.body.data.id}`, { token });
+    const visitAfterDelete = await client.request(
+      'GET',
+      `/api/records/locationEntries/${started.body.data.id}`,
+      { token },
+    );
+    expect(visitAfterDelete.status).toBe(200);
+    expect(visitAfterDelete.body.data.savedLocationId).toBe(place.body.data.id);
+  });
+
   it('never returns another account’s records', async () => {
     const mine = await client.request('POST', '/api/records/notes', {
       token,
@@ -326,7 +391,7 @@ describe('records, settings, backup and sync', () => {
       globalThis.fetch = realFetch;
     });
 
-    it('pulls members and switches from PluralKit using a token', async () => {
+    it('pulls members, switches and groups from PluralKit using a token', async () => {
       globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
         const url = String(args[0]);
         if (!url.includes('api.pluralkit.me')) return realFetch(...args);
@@ -336,6 +401,12 @@ describe('records, settings, backup and sync', () => {
               { timestamp: '2026-02-01T00:00:00.000Z', members: ['ccccc'] },
               { timestamp: '2026-02-01T02:00:00.000Z', members: ['ddddd'] },
             ]),
+            { status: 200 },
+          );
+        }
+        if (url.includes('/groups')) {
+          return new Response(
+            JSON.stringify([{ id: 'grp-1', name: 'Token Group', members: ['ccccc'] }]),
             { status: 200 },
           );
         }
@@ -353,11 +424,15 @@ describe('records, settings, backup and sync', () => {
         body: { source: 'pluralkit-token', payload: { token: 'pk_test_token' } },
       });
       expect(result.status).toBe(200);
-      expect(result.body.data.report.imported).toBe(2); // 1 named member + 1 front period
+      expect(result.body.data.report.imported).toBe(3); // 1 named member + 1 front period + 1 group
       expect(result.body.data.problems).toHaveLength(1);
 
       const members = await client.request('GET', '/api/records/members?search=Token%20One', { token });
       expect(members.body.data.items[0].color).toBe('#5ec6a8');
+
+      const groups = await client.request('GET', '/api/records/memberGroups?search=Token%20Group', { token });
+      expect(groups.body.data.items).toHaveLength(1);
+      expect(members.body.data.items[0].groupId).toBe(groups.body.data.items[0].id);
     });
 
     it('reports a token PluralKit does not accept', async () => {

@@ -270,4 +270,52 @@ describe('work: earnings from a workplace\'s hourly rate', () => {
     expect(stats.body.data.earnings).toBeNull();
     expect(stats.body.data.workplaces[0].earnings).toBeNull();
   });
+
+  it('uses a shift\'s own rate override instead of the workplace rate', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    const workplace = await client.request('POST', '/api/records/workplaces', {
+      ...headers,
+      body: { name: 'Cafe', hourlyRate: 20, currency: 'USD' },
+    });
+    await client.request('POST', '/api/records/workShifts', {
+      ...headers,
+      body: {
+        workplaceId: workplace.body.data.id,
+        startsAt: shiftIso(4),
+        endsAt: shiftIso(0),
+        wageOverride: 30,
+      },
+    });
+
+    const stats = await client.request('GET', '/api/stats/work', headers);
+
+    // 4 hours at the 30/hr override, not the workplace's usual 20/hr.
+    expect(stats.body.data.workplaces[0].earnings).toBe(120);
+    expect(stats.body.data.earnings).toBe(120);
+  });
+
+  it('breaks hours and earnings down by week and month alongside the existing day view', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    const workplace = await client.request('POST', '/api/records/workplaces', {
+      ...headers,
+      body: { name: 'Cafe', hourlyRate: 20, currency: 'USD' },
+    });
+    await client.request('POST', '/api/records/workShifts', {
+      ...headers,
+      body: { workplaceId: workplace.body.data.id, startsAt: shiftIso(4), endsAt: shiftIso(0) },
+    });
+
+    const stats = await client.request('GET', '/api/stats/work?weeks=8', headers);
+
+    expect(Array.isArray(stats.body.data.byWeek)).toBe(true);
+    expect(Array.isArray(stats.body.data.byMonth)).toBe(true);
+    expect(stats.body.data.byWeek.reduce((sum: number, b: { value: number }) => sum + b.value, 0)).toBe(240);
+    expect(stats.body.data.earningsByMonth.reduce((sum: number, b: { value: number }) => sum + b.value, 0)).toBe(
+      80,
+    );
+  });
 });

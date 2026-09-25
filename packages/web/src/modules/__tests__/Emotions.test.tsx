@@ -53,12 +53,21 @@ vi.mock('../../core/auth.js', () => ({
   useActiveMemberId: () => null,
 }));
 
+/**
+ * Anchored to the whole accessible name: each option now sits beside its own
+ * favourite-star button, whose label ("Add Grieving to favourites") also
+ * contains the emotion's name, so an unanchored match finds both.
+ */
+function emotionButton(sheet: HTMLElement, name: string) {
+  return within(sheet).getByRole('button', { name: new RegExp(`^${name}$`) });
+}
+
 async function openSheetAndPick(user: ReturnType<typeof userEvent.setup>) {
   // The header and the empty state both offer it; either opens the same sheet.
   await user.click(screen.getAllByRole('button', { name: /log an emotion/i })[0]!);
   const sheet = screen.getByRole('dialog');
   await user.click(within(sheet).getByRole('button', { name: /^Sadness$/i }));
-  await user.click(within(sheet).getByRole('button', { name: /Grieving/ }));
+  await user.click(emotionButton(sheet, 'Grieving'));
   // Choosing at least one emotion is what unlocks moving on to the intensity step.
   await user.click(within(sheet).getByRole('button', { name: /next/i }));
   return sheet;
@@ -80,7 +89,7 @@ describe('logging an emotion', () => {
     await user.click(within(sheet).getByRole('button', { name: /back/i }));
     // Back at the picker: the summary chip and the still-selected list chip.
     expect(within(sheet).getAllByText(/Grieving/)).toHaveLength(2);
-    expect(within(sheet).getByRole('button', { name: /Grieving/ })).toHaveAttribute(
+    expect(emotionButton(sheet, 'Grieving')).toHaveAttribute(
       'data-selected',
       'true',
     );
@@ -154,8 +163,8 @@ describe('logging an emotion', () => {
     await user.click(screen.getAllByRole('button', { name: /log an emotion/i })[0]!);
     const sheet = screen.getByRole('dialog');
     await user.click(within(sheet).getByRole('button', { name: /^Sadness$/i }));
-    await user.click(within(sheet).getByRole('button', { name: /Grieving/ }));
-    await user.click(within(sheet).getByRole('button', { name: /Heartbroken/ }));
+    await user.click(emotionButton(sheet, 'Grieving'));
+    await user.click(emotionButton(sheet, 'Heartbroken'));
     await user.click(within(sheet).getByRole('button', { name: /next/i }));
     await user.click(within(sheet).getByRole('button', { name: /next/i }));
     await user.click(within(sheet).getByRole('button', { name: /save/i }));

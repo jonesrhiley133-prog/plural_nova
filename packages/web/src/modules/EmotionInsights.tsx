@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { getEmotion, getEmotionFamily } from '@pluralnova/shared';
+import { getEmotionFamily } from '@pluralnova/shared';
 import { useQuery } from '../core/data.js';
+import { useAllEmotions } from '../core/emotions.js';
 import { useI18n } from '../core/i18n.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Card, Chip, Stat } from '../ui/primitives.js';
@@ -36,6 +37,7 @@ export default function EmotionInsights(): JSX.Element {
   const { term } = useI18n();
   const [days, setDays] = useState(90);
   const insights = useQuery<Insights>('/api/stats/emotions', { days });
+  const { findEmotion } = useAllEmotions();
 
   if (insights.loading && !insights.data) {
     return (
@@ -113,7 +115,7 @@ export default function EmotionInsights(): JSX.Element {
             subtitle="Simply the words that come up most"
             valueLabel="Times logged"
             items={data.topEmotions.map((entry) => {
-              const emotion = getEmotion(entry.key);
+              const emotion = findEmotion(entry.key);
               return {
                 id: entry.key,
                 label: emotion ? `${emotion.emoji} ${emotion.name}` : entry.key,

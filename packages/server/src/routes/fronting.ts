@@ -46,6 +46,12 @@ interface FrontRow extends StoredRecord {
   startedAt: string;
   endedAt: string | null;
   durationMinutes: number | null;
+  durationSeconds: number | null;
+}
+
+/** Exact whole seconds between two timestamps, floored so a partial trailing second never counts as elapsed. */
+function exactDurationSeconds(startedAt: string, endedAt: string): number {
+  return Math.max(0, Math.floor((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000));
 }
 
 function activeEvents(scope: Scope): FrontRow[] {
@@ -255,13 +261,11 @@ frontingRouter.post(
 );
 
 function closeEvent(scope: Scope, event: FrontRow, endedAt: string): StoredRecord {
-  const minutes = Math.max(
-    0,
-    Math.round((new Date(endedAt).getTime() - new Date(event.startedAt).getTime()) / 60000),
-  );
+  const seconds = exactDurationSeconds(event.startedAt, endedAt);
   return updateRecord('frontEvents', scope, event.id, {
     endedAt,
-    durationMinutes: minutes,
+    durationSeconds: seconds,
+    durationMinutes: Math.round(seconds / 60),
   });
 }
 
@@ -449,13 +453,13 @@ frontingRouter.patch(
       throw badRequest('A front cannot end before it started.');
     }
 
+    const durationSeconds = endedAt ? exactDurationSeconds(startedAt, endedAt) : null;
     const updated = updateRecord('frontEvents', context.scope, existing.id, {
       ...body,
       startedAt,
       endedAt,
-      durationMinutes: endedAt
-        ? Math.max(0, Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 60000))
-        : null,
+      durationSeconds,
+      durationMinutes: durationSeconds !== null ? Math.round(durationSeconds / 60) : null,
     });
     setStatuses(context.scope, activeEvents(context.scope));
     refreshMemberTotals(context.scope, [existing.memberId, (body['memberId'] as string) ?? null]);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BODY_REGIONS, EMOTIONS, EMOTION_FAMILIES, SENSATION_WORDS, type Emotion } from '@pluralnova/shared';
+import { BODY_REGIONS, EMOTION_FAMILIES, SENSATION_WORDS, type Emotion } from '@pluralnova/shared';
 import { useCollection } from '../core/data.js';
+import { useAllEmotions } from '../core/emotions.js';
 import { useFronting } from '../core/fronting.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -36,6 +37,7 @@ export function CheckIn({ open, onClose }: { open: boolean; onClose: () => void 
   const { state, start, switchTo } = useFronting();
   const emotionEntries = useCollection('emotionEntries');
   const sensations = useCollection('bodySensations');
+  const { emotions: allEmotions } = useAllEmotions();
 
   const [step, setStep] = useState<Step>('front');
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
@@ -71,7 +73,7 @@ export function CheckIn({ open, onClose }: { open: boolean; onClose: () => void 
 
   const primaryId = selectedMembers[0] ?? null;
   const stepIndex = STEPS.indexOf(step);
-  const familyOptions = family ? EMOTIONS.filter((emotion) => emotion.family === family) : [];
+  const familyOptions = family ? allEmotions.filter((emotion) => emotion.family === family) : [];
 
   const toggleMember = (id: string): void => {
     setSelectedMembers((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));

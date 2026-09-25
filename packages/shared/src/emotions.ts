@@ -1,9 +1,11 @@
 /**
- * The emotion catalogue: twelve families of twelve.
+ * The emotion catalogue: twelve families, each with sixteen to eighteen words.
  *
  * Breadth is the point — "bad" and "fine" are not enough to notice a pattern in.
  * Families carry the colour so a chart legend can stay readable without relying
- * on hue alone, and every entry keeps a plain-language name.
+ * on hue alone, and every entry keeps a plain-language name. A system can also
+ * add its own words on top of this list — see `customEmotions` in the
+ * collection registry — for anything this catalogue does not already cover.
  *
  * The twelfth family covers altered and plural-specific states. It is descriptive
  * vocabulary, offered because systems asked for words that fit; nothing here is a
@@ -47,61 +49,83 @@ const FAMILY_MEMBERS: Record<string, readonly (readonly [string, string])[]> = {
     ['Happy', '🙂'], ['Delighted', '😄'], ['Cheerful', '😊'], ['Playful', '😜'],
     ['Excited', '🤩'], ['Elated', '🎉'], ['Content', '😌'], ['Amused', '😁'],
     ['Hopeful', '🌤'], ['Optimistic', '🌱'], ['Proud', '🏅'], ['Euphoric', '✨'],
+    ['Silly', '🤪'], ['Giddy', '🥳'], ['Satisfied', '😋'], ['Lighthearted', '🎈'],
+    ['Blissful', '🌤'], ['Jubilant', '🎊'],
   ],
   affection: [
     ['Loved', '💗'], ['Loving', '💞'], ['Affectionate', '🤗'], ['Warm', '🔥'],
     ['Tender', '🌸'], ['Compassionate', '🕊'], ['Grateful', '🙏'], ['Trusting', '🤝'],
     ['Connected', '🔗'], ['Adored', '💖'], ['Protective', '🛡'], ['Devoted', '💫'],
+    ['Nostalgic', '📼'], ['Sentimental', '🎞'], ['Appreciative', '🌼'], ['Close', '🫂'],
+    ['Cherished', '🎁'], ['Fond', '🧣'],
   ],
   calm: [
     ['Calm', '🌊'], ['Relaxed', '🛋'], ['Peaceful', '🕯'], ['Grounded', '🪨'],
     ['Serene', '🏞'], ['Safe', '🏠'], ['Settled', '⚓'], ['Comfortable', '🧸'],
     ['Rested', '🌙'], ['Still', '🫧'], ['Balanced', '⚖'], ['Soothed', '🍵'],
+    ['Unhurried', '🐢'], ['Centred', '🧘'], ['At ease', '🌾'], ['Quiet', '🤫'],
+    ['Steady', '🪵'], ['Clear-headed', '🌤'],
   ],
   confidence: [
     ['Confident', '💪'], ['Capable', '🧰'], ['Determined', '🎯'], ['Motivated', '🚀'],
     ['Focused', '🔍'], ['Empowered', '⚡'], ['Assertive', '📣'], ['Brave', '🦁'],
     ['Resilient', '🌵'], ['Accomplished', '🏆'], ['Secure', '🔒'], ['Purposeful', '🧭'],
+    ['Independent', '🗽'], ['Driven', '🏹'], ['In control', '🎛'], ['Steadfast', '⛰'],
+    ['Ambitious', '📈'], ['Self-assured', '🪞'],
   ],
   curiosity: [
     ['Curious', '🔭'], ['Interested', '📖'], ['Inspired', '💡'], ['Creative', '🎨'],
     ['Engaged', '🧩'], ['Intrigued', '🕵'], ['Attentive', '👀'], ['Imaginative', '🌈'],
     ['Absorbed', '🌀'], ['Fascinated', '🔮'], ['Inventive', '🛠'], ['Reflective', '🪞'],
+    ['Playfully curious', '🐈'], ['Exploratory', '🧭'], ['Wondering', '🌌'], ['Open-minded', '🚪'],
+    ['Eager', '🐇'], ['Adventurous', '🗺'],
   ],
   surprise: [
     ['Surprised', '😮'], ['Startled', '😳'], ['Astonished', '😲'], ['Amazed', '🤯'],
     ['Stunned', '😶'], ['Shocked', '⚡'], ['Bewildered', '❓'], ['Disoriented', '🌫'],
     ['Speechless', '🤐'], ['Unsettled', '〰'], ['Blindsided', '💥'], ['Awestruck', '🌌'],
+    ['Caught off guard', '🎯'], ['Wide-eyed', '👁'], ['Rattled', '🫨'], ['Thrown', '🎢'],
   ],
   sadness: [
     ['Sad', '😢'], ['Low', '🌧'], ['Lonely', '🌑'], ['Grieving', '🥀'],
     ['Heartbroken', '💔'], ['Disappointed', '📉'], ['Hopeless', '🕳'], ['Melancholy', '🎻'],
     ['Homesick', '🏚'], ['Tearful', '💧'], ['Empty', '⬜'], ['Wistful', '🍂'],
+    ['Discouraged', '🌫'], ['Longing', '🌒'], ['Rueful', '↩'], ['Deflated', '🎈'],
+    ['Isolated', '🏝'], ['Numb', '🧊'],
   ],
   fear: [
     ['Afraid', '😨'], ['Anxious', '😰'], ['Nervous', '😬'], ['Worried', '🤔'],
     ['Panicked', '🚨'], ['Tense', '🪢'], ['Uneasy', '🌘'], ['Dreading', '⏳'],
     ['Insecure', '🪫'], ['Hypervigilant', '📡'], ['Terrified', '😱'], ['Apprehensive', '🚪'],
+    ['On edge', '🔪'], ['Overwhelmed by fear', '🌊'], ['Wary', '🦉'], ['Jumpy', '🐇'],
+    ['Timid', '🐁'], ['Threatened', '⚠'],
   ],
   anger: [
     ['Angry', '😠'], ['Irritated', '😤'], ['Frustrated', '😖'], ['Resentful', '🧊'],
     ['Annoyed', '🙄'], ['Furious', '🌋'], ['Defensive', '🧱'], ['Impatient', '⏰'],
     ['Bitter', '🫗'], ['Indignant', '⚔'], ['Agitated', '📳'], ['Provoked', '🎣'],
+    ['Fed up', '🚫'], ['Seething', '🔥'], ['Betrayed', '🗡'], ['Contemptuous', '🙅'],
+    ['Hostile', '🐺'], ['Vindictive', '🎭'],
   ],
   shame: [
     ['Ashamed', '😞'], ['Guilty', '⚖'], ['Embarrassed', '😅'], ['Regretful', '↩'],
     ['Self-critical', '🔨'], ['Humiliated', '🫥'], ['Exposed', '🪟'], ['Inadequate', '📏'],
     ['Remorseful', '🕯'], ['Unworthy', '🥄'], ['Self-conscious', '👁'], ['Apologetic', '🙇'],
+    ['Mortified', '🫣'], ['Awkward', '🦆'], ['Disgraced', '🕸'], ['Small', '🐜'],
   ],
   fatigue: [
     ['Tired', '😴'], ['Exhausted', '🪹'], ['Drained', '🔋'], ['Burned out', '🕯'],
     ['Sluggish', '🐌'], ['Overwhelmed', '🌊'], ['Brain-fogged', '🌁'], ['Weak', '🍃'],
     ['Depleted', '🏜'], ['Listless', '🫙'], ['Heavy', '🪨'], ['Overstimulated', '🔊'],
+    ['Worn out', '🕰'], ['Stretched thin', '🪢'], ['Foggy', '🌫'], ['Flat', '📉'],
+    ['Under-slept', '🌙'], ['Spent', '🕳'],
   ],
   altered: [
     ['Dissociated', '🌫'], ['Detached', '🎈'], ['Unreal', '🪞'], ['Blurry', '💨'],
     ['Distant', '🛰'], ['Blended', '🌗'], ['Co-conscious', '👥'], ['Switchy', '🔄'],
     ['Spaced out', '🌠'], ['Disconnected', '🔌'], ['Pulled back', '↩'], ['Watching from outside', '🪟'],
+    ['Front-locked', '🔒'], ['Foggy inside', '🌁'], ['Time-lost', '⌛'], ['Fronting fatigue', '🪫'],
+    ['Grounded in the body', '🌳'], ['Present', '📍'],
   ],
 };
 

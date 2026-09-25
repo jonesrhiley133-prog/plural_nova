@@ -1,4 +1,5 @@
 import { f, OPTIONS, type CollectionDef } from './schema.js';
+import { EMOTION_FAMILIES } from '../emotions.js';
 
 export const noteFolders: CollectionDef = {
   name: 'noteFolders',
@@ -264,6 +265,53 @@ export const emotionEntries: CollectionDef = {
   ],
 };
 
+/**
+ * A word for how something feels that is not already in the built-in
+ * catalogue. It slots into one of the same 12 families, so charts and "top
+ * families" summaries treat it exactly like a catalogue emotion once it's
+ * logged — only the specific word is custom, not the grouping.
+ */
+export const customEmotions: CollectionDef = {
+  name: 'customEmotions',
+  label: 'Custom emotions',
+  singular: 'Custom emotion',
+  icon: 'emotion',
+  area: 'life',
+  scope: 'system',
+  titleField: 'name',
+  sortField: 'sortOrder',
+  sortDir: 'asc',
+  neverPublic: true,
+  description: 'Words for how something feels that are not already in the built-in list.',
+  fields: [
+    f.text('name', 'Name', { required: true, inList: true, searchable: true }),
+    f.enumOf(
+      'family',
+      'Closest family',
+      EMOTION_FAMILIES.map((family) => ({ value: family.id, label: family.label })),
+      { required: true, inList: true },
+    ),
+    f.text('emoji', 'Emoji', { maxLength: 8, hint: 'Optional — a plain marker is used otherwise.' }),
+    f.color('color', 'Colour', { hint: "Defaults to the family's own colour when left blank." }),
+    f.int('sortOrder', 'Order', { defaultValue: 0 }),
+  ],
+};
+
+/** A starred emotion, catalogue or custom, for quick access when logging. */
+export const favoriteEmotions: CollectionDef = {
+  name: 'favoriteEmotions',
+  label: 'Favourite emotions',
+  singular: 'Favourite emotion',
+  icon: 'emotion',
+  area: 'life',
+  scope: 'system',
+  titleField: 'emotionId',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  neverPublic: true,
+  fields: [f.text('emotionId', 'Emotion', { required: true, inList: true })],
+};
+
 export const bodySensations: CollectionDef = {
   name: 'bodySensations',
   label: 'Body sensations',
@@ -336,6 +384,7 @@ export const sleepEntries: CollectionDef = {
     f.datetime('startedAt', 'Fell asleep', { required: true, inList: true }),
     f.datetime('endedAt', 'Woke up', { inList: true }),
     f.int('durationMinutes', 'Duration', { inList: true }),
+    f.int('durationSeconds', 'Exact duration', { min: 0 }),
     f.int('quality', 'Quality', { min: 0, max: 5, inList: true, stars: true }),
     f.bool('isNap', 'Nap'),
     f.int('awakenings', 'Times awake', { min: 0, max: 50 }),
@@ -826,6 +875,36 @@ export const contactInteractions: CollectionDef = {
   ],
 };
 
+/**
+ * A short list of places worth one tap — Home, Work, a therapist's office —
+ * so starting a location session doesn't mean typing the same name out again.
+ * Each one is a template: the session it starts is its own `locationEntries`
+ * row, so editing or removing a saved place never rewrites a past visit.
+ */
+export const savedLocations: CollectionDef = {
+  name: 'savedLocations',
+  label: 'Saved places',
+  singular: 'Saved place',
+  icon: 'location',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'name',
+  sortField: 'sortOrder',
+  sortDir: 'asc',
+  neverPublic: true,
+  description: 'Places you go often, ready to start a session from in one tap.',
+  fields: [
+    f.text('name', 'Name', { required: true, inList: true, searchable: true }),
+    f.text('icon', 'Icon', { maxLength: 8, hint: 'An emoji works well.' }),
+    f.color('color', 'Colour'),
+    f.text('category', 'Kind of place', { inList: true }),
+    f.long('note', 'Note'),
+    f.text('address', 'Address', { sensitive: true }),
+    f.int('sortOrder', 'Order', { defaultValue: 0 }),
+  ],
+};
+
 export const locationEntries: CollectionDef = {
   name: 'locationEntries',
   label: 'Locations',
@@ -841,6 +920,9 @@ export const locationEntries: CollectionDef = {
   description: 'Places recorded by hand. Nothing is captured automatically unless explicitly enabled.',
   fields: [
     f.text('name', 'Place', { required: true, inList: true, searchable: true }),
+    f.ref('savedLocationId', 'Saved place', 'savedLocations', {
+      hint: 'Set automatically when a session is started from a saved place.',
+    }),
     f.datetime('visitedAt', 'When', { required: true, inList: true }),
     f.text('activity', 'Activity', { inList: true, searchable: true }),
     f.long('note', 'Note', { searchable: true }),
@@ -853,6 +935,7 @@ export const locationEntries: CollectionDef = {
     f.datetime('arrivedAt', 'Arrived', { group: 'Time there' }),
     f.datetime('leftAt', 'Left', { group: 'Time there' }),
     f.int('durationMinutes', 'How long', { min: 0, group: 'Time there' }),
+    f.int('durationSeconds', 'Exact duration', { min: 0, group: 'Time there' }),
     f.bool('isCurrent', 'Still here', { group: 'Time there' }),
 
     /*
@@ -954,6 +1037,8 @@ export const LIFE_COLLECTIONS = [
   mediaItems,
   moodEntries,
   emotionEntries,
+  customEmotions,
+  favoriteEmotions,
   bodySensations,
   wellnessEntries,
   sleepEntries,
@@ -965,6 +1050,7 @@ export const LIFE_COLLECTIONS = [
   savingsGoals,
   contacts,
   emergencyContacts,
+  savedLocations,
   locationEntries,
   vaultItems,
 ] as const;

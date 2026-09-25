@@ -1,15 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  EMOTIONS,
-  EMOTION_FAMILIES,
-  getEmotion,
-  getEmotionFamily,
-  intensityLabel,
-  searchEmotions,
-  type Emotion,
-} from '@pluralnova/shared';
+import { EMOTION_FAMILIES, getEmotionFamily, intensityLabel, type Emotion } from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
+import { useAllEmotions, useFavoriteEmotions, filterEmotions } from '../core/emotions.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useSystemMode, useActiveMemberId } from '../core/auth.js';
@@ -38,6 +31,8 @@ export default function Emotions(): JSX.Element {
   const members = useRecordMap('members');
 
   const entries = useCollection('emotionEntries');
+  const { emotions: allEmotions, findEmotion } = useAllEmotions();
+  const favorites = useFavoriteEmotions();
   const sheet = useDialog();
   const [autoOpened, setAutoOpened] = useState(false);
 
@@ -55,7 +50,7 @@ export default function Emotions(): JSX.Element {
     <>
       <PageHeader
         title={t('emotions.title')}
-        description={`${EMOTIONS.length} to choose from, in ${EMOTION_FAMILIES.length} families.`}
+        description={`${allEmotions.length} to choose from, in ${EMOTION_FAMILIES.length} families.`}
         actions={
           <Button variant="primary" icon="plus" onClick={() => sheet.show()}>
             Log an emotion
@@ -67,7 +62,7 @@ export default function Emotions(): JSX.Element {
         <Card title="Log again" subtitle="What you have recorded most recently" style={{ marginBottom: 'var(--space-4)' }}>
           <div className="row">
             {recentIds.map((id) => {
-              const emotion = getEmotion(id);
+              const emotion = findEmotion(id);
               if (!emotion) return null;
               return (
                 <Chip
@@ -110,7 +105,7 @@ export default function Emotions(): JSX.Element {
           <Card flush>
             <div className="list">
               {records.slice(0, 60).map((entry) => {
-                const emotion = getEmotion(String(entry['emotionId']));
+                const emotion = findEmotion(String(entry['emotionId']));
                 const family = getEmotionFamily(String(entry['category']));
                 const member = entry['memberId'] ? members.get(String(entry['memberId'])) : null;
                 const intensity = Number(entry['intensity'] ?? 3);
@@ -173,6 +168,9 @@ export default function Emotions(): JSX.Element {
         members={[...members.values()]}
         defaultMemberId={activeMemberId}
         recentIds={recentIds}
+        allEmotions={allEmotions}
+        favoriteIds={favorites.ids}
+        onToggleFavorite={favorites.toggle}
         onSave={async (values) => {
           await entries.create(values);
         }}
@@ -210,29 +208,54 @@ export function EmotionFace({
   );
 }
 
-/** A tappable emotion: its face, and its name underneath. */
+/**
+ * A tappable emotion: its face, and its name underneath. The favourite star,
+ * when offered, is a sibling button layered over the corner rather than
+ * nested inside the option's own button — two independently tappable
+ * regions, neither swallowing the other's clicks.
+ */
 export function EmotionOption({
   emotion,
   selected,
   size,
   onClick,
+  favorited,
+  onToggleFavorite,
 }: {
   emotion: Emotion;
   selected: boolean;
   size?: number;
   onClick: () => void;
+  favorited?: boolean;
+  onToggleFavorite?: () => void;
 }): JSX.Element {
   return (
-    <button
-      type="button"
-      className="emotion-option"
-      aria-pressed={selected}
-      data-selected={selected || undefined}
-      onClick={onClick}
-    >
-      <EmotionFace emotion={emotion} size={size} selected={selected} />
-      <span className="emotion-option__name">{emotion.name}</span>
-    </button>
+    <span className="emotion-option-wrap">
+      <button
+        type="button"
+        className="emotion-option"
+        aria-pressed={selected}
+        data-selected={selected || undefined}
+        onClick={onClick}
+      >
+        <EmotionFace emotion={emotion} size={size} selected={selected} />
+        <span className="emotion-option__name">{emotion.name}</span>
+      </button>
+      {onToggleFavorite ? (
+        <button
+          type="button"
+          className="emotion-option__favorite"
+          aria-pressed={favorited === true}
+          aria-label={favorited ? `Remove ${emotion.name} from favourites` : `Add ${emotion.name} to favourites`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleFavorite();
+          }}
+        >
+          <Icon name="star" size={12} />
+        </button>
+      ) : null}
+    </span>
   );
 }
 
@@ -254,6 +277,8 @@ const EMPTY_DRAFT: Draft = {
   memberId: null,
 };
 
+const ALL_FILTER = '__all__';
+
 function EmotionSheet({
   open,
   onClose,
@@ -261,6 +286,9 @@ function EmotionSheet({
   members,
   defaultMemberId,
   recentIds,
+  allEmotions,
+  favoriteIds,
+  onToggleFavorite,
   onSave,
   onSaved,
 }: {
@@ -270,16 +298,26 @@ function EmotionSheet({
   members: { id: string; [key: string]: unknown }[];
   defaultMemberId: string | null;
   recentIds: string[];
+  allEmotions: Emotion[];
+  favoriteIds: Set<string>;
+  onToggleFavorite: (emotionId: string) => Promise<void>;
   onSave: (values: Record<string, unknown>) => Promise<void>;
   onSaved: (count: number) => void;
 }): JSX.Element {
   const { t } = useI18n();
+  const toast = useToast();
+  const custom = useCollection('customEmotions');
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>({ ...EMPTY_DRAFT, memberId: defaultMemberId });
   const [family, setFamily] = useState<string | null>(null);
   const [rawSearch, setRawSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [creatingCustom, setCreatingCustom] = useState(false);
+  const [customFamily, setCustomFamily] = useState<string | null>(null);
+  const [customEmoji, setCustomEmoji] = useState('');
   const search = useDebounced(rawSearch);
+
+  const byId = useMemo(() => new Map(allEmotions.map((emotion) => [emotion.id, emotion])), [allEmotions]);
 
   // The draft is one object that only the save path clears. Moving between
   // steps changes `step` and nothing else, so nothing entered is ever lost.
@@ -287,17 +325,26 @@ function EmotionSheet({
     setDraft({ ...EMPTY_DRAFT, memberId: defaultMemberId });
     setFamily(null);
     setRawSearch('');
+    setCreatingCustom(false);
+    setCustomFamily(null);
+    setCustomEmoji('');
     setStep(0);
   };
 
   const recent = useMemo(
-    () => recentIds.map((id) => getEmotion(id)).filter((emotion): emotion is Emotion => emotion != null),
-    [recentIds],
+    () => recentIds.map((id) => byId.get(id)).filter((emotion): emotion is Emotion => emotion != null),
+    [recentIds, byId],
+  );
+
+  const favorites = useMemo(
+    () => allEmotions.filter((emotion) => favoriteIds.has(emotion.id)),
+    [allEmotions, favoriteIds],
   );
 
   const options = useMemo(() => {
-    if (search.trim()) return searchEmotions(search).slice(0, 60);
-    if (family) return EMOTIONS.filter((emotion) => emotion.family === family);
+    if (search.trim()) return filterEmotions(allEmotions, search).slice(0, 80);
+    if (family === ALL_FILTER) return allEmotions;
+    if (family) return allEmotions.filter((emotion) => emotion.family === family);
     return [];
   }, [search, family]);
 
@@ -314,11 +361,39 @@ function EmotionSheet({
   };
 
   const surpriseMe = (): void => {
-    const pool = options.length > 0 ? options : EMOTIONS;
+    const pool = options.length > 0 ? options : allEmotions;
     const unpicked = pool.filter((emotion) => !draft.emotions.some((item) => item.id === emotion.id));
     const from = unpicked.length > 0 ? unpicked : pool;
     const pick = from[Math.floor(Math.random() * from.length)];
     if (pick) toggleEmotion(pick);
+  };
+
+  const createCustomEmotion = async (): Promise<void> => {
+    const name = rawSearch.trim();
+    if (!name || !customFamily) return;
+    try {
+      const created = await custom.create({
+        name,
+        family: customFamily,
+        emoji: customEmoji.trim() || null,
+        sortOrder: custom.items.length,
+      });
+      const emotion: Emotion = {
+        id: `custom.${created.id}`,
+        name,
+        family: customFamily,
+        color: getEmotionFamily(customFamily)?.color ?? '#8a93a8',
+        emoji: customEmoji.trim() || '✨',
+      };
+      toggleEmotion(emotion);
+      setCreatingCustom(false);
+      setCustomFamily(null);
+      setCustomEmoji('');
+      setRawSearch('');
+      toast.success(`${name} added to your emotions`);
+    } catch (cause) {
+      toast.fromError(cause, 'Could not add that emotion');
+    }
   };
 
   const skip = (): void => {
@@ -402,11 +477,36 @@ function EmotionSheet({
       {step === 0 ? (
         <div className="stack">
           <div className="row" style={{ alignItems: 'center' }}>
-            <SearchField value={rawSearch} onChange={setRawSearch} placeholder="Search 144 emotions…" />
+            <SearchField
+              value={rawSearch}
+              onChange={(value) => {
+                setRawSearch(value);
+                setCreatingCustom(false);
+              }}
+              placeholder={`Search ${allEmotions.length} emotions…`}
+            />
             <Button variant="secondary" size="sm" icon="shuffle" onClick={surpriseMe}>
               Surprise me
             </Button>
           </div>
+
+          {favorites.length > 0 && !search.trim() && !family ? (
+            <div className="field">
+              <span className="field__label">Favourites</span>
+              <div className="row">
+                {favorites.map((emotion) => (
+                  <EmotionOption
+                    key={emotion.id}
+                    emotion={emotion}
+                    selected={draft.emotions.some((item) => item.id === emotion.id)}
+                    onClick={() => toggleEmotion(emotion)}
+                    favorited
+                    onToggleFavorite={() => void onToggleFavorite(emotion.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {recent.length > 0 && !search.trim() && !family ? (
             <div className="field">
@@ -418,6 +518,8 @@ function EmotionSheet({
                     emotion={emotion}
                     selected={draft.emotions.some((item) => item.id === emotion.id)}
                     onClick={() => toggleEmotion(emotion)}
+                    favorited={favoriteIds.has(emotion.id)}
+                    onToggleFavorite={() => void onToggleFavorite(emotion.id)}
                   />
                 ))}
               </div>
@@ -426,6 +528,9 @@ function EmotionSheet({
 
           {!search.trim() ? (
             <div className="row">
+              <Chip selected={family === ALL_FILTER} onClick={() => setFamily(family === ALL_FILTER ? null : ALL_FILTER)}>
+                All
+              </Chip>
               {EMOTION_FAMILIES.map((group) => (
                 <Chip
                   key={group.id}
@@ -439,14 +544,54 @@ function EmotionSheet({
             </div>
           ) : null}
 
-          {family && !search.trim() ? (
+          {family && family !== ALL_FILTER && !search.trim() ? (
             <p className="tiny faint">{getEmotionFamily(family)?.description}</p>
           ) : null}
 
           {options.length === 0 ? (
-            <p className="small faint">
-              {search.trim() ? 'Nothing matches that word.' : 'Pick a family, or search for a word.'}
-            </p>
+            <div className="stack" style={{ gap: 'var(--space-2)' }}>
+              <p className="small faint">
+                {search.trim() ? `Nothing matches "${search.trim()}".` : 'Pick a family, or search for a word.'}
+              </p>
+              {search.trim() && !creatingCustom ? (
+                <Button variant="secondary" size="sm" icon="plus" onClick={() => setCreatingCustom(true)}>
+                  Add "{search.trim()}" as a new emotion
+                </Button>
+              ) : null}
+              {search.trim() && creatingCustom ? (
+                <div className="stack" style={{ gap: 'var(--space-2)' }}>
+                  <span className="field__label">Closest family for "{search.trim()}"</span>
+                  <div className="row">
+                    {EMOTION_FAMILIES.map((fam) => (
+                      <Chip
+                        key={fam.id}
+                        selected={customFamily === fam.id}
+                        color={fam.color}
+                        onClick={() => setCustomFamily(fam.id)}
+                      >
+                        {fam.label}
+                      </Chip>
+                    ))}
+                  </div>
+                  <div className="row" style={{ alignItems: 'flex-end' }}>
+                    <TextField
+                      label="Emoji (optional)"
+                      value={customEmoji}
+                      onChange={setCustomEmoji}
+                      placeholder="✨"
+                    />
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={!customFamily}
+                      onClick={() => void createCustomEmotion()}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           ) : (
             <div className="row">
               {options.map((emotion) => (
@@ -455,6 +600,8 @@ function EmotionSheet({
                   emotion={emotion}
                   selected={draft.emotions.some((item) => item.id === emotion.id)}
                   onClick={() => toggleEmotion(emotion)}
+                  favorited={favoriteIds.has(emotion.id)}
+                  onToggleFavorite={() => void onToggleFavorite(emotion.id)}
                 />
               ))}
             </div>

@@ -332,6 +332,7 @@ export const frontEvents: CollectionDef = {
     f.datetime('startedAt', 'Started', { required: true, inList: true }),
     f.datetime('endedAt', 'Ended', { inList: true, hint: 'Leave empty while this front is active.' }),
     f.int('durationMinutes', 'Duration', { hint: 'Derived when the front ends.' }),
+    f.int('durationSeconds', 'Exact duration', { min: 0, hint: 'The precise second count behind the duration above.' }),
     f.text('activity', 'Activity', { inList: true, searchable: true }),
     f.refs('locationIds', 'Locations', 'locationEntries', {
       hint: 'Pick from the places you\'ve set up.',
