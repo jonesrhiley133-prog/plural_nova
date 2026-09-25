@@ -13,6 +13,8 @@ export interface UserRow {
   settings: string;
   vaultPinHash: string | null;
   vaultPinSalt: string | null;
+  appLockPinHash: string | null;
+  appLockPinSalt: string | null;
   recoveryCodeHash: string | null;
   resetCodeHash: string | null;
   resetExpiresAt: string | null;
@@ -57,6 +59,8 @@ export function insertUser(input: {
     settings: JSON.stringify(mergeSettings({ ...input.settings, mode: input.mode })),
     vaultPinHash: null,
     vaultPinSalt: null,
+    appLockPinHash: null,
+    appLockPinSalt: null,
     recoveryCodeHash: null,
     resetCodeHash: null,
     resetExpiresAt: null,
@@ -69,11 +73,11 @@ export function insertUser(input: {
   getDb()
     .prepare(
       `INSERT INTO users (id, email, displayName, passwordHash, passwordSalt, mode, activeSystemId,
-        activeMemberId, settings, vaultPinHash, vaultPinSalt, recoveryCodeHash, resetCodeHash,
-        resetExpiresAt, isGuest, onboardedAt, createdAt, updatedAt, deletedAt)
+        activeMemberId, settings, vaultPinHash, vaultPinSalt, appLockPinHash, appLockPinSalt,
+        recoveryCodeHash, resetCodeHash, resetExpiresAt, isGuest, onboardedAt, createdAt, updatedAt, deletedAt)
        VALUES (@id, @email, @displayName, @passwordHash, @passwordSalt, @mode, @activeSystemId,
-        @activeMemberId, @settings, @vaultPinHash, @vaultPinSalt, @recoveryCodeHash, @resetCodeHash,
-        @resetExpiresAt, @isGuest, @onboardedAt, @createdAt, @updatedAt, @deletedAt)`,
+        @activeMemberId, @settings, @vaultPinHash, @vaultPinSalt, @appLockPinHash, @appLockPinSalt,
+        @recoveryCodeHash, @resetCodeHash, @resetExpiresAt, @isGuest, @onboardedAt, @createdAt, @updatedAt, @deletedAt)`,
     )
     .run(row);
   return row;
@@ -82,8 +86,8 @@ export function insertUser(input: {
 export function updateUser(id: string, patch: Partial<UserRow>): UserRow {
   const allowed: (keyof UserRow)[] = [
     'email', 'displayName', 'passwordHash', 'passwordSalt', 'mode', 'activeSystemId',
-    'activeMemberId', 'settings', 'vaultPinHash', 'vaultPinSalt', 'recoveryCodeHash',
-    'resetCodeHash', 'resetExpiresAt', 'isGuest', 'onboardedAt', 'deletedAt',
+    'activeMemberId', 'settings', 'vaultPinHash', 'vaultPinSalt', 'appLockPinHash', 'appLockPinSalt',
+    'recoveryCodeHash', 'resetCodeHash', 'resetExpiresAt', 'isGuest', 'onboardedAt', 'deletedAt',
   ];
   const assignments: string[] = ['updatedAt = ?'];
   const params: unknown[] = [now()];

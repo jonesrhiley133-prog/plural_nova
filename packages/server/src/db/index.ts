@@ -30,6 +30,18 @@ export function closeDatabase(): void {
   connection = null;
 }
 
+/** Columns added to a fixed (non-registry) table after its `CREATE TABLE` first shipped. */
+const FIXED_TABLE_COLUMNS: Record<string, Record<string, string>> = {
+  users: {
+    appLockPinHash: 'TEXT',
+    appLockPinSalt: 'TEXT',
+  },
+  sessions: {
+    appLockUnlockedUntil: 'TEXT',
+    webauthnChallenge: 'TEXT',
+  },
+};
+
 /**
  * Brings the database up to the registry's shape.
  *
@@ -60,6 +72,26 @@ export function migrate(db: Db): { created: string[]; addedColumns: string[] } {
         if (existing.has(field.name)) continue;
         db.exec(`ALTER TABLE "${collection.name}" ADD COLUMN ${columnDefinition(field)}`);
         addedColumns.push(`${collection.name}.${field.name}`);
+      }
+    }
+
+    /*
+     * The fixed tables (users, sessions, ...) aren't registry-driven, so a
+     * column added to one after it first shipped needs its own entry here —
+     * the same PRAGMA-then-ALTER technique as above, just spelled out by hand
+     * since there's no schema to derive it from.
+     */
+    for (const [table, columns] of Object.entries(FIXED_TABLE_COLUMNS)) {
+      const existing = new Set(
+        db
+          .prepare(`PRAGMA table_info("${table}")`)
+          .all()
+          .map((row) => (row as { name: string }).name),
+      );
+      for (const [name, sql] of Object.entries(columns)) {
+        if (existing.has(name)) continue;
+        db.exec(`ALTER TABLE "${table}" ADD COLUMN "${name}" ${sql}`);
+        addedColumns.push(`${table}.${name}`);
       }
     }
 

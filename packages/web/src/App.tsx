@@ -7,6 +7,8 @@ import { I18nProvider } from './core/i18n.js';
 import { ThemeProvider, usePreAuthTheme } from './core/theme.js';
 import { ToastProvider } from './core/toast.js';
 import { MusicPlayerProvider } from './core/musicPlayer.js';
+import { AppLockProvider } from './core/appLock.js';
+import { AppLockGate } from './app/AppLockGate.js';
 import { startSyncWatchers, syncEngine } from './core/sync.js';
 import { startRealtime } from './core/realtime.js';
 import { publishMessageKey } from './core/crypto.js';
@@ -147,77 +149,79 @@ function AppRoutes(): JSX.Element {
   if (user && !user.onboardedAt) return <Onboarding />;
 
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="quick-front" element={<SystemOnly><QuickFront /></SystemOnly>} />
-        <Route path="fronting" element={<SystemOnly><Fronting /></SystemOnly>} />
-        <Route path="stats" element={<SystemOnly><Stats /></SystemOnly>} />
-        <Route path="members" element={<SystemOnly><Members /></SystemOnly>} />
-        <Route path="members/:id" element={<SystemOnly><MemberProfile /></SystemOnly>} />
-        <Route path="profiles" element={<SystemOnly><ProfileSelect /></SystemOnly>} />
-        <Route path="organize" element={<SystemOnly><Organize /></SystemOnly>} />
-        <Route path="subsystems" element={<SystemOnly><Subsystems /></SystemOnly>} />
-        <Route path="system-history" element={<SystemOnly><SystemHistory /></SystemOnly>} />
-        <Route path="relationships" element={<SystemOnly><Relationships /></SystemOnly>} />
-        <Route path="headspace" element={<SystemOnly><Headspace /></SystemOnly>} />
-        <Route path="system-chat" element={<SystemOnly><SystemChat /></SystemOnly>} />
-        <Route path="bulletin" element={<SystemOnly><Bulletin /></SystemOnly>} />
-        <Route path="polls" element={<SystemOnly><Polls /></SystemOnly>} />
+    <AppLockGate>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="quick-front" element={<SystemOnly><QuickFront /></SystemOnly>} />
+          <Route path="fronting" element={<SystemOnly><Fronting /></SystemOnly>} />
+          <Route path="stats" element={<SystemOnly><Stats /></SystemOnly>} />
+          <Route path="members" element={<SystemOnly><Members /></SystemOnly>} />
+          <Route path="members/:id" element={<SystemOnly><MemberProfile /></SystemOnly>} />
+          <Route path="profiles" element={<SystemOnly><ProfileSelect /></SystemOnly>} />
+          <Route path="organize" element={<SystemOnly><Organize /></SystemOnly>} />
+          <Route path="subsystems" element={<SystemOnly><Subsystems /></SystemOnly>} />
+          <Route path="system-history" element={<SystemOnly><SystemHistory /></SystemOnly>} />
+          <Route path="relationships" element={<SystemOnly><Relationships /></SystemOnly>} />
+          <Route path="headspace" element={<SystemOnly><Headspace /></SystemOnly>} />
+          <Route path="system-chat" element={<SystemOnly><SystemChat /></SystemOnly>} />
+          <Route path="bulletin" element={<SystemOnly><Bulletin /></SystemOnly>} />
+          <Route path="polls" element={<SystemOnly><Polls /></SystemOnly>} />
 
-        <Route path="journal" element={<Journal />} />
-        <Route path="notes" element={<Notes />} />
-        <Route path="tasks" element={<Tasks />} />
-        <Route path="calendar" element={<Calendar />} />
-        <Route path="media" element={<Media />} />
-        <Route path="flags" element={<Flags />} />
-        <Route path="achievements" element={<Achievements />} />
-        <Route path="daily-summary" element={<DailySummary />} />
+          <Route path="journal" element={<Journal />} />
+          <Route path="notes" element={<Notes />} />
+          <Route path="tasks" element={<Tasks />} />
+          <Route path="calendar" element={<Calendar />} />
+          <Route path="media" element={<Media />} />
+          <Route path="flags" element={<Flags />} />
+          <Route path="achievements" element={<Achievements />} />
+          <Route path="daily-summary" element={<DailySummary />} />
 
-        <Route path="wellbeing" element={<Wellbeing />} />
-        <Route path="emotions" element={<Emotions />} />
-        <Route path="body-map" element={<BodyMap />} />
-        <Route path="emotion-insights" element={<EmotionInsights />} />
-        <Route path="sleep" element={<Sleep />} />
-        <Route path="fitness" element={<Fitness />} />
-        <Route path="cycle" element={<Cycle />} />
-        <Route path="finances" element={<Finances />} />
-        <Route path="contacts" element={<Contacts />} />
-        <Route path="emergency" element={<EmergencyContacts />} />
-        <Route path="locations" element={<Locations />} />
-        <Route path="work" element={<Work />} />
-        <Route path="vault" element={<Vault />} />
+          <Route path="wellbeing" element={<Wellbeing />} />
+          <Route path="emotions" element={<Emotions />} />
+          <Route path="body-map" element={<BodyMap />} />
+          <Route path="emotion-insights" element={<EmotionInsights />} />
+          <Route path="sleep" element={<Sleep />} />
+          <Route path="fitness" element={<Fitness />} />
+          <Route path="cycle" element={<Cycle />} />
+          <Route path="finances" element={<Finances />} />
+          <Route path="contacts" element={<Contacts />} />
+          <Route path="emergency" element={<EmergencyContacts />} />
+          <Route path="locations" element={<Locations />} />
+          <Route path="work" element={<Work />} />
+          <Route path="vault" element={<Vault />} />
 
-        <Route path="constellations" element={<Constellations />} />
-        <Route path="constellations/:handle" element={<ConstellationProfile />} />
-        <Route path="friends" element={<Friends />} />
-        <Route path="flux" element={<Flux />} />
-        <Route path="flux/:id" element={<Flux />} />
-        <Route path="messages" element={<Messages />} />
-        <Route path="messages/:threadId" element={<Messages />} />
-        <Route path="notifications" element={<NotificationCentre />} />
+          <Route path="constellations" element={<Constellations />} />
+          <Route path="constellations/:handle" element={<ConstellationProfile />} />
+          <Route path="friends" element={<Friends />} />
+          <Route path="flux" element={<Flux />} />
+          <Route path="flux/:id" element={<Flux />} />
+          <Route path="messages" element={<Messages />} />
+          <Route path="messages/:threadId" element={<Messages />} />
+          <Route path="notifications" element={<NotificationCentre />} />
 
-        <Route path="music" element={<Music />} />
-        <Route path="video" element={<Video />} />
-        <Route path="fics" element={<FicTracker />} />
-        <Route path="characters" element={<Characters />} />
-        <Route path="stories" element={<Stories />} />
-        <Route path="stories/:id" element={<StoryWorkspace />} />
-        <Route path="resources" element={<Resources />} />
-        <Route path="dictionary" element={<Dictionary />} />
-        <Route path="templates" element={<Templates />} />
+          <Route path="music" element={<Music />} />
+          <Route path="video" element={<Video />} />
+          <Route path="fics" element={<FicTracker />} />
+          <Route path="characters" element={<Characters />} />
+          <Route path="stories" element={<Stories />} />
+          <Route path="stories/:id" element={<StoryWorkspace />} />
+          <Route path="resources" element={<Resources />} />
+          <Route path="dictionary" element={<Dictionary />} />
+          <Route path="templates" element={<Templates />} />
 
-        <Route path="import" element={<ImportCentre />} />
-        <Route path="backup" element={<Backup />} />
-        <Route path="settings" element={<Settings />} />
-        <Route path="settings/:section" element={<Settings />} />
-        <Route path="help" element={<Help />} />
-        <Route path="features" element={<Features />} />
-        <Route path="search" element={<Search />} />
-        <Route path="more" element={<More />} />
-        <Route path="*" element={<NotFound />} />
-      </Route>
-    </Routes>
+          <Route path="import" element={<ImportCentre />} />
+          <Route path="backup" element={<Backup />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="settings/:section" element={<Settings />} />
+          <Route path="help" element={<Help />} />
+          <Route path="features" element={<Features />} />
+          <Route path="search" element={<Search />} />
+          <Route path="more" element={<More />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </AppLockGate>
   );
 }
 
@@ -233,10 +237,12 @@ export function App(): JSX.Element {
               <ToastProvider>
                 <DataProvider>
                   <MusicPlayerProvider>
-                    <AppUpdate />
-                    <Suspense fallback={<ScreenFallback />}>
-                      <AppRoutes />
-                    </Suspense>
+                    <AppLockProvider>
+                      <AppUpdate />
+                      <Suspense fallback={<ScreenFallback />}>
+                        <AppRoutes />
+                      </Suspense>
+                    </AppLockProvider>
                   </MusicPlayerProvider>
                 </DataProvider>
               </ToastProvider>

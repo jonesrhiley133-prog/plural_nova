@@ -97,6 +97,13 @@ export interface PrivacyDefaults {
   requireProfilePins: boolean;
 }
 
+export interface AppLockSettings {
+  /** Minutes of inactivity before the whole app re-locks; also how long an unlock lasts. */
+  autoLockMinutes: number;
+  /** Re-lock as soon as the app is backgrounded or the tab is hidden, not just after inactivity. */
+  lockOnBackground: boolean;
+}
+
 export interface AppSettings {
   mode: AppMode;
   theme: ThemeSettings;
@@ -110,6 +117,8 @@ export interface AppSettings {
   widgets: WidgetSetting[];
   mobileTabs: string[];
   privacy: PrivacyDefaults;
+  /** App-wide lock, separate from the vault and from per-alter profile PINs. */
+  appLock: AppLockSettings;
   /** Cuts animation, blur and background effects independently of the theme. */
   performanceMode: boolean;
   /** Skips the atmosphere layer on the login screen for low-end devices. */
@@ -162,6 +171,10 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
       showMessagePreviews: true,
       vaultAutoLockMinutes: 5,
       requireProfilePins: true,
+    },
+    appLock: {
+      autoLockMinutes: 5,
+      lockOnBackground: true,
     },
     performanceMode: false,
     lowEndLogin: false,
@@ -221,6 +234,7 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
     notifications,
     quietHours: { ...base.quietHours, ...(stored.quietHours ?? {}) },
     privacy: { ...base.privacy, ...(stored.privacy ?? {}) },
+    appLock: { ...base.appLock, ...(stored.appLock ?? {}) },
     widgets: widgets.sort((a, b) => a.order - b.order),
     mobileTabs:
       Array.isArray(stored.mobileTabs) && stored.mobileTabs.length >= 3

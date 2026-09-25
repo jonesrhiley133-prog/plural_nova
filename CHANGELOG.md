@@ -36,6 +36,17 @@ different versions of PluralNova.
   section above Recently used, and — when a search turns up nothing — an
   inline way to add your own word to one of the 12 families. A custom
   emotion is usable everywhere a built-in one is, immediately.
+- **App lock.** An optional 4–8 digit PIN over the whole app, separate from
+  your account password, the private vault's own PIN, and any per-alter
+  profile PINs. Turn it on from Settings → Privacy. Once set, PluralNova
+  shows a lock screen instead of any of your data on launch, whenever the
+  app is backgrounded (its own switch, on by default), and after a set
+  number of minutes of not using it — nothing behind it is ever fetched
+  while it's showing. Devices that support it can register fingerprint or
+  face unlock as an alternative to typing the PIN. Forgot the PIN? Your
+  account password sets a new one without losing anything. Change or turn
+  it off again from the same Settings card, which also needs the current
+  PIN.
 
 ### Changed
 
@@ -67,6 +78,13 @@ different versions of PluralNova.
   even for a shift that had been given its own rate override — the override
   existed as a field but nothing read it. It's now used wherever a shift's
   earnings are estimated, individually and in every stats total.
+- The rate limiter on sensitive endpoints (sign-in, vault unlock, and now
+  app lock) keyed its attempt counter on the request path alone, so two
+  different endpoints that both end in the same word — the vault's
+  `/unlock` and app lock's own `/unlock` — shared one counter instead of
+  each having their own. Guessing one PIN too many times could have quietly
+  eaten into the other's attempt budget. It now also keys on which router
+  is handling the request.
 
 ## [1.0.14] — 2026-09-24
 

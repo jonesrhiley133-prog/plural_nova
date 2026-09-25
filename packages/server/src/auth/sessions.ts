@@ -21,6 +21,8 @@ export interface SessionRow {
   lastSeenAt: string;
   userAgent: string | null;
   vaultUnlockedUntil: string | null;
+  appLockUnlockedUntil: string | null;
+  webauthnChallenge: string | null;
   revokedAt: string | null;
 }
 
@@ -41,12 +43,14 @@ export function createSession(userId: string, userAgent?: string): { token: stri
     lastSeenAt: createdAt,
     userAgent: userAgent?.slice(0, 300) ?? null,
     vaultUnlockedUntil: null,
+    appLockUnlockedUntil: null,
+    webauthnChallenge: null,
     revokedAt: null,
   };
   getDb()
     .prepare(
-      `INSERT INTO sessions (id, userId, tokenHash, createdAt, expiresAt, lastSeenAt, userAgent, vaultUnlockedUntil, revokedAt)
-       VALUES (@id, @userId, @tokenHash, @createdAt, @expiresAt, @lastSeenAt, @userAgent, @vaultUnlockedUntil, @revokedAt)`,
+      `INSERT INTO sessions (id, userId, tokenHash, createdAt, expiresAt, lastSeenAt, userAgent, vaultUnlockedUntil, appLockUnlockedUntil, webauthnChallenge, revokedAt)
+       VALUES (@id, @userId, @tokenHash, @createdAt, @expiresAt, @lastSeenAt, @userAgent, @vaultUnlockedUntil, @appLockUnlockedUntil, @webauthnChallenge, @revokedAt)`,
     )
     .run(session);
   return { token, session };
@@ -100,6 +104,30 @@ export function lockVault(sessionId: string): void {
 
 export function isVaultUnlocked(session: SessionRow): boolean {
   return Boolean(session.vaultUnlockedUntil && session.vaultUnlockedUntil > now());
+}
+
+/**
+ * The app lock, kept entirely separate from the vault's own unlock window —
+ * a system might want the whole app behind a PIN without also using the
+ * vault, or the other way around.
+ */
+export function unlockApp(sessionId: string, minutes: number): string {
+  const until = new Date(Date.now() + Math.max(1, minutes) * 60_000).toISOString();
+  getDb().prepare('UPDATE sessions SET appLockUnlockedUntil = ? WHERE id = ?').run(until, sessionId);
+  return until;
+}
+
+export function lockApp(sessionId: string): void {
+  getDb().prepare('UPDATE sessions SET appLockUnlockedUntil = NULL WHERE id = ?').run(sessionId);
+}
+
+export function isAppUnlocked(session: SessionRow): boolean {
+  return Boolean(session.appLockUnlockedUntil && session.appLockUnlockedUntil > now());
+}
+
+/** A WebAuthn ceremony's challenge, held only long enough to verify the one response it was issued for. */
+export function setWebauthnChallenge(sessionId: string, challenge: string | null): void {
+  getDb().prepare('UPDATE sessions SET webauthnChallenge = ? WHERE id = ?').run(challenge, sessionId);
 }
 
 /** Housekeeping: drop sessions that expired or were revoked more than a week ago. */
