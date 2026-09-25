@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getEmotion, type StoredRecord } from '@pluralnova/shared';
+import { type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useQuery } from '../core/data.js';
+import { useAllEmotions } from '../core/emotions.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useActiveMemberId } from '../core/auth.js';
@@ -41,6 +42,7 @@ export default function Wellbeing(): JSX.Element {
   const moods = useCollection('moodEntries');
   const wellness = useCollection('wellnessEntries');
   const emotions = useCollection('emotionEntries', { limit: 5 });
+  const { findEmotion } = useAllEmotions();
 
   const checkIn = useDialog();
   const [moodOpen, setMoodOpen] = useState(params.get('new') === 'mood');
@@ -174,7 +176,7 @@ export default function Wellbeing(): JSX.Element {
                 ) : (
                   <div className="stack stack--tight">
                     {emotions.items.map((entry) => {
-                      const emotion = getEmotion(String(entry['emotionId']));
+                      const emotion = findEmotion(String(entry['emotionId']));
                       return (
                         <div key={entry.id} className="row row--between small">
                           <span>

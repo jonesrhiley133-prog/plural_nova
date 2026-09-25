@@ -705,6 +705,37 @@
 }
 
 /*
+ * The favourite star sits over the option's corner as its own sibling button,
+ * not nested inside the option's button — two independently tappable regions
+ * in one visual card, the same fix as the member-directory quick-front bolt.
+ */
+.emotion-option-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.emotion-option__favorite {
+  position: absolute;
+  top: -2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease);
+}
+
+.emotion-option__favorite[aria-pressed='true'] {
+  color: var(--caution);
+}
+
+/*
  * Status indicators always pair a colour with a glyph and a label, so the state
  * is legible without relying on hue.
  */

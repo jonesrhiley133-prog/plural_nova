@@ -95,17 +95,17 @@ describe('collection registry', () => {
 });
 
 describe('emotions', () => {
-  it('offers 144 emotions across 12 families', () => {
-    expect(EMOTIONS).toHaveLength(144);
+  it('offers a wide catalogue across 12 families', () => {
     expect(EMOTION_FAMILIES).toHaveLength(12);
+    expect(EMOTIONS.length).toBeGreaterThanOrEqual(200);
     for (const family of EMOTION_FAMILIES) {
-      expect(EMOTIONS.filter((e) => e.family === family.id)).toHaveLength(12);
+      expect(EMOTIONS.filter((e) => e.family === family.id).length).toBeGreaterThanOrEqual(12);
     }
   });
 
   it('has no duplicate names or ids', () => {
-    expect(new Set(EMOTIONS.map((e) => e.id)).size).toBe(144);
-    expect(new Set(EMOTIONS.map((e) => e.name)).size).toBe(144);
+    expect(new Set(EMOTIONS.map((e) => e.id)).size).toBe(EMOTIONS.length);
+    expect(new Set(EMOTIONS.map((e) => e.name)).size).toBe(EMOTIONS.length);
   });
 });
 

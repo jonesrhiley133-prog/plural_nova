@@ -1,4 +1,5 @@
 import { f, OPTIONS, type CollectionDef } from './schema.js';
+import { EMOTION_FAMILIES } from '../emotions.js';
 
 export const noteFolders: CollectionDef = {
   name: 'noteFolders',
@@ -262,6 +263,53 @@ export const emotionEntries: CollectionDef = {
     f.tags('tags', 'Tags'),
     f.text('activity', 'Activity', { searchable: true }),
   ],
+};
+
+/**
+ * A word for how something feels that is not already in the built-in
+ * catalogue. It slots into one of the same 12 families, so charts and "top
+ * families" summaries treat it exactly like a catalogue emotion once it's
+ * logged — only the specific word is custom, not the grouping.
+ */
+export const customEmotions: CollectionDef = {
+  name: 'customEmotions',
+  label: 'Custom emotions',
+  singular: 'Custom emotion',
+  icon: 'emotion',
+  area: 'life',
+  scope: 'system',
+  titleField: 'name',
+  sortField: 'sortOrder',
+  sortDir: 'asc',
+  neverPublic: true,
+  description: 'Words for how something feels that are not already in the built-in list.',
+  fields: [
+    f.text('name', 'Name', { required: true, inList: true, searchable: true }),
+    f.enumOf(
+      'family',
+      'Closest family',
+      EMOTION_FAMILIES.map((family) => ({ value: family.id, label: family.label })),
+      { required: true, inList: true },
+    ),
+    f.text('emoji', 'Emoji', { maxLength: 8, hint: 'Optional — a plain marker is used otherwise.' }),
+    f.color('color', 'Colour', { hint: "Defaults to the family's own colour when left blank." }),
+    f.int('sortOrder', 'Order', { defaultValue: 0 }),
+  ],
+};
+
+/** A starred emotion, catalogue or custom, for quick access when logging. */
+export const favoriteEmotions: CollectionDef = {
+  name: 'favoriteEmotions',
+  label: 'Favourite emotions',
+  singular: 'Favourite emotion',
+  icon: 'emotion',
+  area: 'life',
+  scope: 'system',
+  titleField: 'emotionId',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  neverPublic: true,
+  fields: [f.text('emotionId', 'Emotion', { required: true, inList: true })],
 };
 
 export const bodySensations: CollectionDef = {
@@ -989,6 +1037,8 @@ export const LIFE_COLLECTIONS = [
   mediaItems,
   moodEntries,
   emotionEntries,
+  customEmotions,
+  favoriteEmotions,
   bodySensations,
   wellnessEntries,
   sleepEntries,
