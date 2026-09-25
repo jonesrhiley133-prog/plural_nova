@@ -20,6 +20,15 @@ different versions of PluralNova.
   saved places from the same screen. Deleting a saved place never touches
   the visits it already started — the link between them is a convenience,
   not a dependency.
+- **Live estimated earnings while clocked in.** Clocking in now asks which
+  workplace when there's more than one, then shows elapsed time, that
+  workplace's hourly rate (or a shift's own rate override, when it has one),
+  and a running estimate of what the shift has earned so far — all updating
+  by the second. Every dollar figure across Work is now explicitly labelled
+  an estimate, since PluralNova has no way to know about tax, tips, or a rate
+  that changed mid-shift. The Work overview also gained a day/week/month
+  toggle on estimated earnings, alongside the existing hours-by-day and
+  by-workplace charts, and shift-by-shift estimates in the schedule list.
 
 ### Changed
 
@@ -39,6 +48,10 @@ different versions of PluralNova.
 - A heatmap chart (used on the Stats page) rendered each of its rows without
   a key on the outer element, which React warns about on every render past
   a handful of rows.
+- Work's earnings estimate always used a workplace's standard hourly rate,
+  even for a shift that had been given its own rate override — the override
+  existed as a field but nothing read it. It's now used wherever a shift's
+  earnings are estimated, individually and in every stats total.
 
 ## [1.0.14] — 2026-09-24
 

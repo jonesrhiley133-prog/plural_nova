@@ -4,6 +4,7 @@ import {
   bucketByDay,
   bucketByHour,
   bucketByMonth,
+  bucketByWeek,
   bucketByWeekday,
   countBy,
   currentStreak,
@@ -442,6 +443,7 @@ statsRouter.get(
     }).items;
     const tasks = listRecords('workTasks', context.scope, { limit: 500 }).items;
     const workplaces = listRecords('workplaces', context.scope, { limit: 50 }).items;
+    const workplaceById = new Map(workplaces.map((workplace) => [workplace.id, workplace]));
 
     const minutesOf = (shift: Record<string, unknown>): number => {
       if (!shift['endsAt']) return 0;
@@ -450,32 +452,57 @@ statsRouter.get(
       return Math.max(0, Math.round(span - Number(shift['breakMinutes'] ?? 0)));
     };
 
+    /*
+     * A shift's own rate wins when it was given one — a differential or an
+     * overtime rate for that day — otherwise it falls back to whatever the
+     * workplace normally pays. Either way this is an estimate: PluralNova has
+     * no way to know about tax, tips, or a rate that changed mid-shift.
+     */
+    const rateOf = (shift: Record<string, unknown>): { rate: number; currency: string } | null => {
+      const workplace = workplaceById.get(String(shift['workplaceId'] ?? ''));
+      const override = Number(shift['wageOverride'] ?? 0);
+      const rate = override > 0 ? override : Number(workplace?.['hourlyRate'] ?? 0);
+      if (rate <= 0) return null;
+      return { rate, currency: String(workplace?.['currency'] || 'USD') };
+    };
+
+    const earningsOf = (shift: Record<string, unknown>): number | null => {
+      const found = rateOf(shift);
+      return found ? Math.round((minutesOf(shift) / 60) * found.rate * 100) / 100 : null;
+    };
+
     const totalMinutes = shifts.reduce((sum, shift) => sum + minutesOf(shift), 0);
 
     /*
      * A workplace's own hourly rate turns logged hours into pay, but summing
-     * across workplaces that pay in different currencies would add pounds to
-     * dollars. Each workplace's own earnings are always shown; the combined
-     * total is only ever offered when every rated workplace shares a currency.
+     * across workplaces — or shifts — that pay in different currencies would
+     * add pounds to dollars. Each workplace's own estimated earnings are
+     * always shown; the combined total and the earnings-over-time buckets
+     * below are only ever offered when every paid shift shares a currency.
      */
     const workplaceStats = workplaces.map((workplace) => {
-      const minutes = shifts
-        .filter((shift) => shift['workplaceId'] === workplace.id)
-        .reduce((sum, shift) => sum + minutesOf(shift), 0);
+      const own = shifts.filter((shift) => shift['workplaceId'] === workplace.id);
+      const minutes = own.reduce((sum, shift) => sum + minutesOf(shift), 0);
       const rate = Number(workplace['hourlyRate'] ?? 0);
       const currency = String(workplace['currency'] || 'USD');
+      // Summed per shift, not (total minutes × workplace rate), so a shift's
+      // own override actually changes what it contributes here too.
+      const earningsFromShifts = own.reduce((sum, shift) => sum + (earningsOf(shift) ?? 0), 0);
+      const anyRate = rate > 0 || own.some((shift) => Number(shift['wageOverride'] ?? 0) > 0);
       return {
         id: workplace.id,
         name: workplace['name'],
         minutes,
-        earnings: rate > 0 ? Math.round((minutes / 60) * rate * 100) / 100 : null,
-        currency: rate > 0 ? currency : null,
+        earnings: anyRate ? Math.round(earningsFromShifts * 100) / 100 : null,
+        currency: anyRate ? currency : null,
       };
     });
     const currencies = new Set(
-      workplaceStats.filter((w) => w.earnings !== null).map((w) => w.currency),
+      shifts.map((shift) => rateOf(shift)?.currency).filter((currency): currency is string => Boolean(currency)),
     );
     const singleCurrency = currencies.size === 1 ? [...currencies][0]! : null;
+    const paidShifts = singleCurrency ? shifts.filter((shift) => rateOf(shift) !== null) : [];
+    const months = Math.max(1, Math.ceil(weeks / 4.345));
 
     ok(res, {
       weeks,
@@ -490,9 +517,35 @@ statsRouter.get(
         shifts.map((shift) => ({ at: String(shift['startsAt']), value: minutesOf(shift) })),
         Math.min(weeks * 7, 90),
       ),
+      byWeek: bucketByWeek(
+        shifts.map((shift) => ({ at: String(shift['startsAt']), value: minutesOf(shift) })),
+        weeks,
+      ),
+      byMonth: bucketByMonth(
+        shifts.map((shift) => ({ at: String(shift['startsAt']), value: minutesOf(shift) })),
+        months,
+      ),
       byWeekday: bucketByWeekday(
         shifts.map((shift) => ({ at: String(shift['startsAt']), value: minutesOf(shift) })),
       ),
+      earningsByDay: singleCurrency
+        ? bucketByDay(
+            paidShifts.map((shift) => ({ at: String(shift['startsAt']), value: earningsOf(shift) ?? 0 })),
+            Math.min(weeks * 7, 90),
+          )
+        : null,
+      earningsByWeek: singleCurrency
+        ? bucketByWeek(
+            paidShifts.map((shift) => ({ at: String(shift['startsAt']), value: earningsOf(shift) ?? 0 })),
+            weeks,
+          )
+        : null,
+      earningsByMonth: singleCurrency
+        ? bucketByMonth(
+            paidShifts.map((shift) => ({ at: String(shift['startsAt']), value: earningsOf(shift) ?? 0 })),
+            months,
+          )
+        : null,
       workplaces: workplaceStats,
       tasks: {
         open: tasks.filter((task) => task['completed'] !== true).length,

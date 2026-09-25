@@ -5,7 +5,7 @@ import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useLiveSession } from '../core/liveSession.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
+import { Button, Card, Chip, IconButton, SegmentedControl, Stat, Status, Tabs } from '../ui/primitives.js';
 import { AsyncContent, DescriptiveNote, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
@@ -21,6 +21,13 @@ import { OPTIONS } from '@pluralnova/shared';
  */
 
 type Tab = 'overview' | 'schedule' | 'tasks' | 'workplaces' | 'people';
+type EarningsPeriod = 'day' | 'week' | 'month';
+
+interface Bucket {
+  label: string;
+  value: number;
+  key?: string;
+}
 
 interface WorkStats {
   weeks: number;
@@ -29,10 +36,20 @@ interface WorkStats {
   averageShiftMinutes: number;
   earnings: number | null;
   earningsCurrency: string | null;
-  byDay: { label: string; value: number; key: string }[];
-  byWeekday: { label: string; value: number }[];
+  byDay: Bucket[];
+  byWeek: Bucket[];
+  byMonth: Bucket[];
+  byWeekday: Bucket[];
+  earningsByDay: Bucket[] | null;
+  earningsByWeek: Bucket[] | null;
+  earningsByMonth: Bucket[] | null;
   workplaces: { id: string; name: string; minutes: number; earnings: number | null; currency: string | null }[];
   tasks: { open: number; completed: number };
+}
+
+/** Estimated pay only ever comes from what the user told PluralNova a rate was — never a promise of what a paycheque will say. */
+function money(value: number, currency: string, maximumFractionDigits = 0): string {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits }).format(value);
 }
 
 export default function Work(): JSX.Element {
@@ -41,7 +58,8 @@ export default function Work(): JSX.Element {
   const toast = useToast();
 
   const [tab, setTab] = useState<Tab>('overview');
-  const stats = useQuery<WorkStats>('/api/stats/work', { weeks: 8 });
+  const [earningsPeriod, setEarningsPeriod] = useState<EarningsPeriod>('week');
+  const stats = useQuery<WorkStats>('/api/stats/work', { weeks: 26 });
 
   const workplaces = useCollection('workplaces');
   const shifts = useCollection('workShifts');
@@ -50,7 +68,31 @@ export default function Work(): JSX.Element {
 
   const editor = useDialog<{ collection: string; record: StoredRecord | null }>();
   const confirm = useDialog<{ collection: string; record: StoredRecord }>();
+  const workplacePicker = useDialog();
   const session = useLiveSession(shifts, 'startsAt', 'endsAt');
+
+  const activeWorkplace = session.active
+    ? workplaces.items.find((row) => row.id === session.active!['workplaceId'])
+    : undefined;
+  const activeRate = session.active
+    ? Number(session.active['wageOverride'] ?? activeWorkplace?.['hourlyRate'] ?? 0)
+    : 0;
+  const activeCurrency = String(activeWorkplace?.['currency'] || 'USD');
+  const estimatedEarnings = activeRate > 0 ? (session.elapsedSeconds / 3600) * activeRate : null;
+
+  const clockIn = async (workplace?: StoredRecord): Promise<void> => {
+    const target = workplace ?? (workplaces.items.length === 1 ? workplaces.items[0] : undefined);
+    if (!target && workplaces.items.length > 1) {
+      workplacePicker.show();
+      return;
+    }
+    try {
+      await session.start(target ? { workplaceId: target.id } : {});
+      workplacePicker.hide();
+    } catch (cause) {
+      toast.fromError(cause, 'Could not clock in');
+    }
+  };
 
   const clockOut = async (): Promise<void> => {
     try {
@@ -78,7 +120,11 @@ export default function Work(): JSX.Element {
         title="Work"
         description={
           session.active
-            ? `Clocked in for ${formatDurationPrecise(session.elapsedSeconds)} so far.`
+            ? `Clocked in for ${formatDurationPrecise(session.elapsedSeconds)}${
+                activeRate > 0 ? ` at ${money(activeRate, activeCurrency, 2)}/hr` : ''
+              }${
+                estimatedEarnings !== null ? ` · Est. ${money(estimatedEarnings, activeCurrency, 2)}` : ''
+              }.`
             : 'Shifts, tasks and the people you work with — kept private to this account.'
         }
         actions={
@@ -95,7 +141,7 @@ export default function Work(): JSX.Element {
                 >
                   Add a shift
                 </Button>
-                <Button variant="primary" icon="play" onClick={() => void session.start()}>
+                <Button variant="primary" icon="play" onClick={() => void clockIn()}>
                   Clock in
                 </Button>
               </>
@@ -129,7 +175,11 @@ export default function Work(): JSX.Element {
       ) : tab === 'overview' ? (
         <div className="stack">
           <div className="stat-grid">
-            <Stat label="Hours worked" value={formatDuration(stats.data?.totalMinutes ?? 0)} detail="last 8 weeks" />
+            <Stat
+              label="Hours worked"
+              value={formatDuration(stats.data?.totalMinutes ?? 0)}
+              detail={`last ${stats.data?.weeks ?? 26} weeks`}
+            />
             <Stat label="Shifts" value={stats.data?.shiftCount ?? 0} />
             <Stat label="Average shift" value={formatDuration(stats.data?.averageShiftMinutes ?? 0)} />
             <Stat
@@ -139,13 +189,9 @@ export default function Work(): JSX.Element {
             />
             {stats.data?.earnings !== null && stats.data?.earnings !== undefined ? (
               <Stat
-                label="Earnings"
-                value={new Intl.NumberFormat(undefined, {
-                  style: 'currency',
-                  currency: stats.data.earningsCurrency ?? 'USD',
-                  maximumFractionDigits: 0,
-                }).format(stats.data.earnings)}
-                detail="last 8 weeks, from hourly rate"
+                label="Estimated earnings"
+                value={money(stats.data.earnings, stats.data.earningsCurrency ?? 'USD')}
+                detail={`last ${stats.data.weeks} weeks, from hourly rate`}
               />
             ) : null}
           </div>
@@ -164,6 +210,37 @@ export default function Work(): JSX.Element {
               emptyMessage="No shifts recorded in this period."
             />
           </Card>
+
+          {stats.data?.earningsCurrency ? (
+            <Card>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-2)' }}>
+                <SegmentedControl
+                  value={earningsPeriod}
+                  onChange={setEarningsPeriod}
+                  label="Earnings period"
+                  options={[
+                    { value: 'day', label: 'Day' },
+                    { value: 'week', label: 'Week' },
+                    { value: 'month', label: 'Month' },
+                  ]}
+                />
+              </div>
+              <ColumnChart
+                title="Estimated earnings"
+                subtitle={`By ${earningsPeriod}, from each shift's hourly rate`}
+                valueLabel="Earnings"
+                points={(
+                  (earningsPeriod === 'day'
+                    ? stats.data.earningsByDay
+                    : earningsPeriod === 'week'
+                      ? stats.data.earningsByWeek
+                      : stats.data.earningsByMonth) ?? []
+                ).map((bucket) => ({ label: bucket.label, value: bucket.value, detail: bucket.key }))}
+                format={(value) => money(value, stats.data!.earningsCurrency!, 2)}
+                emptyMessage="No paid shifts in this period."
+              />
+            </Card>
+          ) : null}
 
           <div className="split">
             <Card>
@@ -188,11 +265,7 @@ export default function Work(): JSX.Element {
                   value: workplace.minutes,
                   detail:
                     workplace.earnings !== null
-                      ? `${formatDuration(workplace.minutes)} · ${new Intl.NumberFormat(undefined, {
-                          style: 'currency',
-                          currency: workplace.currency ?? 'USD',
-                          maximumFractionDigits: 0,
-                        }).format(workplace.earnings)}`
+                      ? `${formatDuration(workplace.minutes)} · ${money(workplace.earnings, workplace.currency ?? 'USD')}`
                       : formatDuration(workplace.minutes),
                 }))}
                 format={(value) => formatDuration(value)}
@@ -203,7 +276,8 @@ export default function Work(): JSX.Element {
 
           <DescriptiveNote>
             These totals come from the shifts you marked as worked. They are your own record, not a
-            timesheet anyone else can see.
+            timesheet anyone else can see, and every dollar figure is an estimate from the hourly rate you
+            set — it does not know about tax, tips, or a rate that changed mid-shift.
           </DescriptiveNote>
         </div>
       ) : null}
@@ -240,6 +314,13 @@ export default function Work(): JSX.Element {
                   const minutes = shift['endsAt']
                     ? Math.max(0, Math.round(grossSeconds / 60) - Number(shift['breakMinutes'] ?? 0))
                     : 0;
+                  // From the exact seconds, not the rounded-to-minute figure above —
+                  // a shift under a minute long still earned something.
+                  const netSeconds = shift['endsAt']
+                    ? Math.max(0, grossSeconds - Number(shift['breakMinutes'] ?? 0) * 60)
+                    : 0;
+                  const rate = Number(shift['wageOverride'] ?? workplace?.['hourlyRate'] ?? 0);
+                  const earnings = rate > 0 && netSeconds > 0 ? (netSeconds / 3600) * rate : null;
 
                   return (
                     <div key={shift.id} className="list-row">
@@ -251,6 +332,11 @@ export default function Work(): JSX.Element {
                         <span className="list-row__meta">
                           {workplace ? <Chip>{String(workplace['name'])}</Chip> : null}
                           {minutes > 0 ? <span className="faint">{formatDuration(minutes)}</span> : null}
+                          {earnings !== null ? (
+                            <span className="faint">
+                              Est. {money(earnings, String(workplace?.['currency'] || 'USD'), 2)}
+                            </span>
+                          ) : null}
                           {Number(shift['breakMinutes'] ?? 0) > 0 ? (
                             <span className="faint">{String(shift['breakMinutes'])}m break</span>
                           ) : null}
@@ -464,6 +550,20 @@ export default function Work(): JSX.Element {
           )}
         </AsyncContent>
       ) : null}
+
+      <Dialog
+        open={workplacePicker.open}
+        onClose={workplacePicker.hide}
+        title="Clock in at which workplace?"
+      >
+        <div className="row">
+          {workplaces.items.map((workplace) => (
+            <Chip key={workplace.id} onClick={() => void clockIn(workplace)}>
+              {String(workplace['name'])}
+            </Chip>
+          ))}
+        </div>
+      </Dialog>
 
       <Dialog open={editor.open} onClose={editor.hide} title={editor.value?.record ? 'Edit' : 'Add'}>
         {editor.value ? (
