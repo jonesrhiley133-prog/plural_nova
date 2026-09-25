@@ -10,6 +10,19 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+### Changed
+
+- **Timed sessions now track to the exact second instead of rounding to the
+  nearest minute.** Fronting, sleep, and clocking in for a shift all store
+  the precise start and end timestamps they already had, plus an exact
+  duration in seconds — a front that lasted 5 minutes and 45 seconds is
+  recorded as 345 seconds, not rounded away to 6 minutes before it's even
+  saved. The minute-based figures shown throughout the app are unchanged in
+  how they read, but are now derived from that exact number rather than
+  being rounded separately, so totals across many short sessions no longer
+  drift from the true sum. The live "Clocked in for…" and "Asleep for…"
+  counters on Work and Sleep also now tick every second instead of every 30.
+
 ## [1.0.14] — 2026-09-24
 
 ### Changed

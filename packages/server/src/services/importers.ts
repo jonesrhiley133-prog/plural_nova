@@ -282,6 +282,7 @@ function mapPluralKitSwitches(switches: unknown, memberIdMap: Map<string, string
         coFronterIds,
         startedAt,
         endedAt,
+        durationSeconds: endedAt ? Math.floor((Date.parse(endedAt) - Date.parse(startedAt)) / 1000) : null,
         durationMinutes: endedAt ? Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 60000) : null,
         activity: '',
         location: '',
@@ -549,6 +550,10 @@ const simplyPlural: Adapter = (payload, scope) => {
         coFronterIds: [],
         startedAt: new Date(startedAt).toISOString(),
         endedAt: Number.isFinite(endedAt) && endedAt > 0 ? new Date(endedAt).toISOString() : null,
+        durationSeconds:
+          Number.isFinite(endedAt) && endedAt > startedAt
+            ? Math.floor((endedAt - startedAt) / 1000)
+            : null,
         durationMinutes:
           Number.isFinite(endedAt) && endedAt > startedAt
             ? Math.round((endedAt - startedAt) / 60000)
@@ -730,6 +735,8 @@ const sheaf: Adapter = (payload, scope) => {
         coFronterIds,
         startedAt: new Date(startedAt).toISOString(),
         endedAt: Number.isFinite(endedAt) ? new Date(endedAt).toISOString() : null,
+        durationSeconds:
+          Number.isFinite(endedAt) && endedAt > startedAt ? Math.floor((endedAt - startedAt) / 1000) : null,
         durationMinutes:
           Number.isFinite(endedAt) && endedAt > startedAt ? Math.round((endedAt - startedAt) / 60000) : null,
         activity: '',
@@ -861,6 +868,8 @@ const octocon: Adapter = (payload, scope) => {
         coFronterIds: [],
         startedAt: new Date(startedAt).toISOString(),
         endedAt: Number.isFinite(endedAt) ? new Date(endedAt).toISOString() : null,
+        durationSeconds:
+          Number.isFinite(endedAt) && endedAt > startedAt ? Math.floor((endedAt - startedAt) / 1000) : null,
         durationMinutes:
           Number.isFinite(endedAt) && endedAt > startedAt ? Math.round((endedAt - startedAt) / 60000) : null,
         activity: '',
@@ -988,6 +997,8 @@ const pluralStar: Adapter = (payload, scope) => {
         coFronterIds,
         startedAt: new Date(startedAt).toISOString(),
         endedAt: Number.isFinite(endedAt) && endedAt > 0 ? new Date(endedAt).toISOString() : null,
+        durationSeconds:
+          Number.isFinite(endedAt) && endedAt > startedAt ? Math.floor((endedAt - startedAt) / 1000) : null,
         durationMinutes:
           Number.isFinite(endedAt) && endedAt > startedAt ? Math.round((endedAt - startedAt) / 60000) : null,
         activity: '',
@@ -1137,6 +1148,8 @@ const pluralSpace: Adapter = (payload, scope) => {
         coFronterIds: [],
         startedAt: new Date(startedAt).toISOString(),
         endedAt: Number.isFinite(endedAt) ? new Date(endedAt).toISOString() : null,
+        durationSeconds:
+          Number.isFinite(endedAt) && endedAt > startedAt ? Math.floor((endedAt - startedAt) / 1000) : null,
         durationMinutes:
           Number.isFinite(endedAt) && endedAt > startedAt ? Math.round((endedAt - startedAt) / 60000) : null,
         activity: '',
@@ -1376,6 +1389,8 @@ const openPlural: Adapter = (payload, scope) => {
         coFronterIds,
         startedAt: new Date(startedAt).toISOString(),
         endedAt: Number.isFinite(endedAt) ? new Date(endedAt).toISOString() : null,
+        durationSeconds:
+          Number.isFinite(endedAt) && endedAt > startedAt ? Math.floor((endedAt - startedAt) / 1000) : null,
         durationMinutes:
           Number.isFinite(endedAt) && endedAt > startedAt ? Math.round((endedAt - startedAt) / 60000) : null,
         activity: '',

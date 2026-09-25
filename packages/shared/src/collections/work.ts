@@ -45,6 +45,10 @@ export const workShifts: CollectionDef = {
     f.datetime('startsAt', 'Starts', { required: true, inList: true }),
     f.datetime('endsAt', 'Ends', { inList: true }),
     f.int('breakMinutes', 'Break', { defaultValue: 0 }),
+    f.int('durationSeconds', 'Exact duration', {
+      min: 0,
+      hint: 'The full worked span, before subtracting breaks. Derived from the times above.',
+    }),
     f.text('location', 'Location'),
     f.text('role', 'Role on shift'),
     /*

@@ -128,6 +128,51 @@ describe('fronting', () => {
     const ended = await client.request('POST', '/api/fronting/end', { token, body: {} });
     expect(ended.body.data.events[0].durationMinutes).toBeGreaterThanOrEqual(89);
     expect(ended.body.data.events[0].durationMinutes).toBeLessThanOrEqual(91);
+    expect(ended.body.data.events[0].durationSeconds).toBeGreaterThanOrEqual(89 * 60);
+    expect(ended.body.data.events[0].durationSeconds).toBeLessThanOrEqual(91 * 60);
+  });
+
+  it('tracks a front duration to the exact second rather than rounding internally', async () => {
+    await clearFront();
+    // 45 seconds past a whole minute: rounding anywhere before storage would
+    // erase exactly the number this test checks for.
+    const startedAt = new Date(Date.now() - (5 * 60_000 + 45_000)).toISOString();
+    await client.request('POST', '/api/fronting/start', {
+      token,
+      body: { memberId: members[0]!.id, startedAt },
+    });
+    const ended = await client.request('POST', '/api/fronting/end', { token, body: {} });
+    const event = ended.body.data.events[0];
+    expect(event.durationSeconds).toBeGreaterThanOrEqual(344);
+    expect(event.durationSeconds).toBeLessThanOrEqual(347);
+    expect(event.durationSeconds % 60).not.toBe(0);
+    expect(event.durationMinutes).toBe(Math.round(event.durationSeconds / 60));
+
+    // Persists exactly as computed across a fresh read — not recomputed or
+    // re-rounded on the way back out, the way a restart would read it.
+    const since = new Date(Date.now() - 3_600_000).toISOString();
+    const timeline = await client.request('GET', `/api/fronting/timeline?from=${since}`, { token });
+    const stored = timeline.body.data.items.find((item: any) => item.id === event.id);
+    expect(stored.durationSeconds).toBe(event.durationSeconds);
+    expect(stored.durationMinutes).toBe(event.durationMinutes);
+  });
+
+  it('tracks an edited front duration to the exact second too', async () => {
+    await clearFront();
+    const started = await client.request('POST', '/api/fronting/start', {
+      token,
+      body: { memberId: members[0]!.id },
+    });
+    const startedAt = new Date(Date.now() - (10 * 60_000 + 20_000)).toISOString();
+    const endedAt = new Date().toISOString();
+    const patched = await client.request('PATCH', `/api/fronting/${started.body.data.id}`, {
+      token,
+      body: { startedAt, endedAt },
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.data.durationSeconds).toBeGreaterThanOrEqual(619);
+    expect(patched.body.data.durationSeconds).toBeLessThanOrEqual(621);
+    expect(patched.body.data.durationMinutes).toBe(Math.round(patched.body.data.durationSeconds / 60));
   });
 
   it('keeps an active front across a fresh read of the API', async () => {

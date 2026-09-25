@@ -336,6 +336,7 @@ export const sleepEntries: CollectionDef = {
     f.datetime('startedAt', 'Fell asleep', { required: true, inList: true }),
     f.datetime('endedAt', 'Woke up', { inList: true }),
     f.int('durationMinutes', 'Duration', { inList: true }),
+    f.int('durationSeconds', 'Exact duration', { min: 0 }),
     f.int('quality', 'Quality', { min: 0, max: 5, inList: true, stars: true }),
     f.bool('isNap', 'Nap'),
     f.int('awakenings', 'Times awake', { min: 0, max: 50 }),
@@ -853,6 +854,7 @@ export const locationEntries: CollectionDef = {
     f.datetime('arrivedAt', 'Arrived', { group: 'Time there' }),
     f.datetime('leftAt', 'Left', { group: 'Time there' }),
     f.int('durationMinutes', 'How long', { min: 0, group: 'Time there' }),
+    f.int('durationSeconds', 'Exact duration', { min: 0, group: 'Time there' }),
     f.bool('isCurrent', 'Still here', { group: 'Time there' }),
 
     /*

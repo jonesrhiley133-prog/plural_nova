@@ -184,14 +184,16 @@ export default function Fronting(): JSX.Element {
                               variant="secondary"
                               onClick={() => {
                                 const endedAt = new Date().toISOString();
+                                const durationSeconds = Math.max(
+                                  0,
+                                  Math.floor(
+                                    (Date.parse(endedAt) - Date.parse(String(event['startedAt']))) / 1000,
+                                  ),
+                                );
                                 void update(event.id, {
                                   endedAt,
-                                  durationMinutes: Math.max(
-                                    0,
-                                    Math.round(
-                                      (Date.parse(endedAt) - Date.parse(String(event['startedAt']))) / 60000,
-                                    ),
-                                  ),
+                                  durationSeconds,
+                                  durationMinutes: Math.round(durationSeconds / 60),
                                 })
                                   .then(() => toast.success(term('{{Front}} ended')))
                                   .catch((cause: unknown) => toast.fromError(cause));
@@ -242,11 +244,13 @@ export default function Fronting(): JSX.Element {
             if (!editor.value) return;
             const startedAt = String(values['startedAt'] ?? editor.value['startedAt']);
             const endedAt = values['endedAt'] ? String(values['endedAt']) : null;
+            const durationSeconds = endedAt
+              ? Math.max(0, Math.floor((Date.parse(endedAt) - Date.parse(startedAt)) / 1000))
+              : null;
             await update(editor.value.id, {
               ...values,
-              durationMinutes: endedAt
-                ? Math.max(0, Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 60000))
-                : null,
+              durationSeconds,
+              durationMinutes: durationSeconds !== null ? Math.round(durationSeconds / 60) : null,
             });
             toast.success('Saved');
             editor.hide();
@@ -278,6 +282,7 @@ function toEventLike(record: StoredRecord): FrontEventLike {
     startedAt: String(record['startedAt']),
     endedAt: (record['endedAt'] as string) ?? null,
     durationMinutes: (record['durationMinutes'] as number) ?? null,
+    durationSeconds: (record['durationSeconds'] as number) ?? null,
   };
 }
 

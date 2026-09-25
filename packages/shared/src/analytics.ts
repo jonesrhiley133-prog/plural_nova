@@ -15,6 +15,7 @@ export interface FrontEventLike {
   startedAt: string;
   endedAt: string | null;
   durationMinutes?: number | null;
+  durationSeconds?: number | null;
 }
 
 export interface FrontingTotals {
@@ -26,7 +27,16 @@ export interface FrontingTotals {
   activeCount: number;
 }
 
+/**
+ * Minutes for one event, preferring the exact stored second count so a sum
+ * across many events rounds once at the end instead of compounding a
+ * per-event rounding error. Older rows only ever got the rounded minute
+ * figure, so that stays as the fallback rather than a schema migration.
+ */
 export function eventMinutes(event: FrontEventLike, now: Date = new Date()): number {
+  if (typeof event.durationSeconds === 'number' && event.durationSeconds > 0) {
+    return event.durationSeconds / 60;
+  }
   if (typeof event.durationMinutes === 'number' && event.durationMinutes > 0) {
     return event.durationMinutes;
   }

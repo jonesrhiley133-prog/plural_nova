@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { formatDuration, requireCollection, type StoredRecord } from '@pluralnova/shared';
+import { formatDuration, formatDurationPrecise, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useQuery, useRecordMap } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
 import { useLiveSession } from '../core/liveSession.js';
@@ -48,12 +48,10 @@ export default function Sleep(): JSX.Element {
 
   const wake = async (): Promise<void> => {
     if (!session.active) return;
-    const durationMinutes = Math.max(
-      0,
-      Math.round((Date.now() - Date.parse(String(session.active['startedAt']))) / 60000),
-    );
     try {
-      const stopped = await session.stop({ durationMinutes });
+      const stopped = await session.stop((durationSeconds) => ({
+        durationMinutes: Math.round(durationSeconds / 60),
+      }));
       if (stopped) editor.show(stopped);
     } catch (cause) {
       toast.fromError(cause, 'Could not record waking up');
@@ -80,7 +78,7 @@ export default function Sleep(): JSX.Element {
         title="Sleep"
         description={
           session.active
-            ? `Asleep for ${formatDuration(session.elapsedMinutes)} so far.`
+            ? `Asleep for ${formatDurationPrecise(session.elapsedSeconds)} so far.`
             : 'When you slept, how long, and how it went.'
         }
         actions={
@@ -287,7 +285,7 @@ export default function Sleep(): JSX.Element {
           collection="sleepEntries"
           record={editor.value}
           initial={{ startedAt: lastNight(), endedAt: new Date().toISOString() }}
-          omit={['durationMinutes']}
+          omit={['durationMinutes', 'durationSeconds']}
           onSubmit={async (values) => {
             const startedAt = String(values['startedAt']);
             const endedAt = values['endedAt'] ? String(values['endedAt']) : null;
@@ -299,9 +297,10 @@ export default function Sleep(): JSX.Element {
               throw error;
             }
 
-            const durationMinutes = endedAt
-              ? Math.max(0, Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 60000))
+            const durationSeconds = endedAt
+              ? Math.max(0, Math.floor((Date.parse(endedAt) - Date.parse(startedAt)) / 1000))
               : 0;
+            const durationMinutes = Math.round(durationSeconds / 60);
 
             // Filled in from bedtime and fell-asleep, exactly as the field's own
             // hint promises, rather than asking for a number that is really a
@@ -317,6 +316,7 @@ export default function Sleep(): JSX.Element {
             const payload = {
               ...values,
               durationMinutes,
+              durationSeconds,
               ...(latencyMinutes !== undefined ? { latencyMinutes } : {}),
             };
 

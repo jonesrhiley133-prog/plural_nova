@@ -46,6 +46,29 @@ describe('records, settings, backup and sync', () => {
     expect(restored.body.data.deletedAt).toBeNull();
   });
 
+  it('stores an exact-second duration on every collection with a timed session', async () => {
+    const now = new Date().toISOString();
+    for (const [collection, body] of [
+      ['sleepEntries', { startedAt: now, endedAt: now, durationSeconds: 27_045, durationMinutes: 451 }],
+      ['workShifts', { startsAt: now, endsAt: now, durationSeconds: 14_402 }],
+      [
+        'locationEntries',
+        { name: 'Library', visitedAt: now, arrivedAt: now, leftAt: now, durationSeconds: 3_723 },
+      ],
+    ] as const) {
+      const created = await client.request('POST', `/api/records/${collection}`, { token, body });
+      expect(created.status).toBe(201);
+      expect(created.body.data.durationSeconds).toBe(body.durationSeconds);
+
+      // A fresh GET is a separate round trip through SQLite, standing in for
+      // what a restart would read back — not just the value the POST echoed.
+      const fetched = await client.request('GET', `/api/records/${collection}/${created.body.data.id}`, {
+        token,
+      });
+      expect(fetched.body.data.durationSeconds).toBe(body.durationSeconds);
+    }
+  });
+
   it('never returns another account’s records', async () => {
     const mine = await client.request('POST', '/api/records/notes', {
       token,

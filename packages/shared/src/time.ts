@@ -46,6 +46,23 @@ export function formatDuration(minutes: number): string {
   return remHours ? `${days}d ${remHours}h` : `${days}d`;
 }
 
+/**
+ * "2h 14m 07s", "45m 02s", "9s" — for a session actively ticking right now.
+ * Historical durations stay in `formatDuration`'s minute phrasing; this is
+ * only for the live count while something is still running, so the seconds
+ * PluralNova now tracks internally are visible somewhere, not just stored.
+ */
+export function formatDurationPrecise(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  const pad = (n: number) => `${n}`.padStart(2, '0');
+  if (hours > 0) return `${hours}h ${pad(minutes)}m ${pad(seconds)}s`;
+  if (minutes > 0) return `${minutes}m ${pad(seconds)}s`;
+  return `${seconds}s`;
+}
+
 export function weekKey(value: Date | string): string {
   const d = new Date(value);
   const day = (d.getDay() + 6) % 7; // Monday-first

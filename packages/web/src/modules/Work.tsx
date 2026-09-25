@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { formatDuration, type StoredRecord } from '@pluralnova/shared';
+import { formatDuration, formatDurationPrecise, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useQuery } from '../core/data.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useLiveSession } from '../core/liveSession.js';
@@ -78,7 +78,7 @@ export default function Work(): JSX.Element {
         title="Work"
         description={
           session.active
-            ? `Clocked in for ${formatDuration(session.elapsedMinutes)} so far.`
+            ? `Clocked in for ${formatDurationPrecise(session.elapsedSeconds)} so far.`
             : 'Shifts, tasks and the people you work with — kept private to this account.'
         }
         actions={
@@ -226,13 +226,19 @@ export default function Work(): JSX.Element {
               <div className="list">
                 {items.map((shift) => {
                   const workplace = workplaces.items.find((row) => row.id === shift['workplaceId']);
+                  const grossSeconds =
+                    typeof shift['durationSeconds'] === 'number'
+                      ? (shift['durationSeconds'] as number)
+                      : shift['endsAt']
+                        ? Math.max(
+                            0,
+                            Math.floor(
+                              (Date.parse(String(shift['endsAt'])) - Date.parse(String(shift['startsAt']))) / 1000,
+                            ),
+                          )
+                        : 0;
                   const minutes = shift['endsAt']
-                    ? Math.max(
-                        0,
-                        Math.round(
-                          (Date.parse(String(shift['endsAt'])) - Date.parse(String(shift['startsAt']))) / 60000,
-                        ) - Number(shift['breakMinutes'] ?? 0),
-                      )
+                    ? Math.max(0, Math.round(grossSeconds / 60) - Number(shift['breakMinutes'] ?? 0))
                     : 0;
 
                   return (
@@ -465,11 +471,27 @@ export default function Work(): JSX.Element {
             collection={editor.value.collection}
             record={editor.value.record}
             initial={editor.value.collection === 'workShifts' ? { startsAt: new Date().toISOString() } : {}}
-            omit={['remindSent']}
+            omit={['remindSent', 'durationSeconds']}
             onSubmit={async (values) => {
               const target = collectionFor(editor.value!.collection);
-              if (editor.value!.record) await target.update(editor.value!.record.id, values);
-              else await target.create(values);
+              const payload =
+                editor.value!.collection === 'workShifts'
+                  ? {
+                      ...values,
+                      durationSeconds:
+                        values['startsAt'] && values['endsAt']
+                          ? Math.max(
+                              0,
+                              Math.floor(
+                                (Date.parse(String(values['endsAt'])) - Date.parse(String(values['startsAt']))) /
+                                  1000,
+                              ),
+                            )
+                          : null,
+                    }
+                  : values;
+              if (editor.value!.record) await target.update(editor.value!.record.id, payload);
+              else await target.create(payload);
               toast.success('Saved');
               stats.reload();
               editor.hide();
