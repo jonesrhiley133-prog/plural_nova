@@ -326,7 +326,7 @@ describe('records, settings, backup and sync', () => {
       globalThis.fetch = realFetch;
     });
 
-    it('pulls members and switches from PluralKit using a token', async () => {
+    it('pulls members, switches and groups from PluralKit using a token', async () => {
       globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
         const url = String(args[0]);
         if (!url.includes('api.pluralkit.me')) return realFetch(...args);
@@ -336,6 +336,12 @@ describe('records, settings, backup and sync', () => {
               { timestamp: '2026-02-01T00:00:00.000Z', members: ['ccccc'] },
               { timestamp: '2026-02-01T02:00:00.000Z', members: ['ddddd'] },
             ]),
+            { status: 200 },
+          );
+        }
+        if (url.includes('/groups')) {
+          return new Response(
+            JSON.stringify([{ id: 'grp-1', name: 'Token Group', members: ['ccccc'] }]),
             { status: 200 },
           );
         }
@@ -353,11 +359,15 @@ describe('records, settings, backup and sync', () => {
         body: { source: 'pluralkit-token', payload: { token: 'pk_test_token' } },
       });
       expect(result.status).toBe(200);
-      expect(result.body.data.report.imported).toBe(2); // 1 named member + 1 front period
+      expect(result.body.data.report.imported).toBe(3); // 1 named member + 1 front period + 1 group
       expect(result.body.data.problems).toHaveLength(1);
 
       const members = await client.request('GET', '/api/records/members?search=Token%20One', { token });
       expect(members.body.data.items[0].color).toBe('#5ec6a8');
+
+      const groups = await client.request('GET', '/api/records/memberGroups?search=Token%20Group', { token });
+      expect(groups.body.data.items).toHaveLength(1);
+      expect(members.body.data.items[0].groupId).toBe(groups.body.data.items[0].id);
     });
 
     it('reports a token PluralKit does not accept', async () => {
