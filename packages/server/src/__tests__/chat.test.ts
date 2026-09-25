@@ -205,6 +205,32 @@ describe('system chat threads', () => {
     expect(messages.body.data.messages[0].body).toBe('hello from Ash');
   });
 
+  it('hydrates attachmentIds into full objects a bubble can render without a second fetch', async () => {
+    const media = await client.request('POST', '/api/records/mediaItems', {
+      token,
+      body: { title: 'sunset.jpg', mediaType: 'image', url: '/uploads/sunset.jpg', mimeType: 'image/jpeg', sizeBytes: 4096 },
+    });
+    expect(media.status).toBe(201);
+    const mediaId = media.body.data.id;
+
+    const threads = await client.request('GET', '/api/system/chat/threads', { token });
+    const threadId = threads.body.data.threads[0].id;
+
+    const sent = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: '', memberId: ashId, attachmentIds: [mediaId] },
+    });
+    expect(sent.status).toBe(201);
+    expect(sent.body.data.attachments).toEqual([
+      { id: mediaId, url: '/uploads/sunset.jpg', mediaType: 'image', mimeType: 'image/jpeg', sizeBytes: 4096, title: 'sunset.jpg', durationSeconds: null, width: null, height: null },
+    ]);
+
+    const messages = await client.request('GET', `/api/system/chat/threads/${threadId}/messages`, { token });
+    const stored = messages.body.data.messages.find((m: any) => m.id === sent.body.data.id);
+    expect(stored.attachments[0].url).toBe('/uploads/sunset.jpg');
+    expect(stored.attachments[0].mediaType).toBe('image');
+  });
+
   it('deletes a system chat message through the generic records route', async () => {
     const threads = await client.request('GET', '/api/system/chat/threads', { token });
     const threadId = threads.body.data.threads[0].id;

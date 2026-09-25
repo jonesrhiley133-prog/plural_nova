@@ -64,6 +64,18 @@ export interface ChatThreadSummary {
   raw: StoredRecord;
 }
 
+export interface ChatAttachment {
+  id: string;
+  url: string;
+  mediaType: 'image' | 'video' | 'audio' | 'document';
+  mimeType: string;
+  sizeBytes: number;
+  title: string;
+  durationSeconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+}
+
 export interface ChatMessage {
   id: string;
   threadId: string;
@@ -74,7 +86,7 @@ export interface ChatMessage {
   sender: ChatPerson | null;
   replyToId: string | null;
   reactions: Record<string, string[]>;
-  attachments: unknown[];
+  attachments: ChatAttachment[];
   forwardedFrom: ChatForwardInfo | null;
   encrypted: boolean;
   sequence: number;
@@ -108,6 +120,26 @@ function personFromCounterpart(counterpart: Record<string, unknown> | null | und
 
 function toReactions(raw: unknown): Record<string, string[]> {
   return raw && typeof raw === 'object' ? (raw as Record<string, string[]>) : {};
+}
+
+const MEDIA_TYPES = new Set(['image', 'video', 'audio', 'document']);
+
+function toAttachments(raw: unknown): ChatAttachment[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => ({
+      id: String(item['id'] ?? ''),
+      url: String(item['url'] ?? ''),
+      mediaType: (MEDIA_TYPES.has(String(item['mediaType'])) ? item['mediaType'] : 'document') as ChatAttachment['mediaType'],
+      mimeType: String(item['mimeType'] ?? ''),
+      sizeBytes: Number(item['sizeBytes'] ?? 0),
+      title: String(item['title'] ?? ''),
+      durationSeconds: item['durationSeconds'] != null ? Number(item['durationSeconds']) : null,
+      width: item['width'] != null ? Number(item['width']) : null,
+      height: item['height'] != null ? Number(item['height']) : null,
+    }))
+    .filter((attachment) => attachment.url);
 }
 
 function toForwardedFrom(raw: unknown): ChatForwardInfo | null {
@@ -237,8 +269,7 @@ interface ConversationState {
 export interface SendOptions {
   replyToId?: string | null;
   forwardedFrom?: ChatForwardInfo | null;
-  attachments?: unknown[];
-  attachmentIds?: string[];
+  attachments?: ChatAttachment[];
   /** Which alter this message is from — overrides the conversation's default for dm, and is the sender for system. */
   asMemberId?: string | null;
 }
@@ -313,7 +344,7 @@ export function useChatConversation(
         sender,
         replyToId: (raw['replyToId'] as string) ?? null,
         reactions: toReactions(raw['reactions']),
-        attachments: (raw['attachments'] as unknown[]) ?? (raw['attachmentIds'] as unknown[]) ?? [],
+        attachments: toAttachments(raw['attachments']),
         forwardedFrom: toForwardedFrom(raw['forwardedFrom']),
         encrypted: raw['encrypted'] === true,
         sequence: Number(raw['sequence'] ?? 0),
@@ -452,7 +483,7 @@ export function useChatConversation(
   const send = useCallback(
     async (text: string, options: SendOptions = {}) => {
       const body = text.trim();
-      if (!body || !threadId) return;
+      if ((!body && (options.attachments?.length ?? 0) === 0) || !threadId) return;
       const clientId = newId('cli').slice(4);
       const optimistic: ChatMessage = {
         id: `pending-${clientId}`,
@@ -489,6 +520,11 @@ export function useChatConversation(
             encrypted,
             encryptionKeyId: encrypted ? 'browser' : '',
             replyToId: options.replyToId ?? null,
+            // Attachments ride along in the clear even on an encrypted
+            // message: the files themselves are plain uploads on this
+            // server's disk, so sealing only the caption would be a false
+            // promise of privacy the file itself does not keep.
+            attachments: options.attachments ?? [],
             forwardedFrom: options.forwardedFrom ?? null,
             ...(options.asMemberId !== undefined ? { asMemberId: options.asMemberId } : {}),
           });
@@ -498,7 +534,7 @@ export function useChatConversation(
             clientId,
             memberId: options.asMemberId ?? viewerMemberId,
             replyToId: options.replyToId ?? null,
-            attachmentIds: options.attachmentIds ?? [],
+            attachmentIds: (options.attachments ?? []).map((attachment) => attachment.id),
             forwardedFrom: options.forwardedFrom ?? null,
           });
         }
@@ -562,6 +598,7 @@ export function useChatConversation(
         await api.post(`/api/messages/threads/${targetThreadId}`, {
           body: source.body,
           clientId: newId('cli').slice(4),
+          attachments: source.attachments,
           forwardedFrom: info,
         });
       }
@@ -608,6 +645,36 @@ export function useChatConversation(
     forward,
     remove,
     markRead,
+  };
+}
+
+/**
+ * Uploads a file or a recorded voice clip and returns the attachment object a
+ * message carries. Goes through the same `/api/media/upload` endpoint (and so
+ * the same media library) as the rest of the app — a photo sent in chat is a
+ * media item like any other, not a second, chat-only copy of the concept.
+ */
+export async function uploadChatAttachment(file: File | Blob, filename: string): Promise<ChatAttachment> {
+  const contentType = file.type || 'application/octet-stream';
+  const result = await api.post<{ id: string; url: string; mediaType: string; sizeBytes: number; title: string }>(
+    '/api/media/upload',
+    undefined,
+    {
+      raw: {
+        body: file,
+        contentType,
+        headers: { 'x-file-name': encodeURIComponent(filename).slice(0, 180) },
+      },
+      timeoutMs: 120_000,
+    },
+  );
+  return {
+    id: result.id,
+    url: result.url,
+    mediaType: (MEDIA_TYPES.has(result.mediaType) ? result.mediaType : 'document') as ChatAttachment['mediaType'],
+    mimeType: contentType,
+    sizeBytes: result.sizeBytes,
+    title: result.title,
   };
 }
 

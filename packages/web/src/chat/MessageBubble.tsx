@@ -2,7 +2,8 @@ import { createPortal } from 'react-dom';
 import { Avatar, IconButton } from '../ui/primitives.js';
 import { ActionMenu, useActionMenu, type ActionMenuItem, type ActionMenuPosition } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
-import type { ChatMessage } from '../core/chat.js';
+import type { ChatAttachment, ChatMessage } from '../core/chat.js';
+import { ChatAttachmentView } from './ChatAttachmentView.js';
 
 /** Common reactions, in the order most chat apps settle on. */
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
@@ -28,6 +29,7 @@ interface MessageBubbleProps {
   onForward: () => void;
   onCopy: () => void;
   onDelete: () => void;
+  onOpenAttachment: (attachment: ChatAttachment) => void;
   onQuoteClick?: () => void;
 }
 
@@ -43,6 +45,7 @@ export function MessageBubble({
   onForward,
   onCopy,
   onDelete,
+  onOpenAttachment,
   onQuoteClick,
 }: MessageBubbleProps): JSX.Element {
   const reactionEntries = Object.entries(message.reactions).filter(([, ids]) => ids.length > 0);
@@ -110,7 +113,10 @@ export function MessageBubble({
 
         <div className="chat-message__bubble-row">
           <div className="chat-bubble">
-            <p className="chat-bubble__text">{message.body}</p>
+            {message.attachments.map((attachment) => (
+              <ChatAttachmentView key={attachment.id} attachment={attachment} onOpen={() => onOpenAttachment(attachment)} />
+            ))}
+            {message.body ? <p className="chat-bubble__text">{message.body}</p> : null}
             <span className="chat-bubble__meta">
               {message.kind === 'dm' ? (
                 <Icon name={message.encrypted ? 'lock' : 'unlock'} size={9} label={message.encrypted ? 'Encrypted' : 'Not encrypted'} />

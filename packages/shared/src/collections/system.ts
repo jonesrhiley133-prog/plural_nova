@@ -600,7 +600,10 @@ export const systemChatMessages: CollectionDef = {
   description: 'Internal, system-only conversation. Never leaves the account.',
   neverPublic: true,
   fields: [
-    f.long('body', 'Message', { required: true, searchable: true }),
+    // Not required: an attachment-only message (a voice note, a photo with no
+    // caption) is a real, valid message with an empty body. The route itself
+    // still refuses a message with neither text nor an attachment.
+    f.long('body', 'Message', { searchable: true }),
     f.datetime('sentAt', 'Sent', { required: true, inList: true }),
     f.ref('replyToId', 'In reply to', 'systemChatMessages'),
     f.text('channel', 'Channel', { defaultValue: 'general', inList: true }),
