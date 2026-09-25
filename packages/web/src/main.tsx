@@ -6,6 +6,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/layout.css';
+import './styles/chat.css';
 // Last, so the motion rules win ties without reaching for !important.
 import './styles/motion.css';
 

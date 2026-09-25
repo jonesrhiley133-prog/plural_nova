@@ -72,6 +72,7 @@ const Friends = load(() => import('./modules/Friends.js'));
 const Flux = load(() => import('./modules/Flux.js'));
 const Messages = load(() => import('./modules/Messages.js'));
 const SystemChat = load(() => import('./modules/SystemChat.js'));
+const Chat = load(() => import('./modules/Chat.js'));
 const Bulletin = load(() => import('./modules/Bulletin.js'));
 const Polls = load(() => import('./modules/Polls.js'));
 const NotificationCentre = load(() => import('./modules/NotificationCentre.js'));
@@ -151,6 +152,10 @@ function AppRoutes(): JSX.Element {
   return (
     <AppLockGate>
       <Routes>
+        {/* Outside <Layout> on purpose: the full viewport is the messaging
+            interface here, not a page inside the standard shell. */}
+        <Route path="chat" element={<Chat />} />
+        <Route path="chat/:kind/:threadId" element={<Chat />} />
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="quick-front" element={<SystemOnly><QuickFront /></SystemOnly>} />

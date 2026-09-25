@@ -188,7 +188,10 @@ export function useChatThreads(kind: ChatKind): {
         const result = await api.get<{ conversations: Record<string, unknown>[]; requests: Record<string, unknown>[] }>(
           '/api/messages/conversations',
         );
-        setThreads(result.conversations.map(dmThreadSummary));
+        // Archived is a real state a conversation can be in, not a filter
+        // the list endpoint applies — same as system chat already does for
+        // its own archived threads, kept out here rather than in the UI.
+        setThreads(result.conversations.filter((c) => c['state'] !== 'archived').map(dmThreadSummary));
         setRequests(result.requests.map(dmThreadSummary));
       } else {
         const result = await api.get<{ threads: Record<string, unknown>[] }>('/api/system/chat/threads');
@@ -253,6 +256,7 @@ export function useChatConversation(
   react: (messageId: string, emoji: string) => Promise<void>;
   forward: (messageId: string, targetThreadIds: string[]) => Promise<void>;
   markRead: () => void;
+  refreshThread: () => Promise<void>;
 } {
   // `members` is a system-only collection: fetching it for a dm only makes
   // sense when the account actually has alters to send as, and doing it
@@ -565,6 +569,7 @@ export function useChatConversation(
     send,
     retry,
     react,
+    refreshThread: load,
     forward,
     markRead,
   };
