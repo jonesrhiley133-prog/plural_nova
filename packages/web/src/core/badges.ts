@@ -63,6 +63,7 @@ export function useBadges(): Badges {
       if (
         event.type === 'notification.new' ||
         event.type === 'message.new' ||
+        event.type === 'systemChat.new' ||
         event.type === 'friend.request' ||
         event.type === 'flux.activity'
       ) {

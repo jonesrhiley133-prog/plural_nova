@@ -147,6 +147,9 @@ jobs:
           PROPS
 
       - if: steps.signing.outputs.available == 'true'
+        name: Build
+        env:
+          PLURALNOVA_SERVER_URL: ${{ secrets.PLURALNOVA_SERVER_URL }}
         run: ./gradlew --no-daemon assembleRelease
         working-directory: android
 

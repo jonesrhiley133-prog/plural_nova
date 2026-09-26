@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './core/auth.js';
 import { api } from './core/api.js';
 import { DataProvider } from './core/data.js';
@@ -70,8 +70,6 @@ const Constellations = load(() => import('./modules/Constellations.js'));
 const ConstellationProfile = load(() => import('./modules/ConstellationProfile.js'));
 const Friends = load(() => import('./modules/Friends.js'));
 const Flux = load(() => import('./modules/Flux.js'));
-const Messages = load(() => import('./modules/Messages.js'));
-const SystemChat = load(() => import('./modules/SystemChat.js'));
 const Chat = load(() => import('./modules/Chat.js'));
 const Bulletin = load(() => import('./modules/Bulletin.js'));
 const Polls = load(() => import('./modules/Polls.js'));
@@ -110,6 +108,12 @@ function SystemOnly({ children }: { children: JSX.Element }): JSX.Element {
     return <Navigate to="/" replace state={{ blocked: location.pathname }} />;
   }
   return children;
+}
+
+/** Old /messages links — a bookmark, or a link inside a notification sent before the cutover — land on the same conversation in Chat instead of a dead page. */
+function MessagesRedirect(): JSX.Element {
+  const { threadId } = useParams<{ threadId?: string }>();
+  return <Navigate to={threadId ? `/chat/dm/${threadId}` : '/chat'} replace />;
 }
 
 function AppRoutes(): JSX.Element {
@@ -169,7 +173,7 @@ function AppRoutes(): JSX.Element {
           <Route path="system-history" element={<SystemOnly><SystemHistory /></SystemOnly>} />
           <Route path="relationships" element={<SystemOnly><Relationships /></SystemOnly>} />
           <Route path="headspace" element={<SystemOnly><Headspace /></SystemOnly>} />
-          <Route path="system-chat" element={<SystemOnly><SystemChat /></SystemOnly>} />
+          <Route path="system-chat" element={<Navigate to="/chat" replace />} />
           <Route path="bulletin" element={<SystemOnly><Bulletin /></SystemOnly>} />
           <Route path="polls" element={<SystemOnly><Polls /></SystemOnly>} />
 
@@ -201,8 +205,8 @@ function AppRoutes(): JSX.Element {
           <Route path="friends" element={<Friends />} />
           <Route path="flux" element={<Flux />} />
           <Route path="flux/:id" element={<Flux />} />
-          <Route path="messages" element={<Messages />} />
-          <Route path="messages/:threadId" element={<Messages />} />
+          <Route path="messages" element={<MessagesRedirect />} />
+          <Route path="messages/:threadId" element={<MessagesRedirect />} />
           <Route path="notifications" element={<NotificationCentre />} />
 
           <Route path="music" element={<Music />} />

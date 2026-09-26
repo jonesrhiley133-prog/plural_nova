@@ -34,7 +34,7 @@ describe('accessibility', () => {
     const { page } = session;
     const routes = [
       '', 'members', 'journal', 'tasks', 'calendar', 'settings/appearance',
-      'messages', 'flux', 'finances', 'more', 'search', 'notifications', 'vault', 'stats',
+      'chat', 'flux', 'finances', 'more', 'search', 'notifications', 'vault', 'stats',
     ];
     const broken = [];
 

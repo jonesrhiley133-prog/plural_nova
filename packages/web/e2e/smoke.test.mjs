@@ -94,4 +94,24 @@ describe('every screen', () => {
 
     assert.deepEqual(trapped, []);
   });
+
+  // Chat lives outside <Layout> on purpose (see App.tsx), so it has no
+  // #main-content or bottom nav for the checks above to find — it gets the
+  // same two guarantees here instead, against its own root.
+  it('chat opens with content and fits a 360px phone', async () => {
+    const { page } = session;
+
+    await page.goto(`${BASE}/chat`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(550);
+
+    const text = ((await page.locator('.chat-app').textContent().catch(() => '')) || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    assert.ok(text.length > 20, '/chat rendered almost nothing');
+
+    const slack = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    assert.ok(slack <= 1, `/chat is ${slack}px too wide`);
+  });
 });

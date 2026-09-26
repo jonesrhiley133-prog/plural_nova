@@ -61,7 +61,7 @@ const AREAS = [
     title: 'Internal',
     body: 'A {{system}}-only chat, a bulletin board for notices, and polls for decisions that affect everyone. None of it leaves the account.',
     items: ['{{System}} chat', 'Bulletin board', 'Polls'],
-    path: '/system-chat',
+    path: '/chat',
   },
   {
     icon: 'create' as const,

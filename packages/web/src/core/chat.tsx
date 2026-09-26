@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { newId, type StoredRecord } from '@pluralnova/shared';
+import { newId, type ChatAppearance, type StoredRecord } from '@pluralnova/shared';
 import { api, messageFor } from './api.js';
 import { realtime } from './realtime.js';
 import { useCollection } from './data.js';
@@ -692,6 +692,22 @@ export async function createSystemThread(input: {
 }): Promise<ChatThreadSummary> {
   const result = await api.post<{ thread: Record<string, unknown> }>('/api/system/chat/threads', input);
   return systemThreadSummary(result.thread);
+}
+
+/**
+ * The look this conversation actually renders with: its own `settings.appearance`
+ * where it has one, filled in from the account-wide default everywhere it doesn't.
+ * "Use for all conversations" only ever writes the account default (see
+ * `ChatInfoDialog`) — this is what makes an unstyled thread pick that up without
+ * a pass over every existing conversation.
+ */
+export function resolveChatAppearance(
+  accountDefault: ChatAppearance,
+  threadSettings: Record<string, unknown> | null | undefined,
+): ChatAppearance {
+  const override = threadSettings?.['appearance'];
+  if (!override || typeof override !== 'object') return accountDefault;
+  return { ...accountDefault, ...(override as Partial<ChatAppearance>) };
 }
 
 /** Pin, mute, archive and per-conversation appearance all go through this, for either kind. */

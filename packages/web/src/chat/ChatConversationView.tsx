@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { readableTextOn } from '@pluralnova/shared';
+import { useAuth } from '../core/auth.js';
 import { useCollection } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import {
+  resolveChatAppearance,
   useChatConversation,
   uploadChatAttachment,
   type ChatAttachment,
@@ -47,6 +50,7 @@ export function ChatConversationView({
 }: ChatConversationViewProps): JSX.Element {
   const dates = useDateFormat();
   const toast = useToast();
+  const { settings } = useAuth();
   const members = useCollection('members', { enabled: kind === 'system' });
   const conversation = useChatConversation(kind, threadId, viewerMemberId);
 
@@ -161,8 +165,17 @@ export function ChatConversationView({
   const thread = conversation.thread;
   const isGroupLike = thread?.subKind === 'group' || thread?.subKind === 'system';
 
+  const appearance = resolveChatAppearance(settings.chatAppearance, thread?.settings ?? null);
+  const appearanceStyle = {
+    ...(appearance.wallpaper ? { '--chat-wallpaper': appearance.wallpaper } : {}),
+    ...(appearance.bubbleMine
+      ? { '--chat-bubble-mine': appearance.bubbleMine, '--chat-bubble-mine-text': readableTextOn(appearance.bubbleMine) }
+      : {}),
+    ...(appearance.bubbleTheirs ? { '--chat-bubble-theirs': appearance.bubbleTheirs } : {}),
+  } as never;
+
   return (
-    <div className="chat-conversation">
+    <div className="chat-conversation" style={appearanceStyle} data-spacing={appearance.spacing}>
       <header className="chat-conversation__header">
         <IconButton icon="chevronLeft" label="Back to conversations" variant="ghost" className="chat-conversation__back" onClick={onBack} />
         {isGroupLike ? (

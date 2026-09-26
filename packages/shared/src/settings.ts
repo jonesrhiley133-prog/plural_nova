@@ -104,6 +104,30 @@ export interface AppLockSettings {
   lockOnBackground: boolean;
 }
 
+/**
+ * The account-wide default look for a conversation. A thread with its own
+ * `settings.appearance` (see the `conversations`/`systemChatThreads`
+ * collections) overrides this; a thread with none falls back to it — so
+ * "use for every conversation" is just writing the same object here, not a
+ * pass over every existing thread.
+ */
+export interface ChatAppearance {
+  /** Background behind the message list. Null means the theme's own background. */
+  wallpaper: string | null;
+  /** Null means the theme's accent, same as an unstyled bubble always used. */
+  bubbleMine: string | null;
+  /** Null means the theme's raised-surface colour. */
+  bubbleTheirs: string | null;
+  spacing: 'cozy' | 'compact';
+}
+
+export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
+  wallpaper: null,
+  bubbleMine: null,
+  bubbleTheirs: null,
+  spacing: 'cozy',
+};
+
 export interface AppSettings {
   mode: AppMode;
   theme: ThemeSettings;
@@ -119,6 +143,8 @@ export interface AppSettings {
   privacy: PrivacyDefaults;
   /** App-wide lock, separate from the vault and from per-alter profile PINs. */
   appLock: AppLockSettings;
+  /** Default conversation look, used by any thread without its own override. */
+  chatAppearance: ChatAppearance;
   /** Cuts animation, blur and background effects independently of the theme. */
   performanceMode: boolean;
   /** Skips the atmosphere layer on the login screen for low-end devices. */
@@ -176,6 +202,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
       autoLockMinutes: 5,
       lockOnBackground: true,
     },
+    chatAppearance: { ...DEFAULT_CHAT_APPEARANCE },
     performanceMode: false,
     lowEndLogin: false,
     achievementsEnabled: true,
@@ -235,6 +262,7 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
     quietHours: { ...base.quietHours, ...(stored.quietHours ?? {}) },
     privacy: { ...base.privacy, ...(stored.privacy ?? {}) },
     appLock: { ...base.appLock, ...(stored.appLock ?? {}) },
+    chatAppearance: { ...base.chatAppearance, ...(stored.chatAppearance ?? {}) },
     widgets: widgets.sort((a, b) => a.order - b.order),
     mobileTabs:
       Array.isArray(stored.mobileTabs) && stored.mobileTabs.length >= 3
