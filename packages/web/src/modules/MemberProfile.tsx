@@ -4,7 +4,7 @@ import { customFieldValues, formatDuration, type StoredRecord } from '@pluralnov
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
-import { FRONT_STATUS_META } from '../core/fronting.js';
+import { FRONT_STATUS_META, useFronting } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, FieldList, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
@@ -47,7 +47,9 @@ export default function MemberProfile(): JSX.Element {
 
   const member = useRecord('members', id);
   const { update, remove, loading } = useCollection('members');
+  const { start } = useFronting();
   const [tab, setTab] = useState<Tab>('overview');
+  const [quickFronting, setQuickFronting] = useState(false);
   const editor = useDialog();
   const confirm = useDialog();
 
@@ -81,6 +83,19 @@ export default function MemberProfile(): JSX.Element {
 
   const color = (member['color'] as string) || 'var(--accent)';
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
+  const alreadyFronting = member['frontStatus'] === 'fronting' || member['frontStatus'] === 'cofronting';
+
+  const quickFront = async (): Promise<void> => {
+    setQuickFronting(true);
+    try {
+      await start({ memberId: member.id, endOthers: false });
+      toast.success(`${String(member['name'])} ${term('is {{fronting}}')}`);
+    } catch (cause) {
+      toast.fromError(cause);
+    } finally {
+      setQuickFronting(false);
+    }
+  };
 
   const flagsVisible = member['flagDisplayEnabled'] !== false && attachedFlags.length > 0;
 
@@ -117,6 +132,13 @@ export default function MemberProfile(): JSX.Element {
                 </div>
               </div>
               <div className="row row--nowrap">
+                <IconButton
+                  icon="bolt"
+                  label={alreadyFronting ? term('Already {{fronting}}') : term('Quick {{front}}')}
+                  disabled={alreadyFronting}
+                  loading={quickFronting}
+                  onClick={() => void quickFront()}
+                />
                 <IconButton icon="edit" label="Edit profile" onClick={() => editor.show()} />
                 <IconButton
                   icon="trash"

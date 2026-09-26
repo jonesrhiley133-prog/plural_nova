@@ -397,6 +397,18 @@
   gap: var(--space-1);
 }
 
+/* A pair of fields side by side — a date next to its all-day toggle, a start
+ * time next to an end time — rather than each claiming a full-width row. */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.field-row .field {
+  margin-bottom: 0;
+}
+
 /*
  * A rating, not a badge: the same outline star used everywhere else (a
  * favourite, a bookmark) rather than a one-off filled glyph, so "starred"

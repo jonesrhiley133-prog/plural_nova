@@ -157,6 +157,27 @@ function CurrentFrontWidget(): JSX.Element {
   const toast = useToast();
   const { state, loading, end, clear } = useFronting();
 
+  // Every currently fronting person, primary and co-fronters alike — a front
+  // event's own `member` is only who opened it, not everyone in it.
+  const people = useMemo(() => {
+    const seen = new Set<string>();
+    const list: { key: string; member: StoredRecord | null; minutes: number }[] = [];
+    for (const event of state.active) {
+      const key = event.member?.id ?? `unknown-${event.id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push({ key, member: event.member, minutes: event.minutes });
+      }
+      for (const co of event.coFronters) {
+        if (!seen.has(co.id)) {
+          seen.add(co.id);
+          list.push({ key: co.id, member: co, minutes: event.minutes });
+        }
+      }
+    }
+    return list;
+  }, [state.active]);
+
   return (
     <Card
       title={t('front.current')}
@@ -178,21 +199,21 @@ function CurrentFrontWidget(): JSX.Element {
       ) : (
         <div className="stack stack--tight">
           <div className="front-row">
-            {state.active.map((event) => (
-              <div key={event.id} className="front-person">
+            {people.map((person) => (
+              <div key={person.key} className="front-person">
                 <Avatar
-                  name={String(event.member?.['name'] ?? t('front.unknown'))}
-                  src={(event.member?.['avatarUrl'] as string) ?? null}
-                  color={(event.member?.['color'] as string) ?? null}
-                  icon={(event.member?.['icon'] as string) ?? null}
+                  name={String(person.member?.['name'] ?? t('front.unknown'))}
+                  src={(person.member?.['avatarUrl'] as string) ?? null}
+                  color={(person.member?.['color'] as string) ?? null}
+                  icon={(person.member?.['icon'] as string) ?? null}
                   size={58}
                   round
                   ring
                 />
                 <span className="front-person__name">
-                  {String(event.member?.['name'] ?? t('front.unknown'))}
+                  {String(person.member?.['name'] ?? t('front.unknown'))}
                 </span>
-                <span className="front-person__since">{formatDuration(event.minutes)}</span>
+                <span className="front-person__since">{formatDuration(person.minutes)}</span>
               </div>
             ))}
           </div>

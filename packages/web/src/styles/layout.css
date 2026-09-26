@@ -455,6 +455,24 @@
   }
 }
 
+/* ── Calendar: birthdays beside the grid on desktop, a tab below it ──────── */
+
+.calendar-mobile-tabs {
+  margin-bottom: var(--space-4);
+}
+
+@media (min-width: 1000px) {
+  .calendar-mobile-tabs {
+    display: none;
+  }
+}
+
+@media (max-width: 999px) {
+  .calendar-mobile-hidden {
+    display: none;
+  }
+}
+
 /* ── Story workspace: chapter rail, editor, story info ─────────────────── */
 
 .story-workspace {
