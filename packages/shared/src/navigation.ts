@@ -63,7 +63,6 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'fronting', path: '/fronting', label: 'Fronting', icon: 'front', systemOnly: true, keywords: ['front tracker', 'timeline'] },
       { id: 'stats', path: '/stats', label: 'Stats', icon: 'stats', systemOnly: true, keywords: ['analytics', 'charts'] },
       { id: 'journal', path: '/journal', label: 'Journal', icon: 'journal', primary: true, quickAction: true },
-      { id: 'system-chat', path: '/system-chat', label: 'System chat', icon: 'chat', systemOnly: true },
       { id: 'bulletin', path: '/bulletin', label: 'Bulletin board', icon: 'bulletin', systemOnly: true },
       { id: 'polls', path: '/polls', label: 'Polls', icon: 'poll', systemOnly: true, quickAction: true },
       { id: 'relationships', path: '/relationships', label: 'Relationships', icon: 'relationship', systemOnly: true },
@@ -104,7 +103,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'constellations', path: '/constellations', label: 'Constellations', icon: 'constellation' },
       { id: 'friends', path: '/friends', label: 'Friends', icon: 'friend', badge: 'friendRequests' },
       { id: 'flux', path: '/flux', label: 'Flux', icon: 'flux', primary: true, badge: 'flux' },
-      { id: 'messages', path: '/messages', label: 'Messages', icon: 'message', primary: true, badge: 'messages' },
+      { id: 'chat', path: '/chat', label: 'Chat', icon: 'message', primary: true, badge: 'messages', keywords: ['messages', 'system chat', 'dm'] },
     ],
   },
   {

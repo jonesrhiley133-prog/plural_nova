@@ -77,7 +77,7 @@ describe('messaging between two systems', () => {
     await aurora.page.waitForTimeout(1200);
 
     const positions = async (page) => {
-      const text = await page.locator('#main-content').textContent();
+      const text = await page.locator('.chat-conversation__messages').textContent();
       return SENT.map((line) => text.indexOf(line));
     };
 
@@ -85,8 +85,12 @@ describe('messaging between two systems', () => {
     assert.ok(sender.every((at) => at >= 0), 'the sender cannot see what they sent');
     assert.ok(sender[0] < sender[1] && sender[1] < sender[2], 'the sender sees them newest first');
 
-    await beacon.page.goto(`${BASE}/messages`, { waitUntil: 'networkidle' });
+    await beacon.page.goto(`${BASE}/chat`, { waitUntil: 'networkidle' });
     await beacon.page.waitForTimeout(1500);
+    // Beacon is a System Mode account, so Chat Home opens on the System tab —
+    // a dm from Aurora is on the Direct tab.
+    await beacon.page.getByRole('tab', { name: /direct/i }).click();
+    await beacon.page.waitForTimeout(500);
     const thread = beacon.page.getByRole('button', { name: /Aurora/i }).first();
     if (await thread.count()) {
       await thread.click();
@@ -122,7 +126,7 @@ describe('messaging between two systems', () => {
   });
 
   it('shows a padlock on every message, and decrypts them for the reader', async () => {
-    const body = await beacon.page.locator('#main-content').textContent();
+    const body = await beacon.page.locator('.chat-conversation__messages').textContent();
     for (const line of SENT) assert.ok(body.includes(line), `"${line}" did not decrypt`);
 
     const padlocks = await beacon.page.locator('[aria-label="Encrypted"]').count();
@@ -138,7 +142,7 @@ describe('messaging between two systems', () => {
 
     // No navigation on Aurora's side: this has to arrive over the socket.
     await aurora.page.waitForTimeout(3000);
-    const body = await aurora.page.locator('#main-content').textContent();
+    const body = await aurora.page.locator('.chat-conversation__messages').textContent();
     assert.match(body, /and this is my reply/, 'the reply never arrived live');
   });
 });

@@ -3,8 +3,18 @@ import { requireCollection } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { auth, requireAuth } from '../auth/middleware.js';
 import { getDb } from '../db/index.js';
-import { deserialize } from '../db/repository.js';
+import { deserialize, listRecords } from '../db/repository.js';
 import { markAllRead, markRead, unreadByCategory, unreadCount } from '../services/notifications.js';
+
+/** How many system chat threads have a message since they were last read — same "unread" test the thread list itself uses. */
+function unreadSystemChatThreads(userId: string, systemId: string | null): number {
+  if (!systemId) return 0;
+  return listRecords('systemChatThreads', { userId, systemId }, { limit: 200 }).items.filter(
+    (thread) =>
+      thread['lastMessageAt'] &&
+      (!thread['lastReadAt'] || (thread['lastReadAt'] as string) < (thread['lastMessageAt'] as string)),
+  ).length;
+}
 
 export const notificationsRouter: Router = Router();
 notificationsRouter.use(requireAuth);
@@ -41,13 +51,17 @@ notificationsRouter.get(
   handler((req, res) => {
     const context = auth(req);
     const db = getDb();
-    const messages = (
+    const dmMessages = (
       db
         .prepare(
           'SELECT COALESCE(SUM("unreadCount"), 0) AS n FROM "conversations" WHERE "userId" = ? AND "deletedAt" IS NULL',
         )
         .get(context.user.id) as { n: number }
     ).n;
+    // One combined "chat" badge for both dm and system chat, since they are
+    // one nav destination now — a thread counts once here, same as a dm
+    // conversation's own unreadCount already treats "unread" as per-thread.
+    const messages = dmMessages + unreadSystemChatThreads(context.scope.userId, context.scope.systemId);
     const friendRequests = (
       db
         .prepare(

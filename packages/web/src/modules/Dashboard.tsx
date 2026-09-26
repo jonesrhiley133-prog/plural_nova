@@ -644,7 +644,7 @@ function MessagesWidget(): JSX.Element {
     <Card
       title="Messages"
       actions={
-        <Button variant="ghost" size="sm" onClick={() => navigate('/messages')}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/chat')}>
           Open
         </Button>
       }
@@ -662,7 +662,7 @@ function MessagesWidget(): JSX.Element {
               key={conversation.threadId}
               title={conversation.counterpart.displayName}
               trailing={conversation.unreadCount > 0 ? <Chip accent>{conversation.unreadCount}</Chip> : null}
-              onClick={() => navigate(`/messages/${conversation.threadId}`)}
+              onClick={() => navigate(`/chat/dm/${conversation.threadId}`)}
             />
           ))}
         </div>
