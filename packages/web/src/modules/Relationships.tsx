@@ -114,6 +114,61 @@ function optionsFor(
   return options;
 }
 
+/**
+ * A proposed pairing, shown before anything is saved.
+ *
+ * `locked` survives a shuffle; `key` is the unordered pair so a shuffle can
+ * tell "already spoken for" (an existing relationship, or another proposal in
+ * this same batch) from a pair that's still fair game.
+ */
+interface RelationshipProposal {
+  key: string;
+  from: StoredRecord;
+  to: StoredRecord;
+  template: RelationshipTemplate;
+  locked: boolean;
+}
+
+function pairKey(a: StoredRecord, b: StoredRecord): string {
+  return [a.id, b.id].sort().join('|');
+}
+
+function proposeFor(a: StoredRecord, b: StoredRecord): RelationshipProposal | null {
+  const options = optionsFor(ageBand(a['age']), ageBand(b['age']));
+  if (options.length === 0) return null;
+  const choice = options[Math.floor(Math.random() * options.length)]!;
+  const [from, to] = choice.aIsFrom ? [a, b] : [b, a];
+  return { key: pairKey(a, b), from, to, template: choice.template, locked: false };
+}
+
+/** Tops `keep` (locked proposals a reshuffle must not touch) up to `count`, from pairs neither already related nor already proposed. */
+function buildRelationshipBatch(
+  people: StoredRecord[],
+  alreadyRelated: Set<string>,
+  keep: RelationshipProposal[],
+  count: number,
+): RelationshipProposal[] {
+  const spokenFor = new Set([...alreadyRelated, ...keep.map((p) => p.key)]);
+  const candidates: [StoredRecord, StoredRecord][] = [];
+  for (let i = 0; i < people.length; i += 1) {
+    for (let j = i + 1; j < people.length; j += 1) {
+      if (!spokenFor.has(pairKey(people[i]!, people[j]!))) candidates.push([people[i]!, people[j]!]);
+    }
+  }
+  for (let i = candidates.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j]!, candidates[i]!];
+  }
+
+  const fresh: RelationshipProposal[] = [];
+  for (const [a, b] of candidates) {
+    if (keep.length + fresh.length >= count) break;
+    const proposal = proposeFor(a, b);
+    if (proposal) fresh.push(proposal);
+  }
+  return [...keep, ...fresh];
+}
+
 export default function Relationships(): JSX.Element {
   const { t, term } = useI18n();
   const toast = useToast();
@@ -125,57 +180,82 @@ export default function Relationships(): JSX.Element {
   const [focus, setFocus] = useState<string | null>(null);
   const editor = useDialog<StoredRecord>();
   const confirm = useDialog<StoredRecord>();
-  const randomDialog = useDialog();
+  const [proposals, setProposals] = useState<RelationshipProposal[] | null>(null);
+  const [applying, setApplying] = useState(false);
   const [creating, setCreating] = useState(false);
   const svg = useRef<SVGSVGElement>(null);
 
   const randomCount = Math.min(8, Math.max(0, Math.round([...members.values()].length * 0.75)));
 
-  // Left to throw: ConfirmDialog shows the failure inline and keeps itself
-  // open, which matters here since a partial run should not look finished.
-  const generateRandom = async (): Promise<void> => {
-    const people = [...members.values()];
-    const already = new Set(
+  const alreadyRelatedPairs = (): Set<string> =>
+    new Set(
       relationships.items
         .filter((r) => r['fromType'] === 'member' && r['toType'] === 'member')
         .map((r) => [String(r['fromId']), String(r['toId'])].sort().join('|')),
     );
 
-    const candidates: [StoredRecord, StoredRecord][] = [];
-    for (let i = 0; i < people.length; i += 1) {
-      for (let j = i + 1; j < people.length; j += 1) {
-        const key = [people[i]!.id, people[j]!.id].sort().join('|');
-        if (!already.has(key)) candidates.push([people[i]!, people[j]!]);
-      }
-    }
-    for (let i = candidates.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [candidates[i], candidates[j]] = [candidates[j]!, candidates[i]!];
-    }
+  const openRandomizer = (): void => {
+    setProposals(buildRelationshipBatch([...members.values()], alreadyRelatedPairs(), [], randomCount));
+  };
 
-    let created = 0;
-    for (const [a, b] of candidates.slice(0, randomCount)) {
-      const options = optionsFor(ageBand(a['age']), ageBand(b['age']));
-      if (options.length === 0) continue;
-      const choice = options[Math.floor(Math.random() * options.length)]!;
-      const [from, to] = choice.aIsFrom ? [a, b] : [b, a];
-      await relationships.create({
-        fromType: 'member',
-        fromId: from.id,
-        toType: 'member',
-        toId: to.id,
-        label: choice.template.label,
-        reverseLabel: choice.template.reverseLabel ?? choice.template.label,
-        strength: choice.template.strength,
-        mutual: !choice.template.reverseLabel,
-        showOnMap: true,
-      });
-      created += 1;
-    }
-    toast.success(
-      created > 0 ? `Added ${created} relationship${created === 1 ? '' : 's'}` : 'Nothing to add',
-      created === 0 ? 'Everyone who could be paired already has a recorded relationship.' : undefined,
+  const shuffleProposals = (): void => {
+    setProposals((current) =>
+      buildRelationshipBatch(
+        [...members.values()],
+        alreadyRelatedPairs(),
+        (current ?? []).filter((p) => p.locked),
+        randomCount,
+      ),
     );
+  };
+
+  const toggleLock = (key: string): void => {
+    setProposals((current) => (current ?? []).map((p) => (p.key === key ? { ...p, locked: !p.locked } : p)));
+  };
+
+  const removeProposal = (key: string): void => {
+    setProposals((current) => (current ?? []).filter((p) => p.key !== key));
+  };
+
+  const applyProposals = async (): Promise<void> => {
+    const batch = proposals ?? [];
+    if (batch.length === 0) return;
+    setApplying(true);
+    try {
+      const created = await Promise.all(
+        batch.map((p) =>
+          relationships.create({
+            fromType: 'member',
+            fromId: p.from.id,
+            toType: 'member',
+            toId: p.to.id,
+            label: p.template.label,
+            reverseLabel: p.template.reverseLabel ?? p.template.label,
+            strength: p.template.strength,
+            mutual: !p.template.reverseLabel,
+            showOnMap: true,
+          }),
+        ),
+      );
+      setProposals(null);
+      const createdIds = created.map((record) => record.id);
+      toast.show({
+        tone: 'success',
+        title: `Added ${createdIds.length} relationship${createdIds.length === 1 ? '' : 's'}`,
+        action: {
+          label: 'Undo',
+          run: () => {
+            void Promise.all(createdIds.map((id) => relationships.remove(id))).catch((cause: unknown) =>
+              toast.fromError(cause, 'Could not undo all of them'),
+            );
+          },
+        },
+      });
+    } catch (cause) {
+      toast.fromError(cause, 'Some relationships did not save');
+    } finally {
+      setApplying(false);
+    }
   };
 
   const nodes = useMemo(() => {
@@ -229,7 +309,7 @@ export default function Relationships(): JSX.Element {
               ]}
             />
             {[...members.values()].length >= 2 ? (
-              <Button variant="secondary" icon="refresh" onClick={() => randomDialog.show()}>
+              <Button variant="secondary" icon="refresh" onClick={openRandomizer}>
                 Generate random relationships
               </Button>
             ) : null}
@@ -240,16 +320,69 @@ export default function Relationships(): JSX.Element {
         }
       />
 
-      <ConfirmDialog
-        open={randomDialog.open}
-        onClose={randomDialog.hide}
-        title="Generate random relationships?"
-        body={`Fills in up to ${randomCount} relationship${randomCount === 1 ? '' : 's'} between ${term('{{members}}')} who don't have one yet, choosing a type that fits their ages. Nothing already recorded is changed, and anything added can be edited or deleted afterward.`}
-        confirmLabel="Generate"
-        tone="primary"
-        recoverable
-        onConfirm={generateRandom}
-      />
+      <Dialog
+        open={proposals !== null}
+        onClose={() => setProposals(null)}
+        title="Random relationships"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setProposals(null)} disabled={applying}>
+              Cancel
+            </Button>
+            <Button variant="secondary" icon="refresh" onClick={shuffleProposals} disabled={applying}>
+              Shuffle
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => void applyProposals()}
+              loading={applying}
+              disabled={(proposals ?? []).length === 0}
+            >
+              Add {(proposals ?? []).length} relationship{(proposals ?? []).length === 1 ? '' : 's'}
+            </Button>
+          </>
+        }
+      >
+        {proposals && proposals.length > 0 ? (
+          <>
+            <p className="small muted prose">
+              Nothing is saved yet. Lock the ones worth keeping, remove the rest, then shuffle for new
+              suggestions in their place.
+            </p>
+            <div className="list">
+              {proposals.map((p) => (
+                <div key={p.key} className="list-row">
+                  <span className="list-row__body">
+                    <span className="list-row__title">
+                      {String(p.from['name'])} <span className="faint">{p.template.label}</span> {String(p.to['name'])}
+                    </span>
+                  </span>
+                  <span className="list-row__trailing">
+                    <IconButton
+                      icon={p.locked ? 'lock' : 'unlock'}
+                      label={p.locked ? 'Unlock, so shuffling can replace this one' : 'Lock, so shuffling leaves this one alone'}
+                      variant={p.locked ? 'primary' : 'ghost'}
+                      size="sm"
+                      onClick={() => toggleLock(p.key)}
+                    />
+                    <IconButton
+                      icon="close"
+                      label="Remove this suggestion"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeProposal(p.key)}
+                    />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="small muted prose">
+            {term('Nobody is left to pair — everyone who could be matched already has a recorded relationship.')}
+          </p>
+        )}
+      </Dialog>
 
       {view === 'map' ? (
         <Card style={{ marginBottom: 'var(--space-4)' }}>
