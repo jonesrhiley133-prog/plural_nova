@@ -19,6 +19,7 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -249,6 +250,20 @@ class MainActivity : AppCompatActivity() {
                 // missing image is not, and the app is offline-capable anyway.
                 if (!request.isForMainFrame) return
                 showError(error.description?.toString())
+            }
+
+            override fun onReceivedHttpError(
+                view: WebView,
+                request: WebResourceRequest,
+                errorResponse: WebResourceResponse,
+            ) {
+                // A host that answers at all — a dead Railway subdomain serving its
+                // own "Not Found" page is the case that sent us looking for this —
+                // never reaches onReceivedError, since the connection succeeded.
+                // Without this, that page would just render as if it were the app,
+                // with no retry and no way to change the address.
+                if (!request.isForMainFrame) return
+                showError("it answered ${errorResponse.statusCode}")
             }
         }
 

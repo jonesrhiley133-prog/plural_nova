@@ -85,6 +85,12 @@ different versions of PluralNova.
   each having their own. Guessing one PIN too many times could have quietly
   eaten into the other's attempt budget. It now also keys on which router
   is handling the request.
+- The Android app's WebView only showed its "Cannot reach PluralNova" screen
+  for a connection failure — DNS, refused, timed out. A host that answers
+  with an HTTP error, such as a deleted or misrouted Railway domain serving
+  its own "Not Found" page, loaded that page as if it were the app, with no
+  retry and no way to change the address. Now treated the same as any other
+  failure to reach the server.
 
 ## [1.0.14] — 2026-09-24
 
