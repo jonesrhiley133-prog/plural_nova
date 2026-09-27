@@ -56,7 +56,6 @@ export function ChatConversationView({
 
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
-  const [asMemberId, setAsMemberId] = useState<string | null>(viewerMemberId);
   const [infoOpen, setInfoOpen] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -70,7 +69,6 @@ export function ChatConversationView({
   const userScrolledUp = useRef(false);
 
   useEffect(() => {
-    setAsMemberId(viewerMemberId);
     setReplyTo(null);
     setDraft('');
     setPendingAttachments([]);
@@ -103,7 +101,7 @@ export function ChatConversationView({
     setDraft('');
     const attachments = pendingAttachments;
     setPendingAttachments([]);
-    const options = { replyToId: replyTo?.id ?? null, asMemberId, attachments };
+    const options = { replyToId: replyTo?.id ?? null, attachments };
     setReplyTo(null);
     await conversation.send(text, options);
   };
@@ -126,7 +124,7 @@ export function ChatConversationView({
   const sendVoiceMessage = async (blob: Blob): Promise<void> => {
     try {
       const attachment = await uploadChatAttachment(blob, `voice-message.${blob.type.includes('mp4') ? 'm4a' : 'webm'}`);
-      await conversation.send('', { replyToId: replyTo?.id ?? null, asMemberId, attachments: [attachment] });
+      await conversation.send('', { replyToId: replyTo?.id ?? null, attachments: [attachment] });
       setReplyTo(null);
     } catch (cause) {
       toast.fromError(cause, 'That voice message did not send');
@@ -348,7 +346,7 @@ export function ChatConversationView({
       )}
 
       {kind === 'system' ? (
-        <SendAsStrip members={members.items} value={asMemberId} onChange={setAsMemberId} />
+        <SendAsStrip members={members.items} value={conversation.activeChatterId} onChange={conversation.setActiveChatterId} />
       ) : null}
 
       {thread ? (

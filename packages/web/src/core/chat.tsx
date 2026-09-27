@@ -142,6 +142,18 @@ function toAttachments(raw: unknown): ChatAttachment[] {
     .filter((attachment) => attachment.url);
 }
 
+/**
+ * Oldest first, by the moment the server (or an optimistic send) actually
+ * recorded it — never by array/fetch order, which a reload or a realtime
+ * event racing another can silently reshuffle. `sequence` only breaks a tie:
+ * an optimistic message always carries the same `sentAt` precision as its
+ * eventual confirmation, but sorts last among equals until that arrives.
+ */
+function compareBySentAt(a: ChatMessage, b: ChatMessage): number {
+  const bySentAt = Date.parse(a.sentAt) - Date.parse(b.sentAt);
+  return bySentAt !== 0 ? bySentAt : a.sequence - b.sequence;
+}
+
 function toForwardedFrom(raw: unknown): ChatForwardInfo | null {
   if (!raw || typeof raw !== 'object') return null;
   const value = raw as Record<string, unknown>;
@@ -264,21 +276,29 @@ interface ConversationState {
   /** True once this account's key is loaded and the other side's is known — dm only. */
   encryptionReady: boolean;
   cryptoSupported: boolean;
+  /**
+   * Who "mine" means right now, system-chat side: whichever alter is
+   * currently chosen to send as. Every message's own `isMine` is judged
+   * against this, recomputed on every render — never cached on the message
+   * itself — so switching it re-classifies the whole conversation instead of
+   * only the next message sent.
+   */
+  activeChatterId: string | null;
 }
 
 export interface SendOptions {
   replyToId?: string | null;
   forwardedFrom?: ChatForwardInfo | null;
   attachments?: ChatAttachment[];
-  /** Which alter this message is from — overrides the conversation's default for dm, and is the sender for system. */
-  asMemberId?: string | null;
 }
 
 /**
  * One open conversation: loading, live updates, sending (with the DM side
  * sealed end-to-end when both keys are known), reacting and forwarding.
- * `viewerMemberId` is who "mine" means for a system thread, since — unlike a
- * dm — there is no second account to tell the sides apart.
+ * `viewerMemberId` seeds `activeChatterId` — who "mine" means for a system
+ * thread, since, unlike a dm, there is no second account to tell the sides
+ * apart — and it resets there again on opening a different thread, but the
+ * composer's "send as" strip can move it away in between.
  */
 export function useChatConversation(
   kind: ChatKind,
@@ -292,6 +312,7 @@ export function useChatConversation(
   remove: (messageId: string) => Promise<void>;
   markRead: () => void;
   refreshThread: () => Promise<void>;
+  setActiveChatterId: (memberId: string | null) => void;
 } {
   // `members` is a system-only collection: fetching it for a dm only makes
   // sense when the account actually has alters to send as, and doing it
@@ -306,6 +327,15 @@ export function useChatConversation(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+
+  // Defaults to the account's active member, but is its own state rather than
+  // a derived value: picking someone else to send as (the composer's "send
+  // as" strip) has to override it for as long as this thread stays open,
+  // without that choice leaking into the next thread visited.
+  const [activeChatterId, setActiveChatterId] = useState<string | null>(viewerMemberId);
+  useEffect(() => {
+    setActiveChatterId(viewerMemberId);
+  }, [threadId, viewerMemberId]);
 
   const [keyPair, setKeyPair] = useState<KeyPairRecord | null>(null);
   const [theirKey, setTheirKey] = useState<JsonWebKey | null>(null);
@@ -327,7 +357,7 @@ export function useChatConversation(
     (raw: Record<string, unknown>, currentThread: ChatThreadSummary | null): ChatMessage => {
       const senderMemberId = (raw['senderMemberId'] ?? raw['memberId']) as string | null;
       const isMine =
-        kind === 'dm' ? raw['isMine'] === true : Boolean(viewerMemberId) && senderMemberId === viewerMemberId;
+        kind === 'dm' ? raw['isMine'] === true : Boolean(activeChatterId) && senderMemberId === activeChatterId;
       const sender: ChatPerson | null =
         kind === 'dm'
           ? (raw['asMember'] as Record<string, unknown> | null)
@@ -351,7 +381,7 @@ export function useChatConversation(
         clientId: (raw['clientId'] as string) ?? undefined,
       };
     },
-    [kind, threadId, memberFor, viewerMemberId],
+    [kind, threadId, memberFor, activeChatterId],
   );
 
   const load = useCallback(async () => {
@@ -384,7 +414,7 @@ export function useChatConversation(
     const list = rawMessages.map((message) => normalize(message, thread));
     const confirmedClientIds = new Set(list.map((message) => message.clientId).filter(Boolean));
     const stillPending = pending.filter((message) => !confirmedClientIds.has(message.clientId));
-    return [...list, ...stillPending];
+    return [...list, ...stillPending].sort(compareBySentAt);
   })();
 
   // Confirmed optimistic sends are only ever hidden by the filter above, not
@@ -492,7 +522,7 @@ export function useChatConversation(
         body,
         sentAt: new Date().toISOString(),
         isMine: true,
-        sender: memberFor(options.asMemberId ?? viewerMemberId),
+        sender: memberFor(activeChatterId),
         replyToId: options.replyToId ?? null,
         reactions: {},
         attachments: options.attachments ?? [],
@@ -526,13 +556,13 @@ export function useChatConversation(
             // promise of privacy the file itself does not keep.
             attachments: options.attachments ?? [],
             forwardedFrom: options.forwardedFrom ?? null,
-            ...(options.asMemberId !== undefined ? { asMemberId: options.asMemberId } : {}),
+            asMemberId: activeChatterId,
           });
         } else {
           await api.post(`/api/system/chat/threads/${threadId}/messages`, {
             body,
             clientId,
-            memberId: options.asMemberId ?? viewerMemberId,
+            memberId: activeChatterId,
             replyToId: options.replyToId ?? null,
             attachmentIds: (options.attachments ?? []).map((attachment) => attachment.id),
             forwardedFrom: options.forwardedFrom ?? null,
@@ -547,7 +577,7 @@ export function useChatConversation(
         setSending(false);
       }
     },
-    [kind, threadId, keyPair, theirKey, viewerMemberId, memberFor, load],
+    [kind, threadId, keyPair, theirKey, activeChatterId, memberFor, load],
   );
 
   const retry = useCallback(
@@ -638,6 +668,8 @@ export function useChatConversation(
     sending,
     encryptionReady: kind === 'dm' ? Boolean(keyPair && theirKey) : true,
     cryptoSupported: kind === 'dm' ? cryptoAvailable() : true,
+    activeChatterId,
+    setActiveChatterId,
     send,
     retry,
     react,
