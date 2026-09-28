@@ -140,6 +140,8 @@ export interface AppSettings {
   locale: string;
   notifications: Record<NotificationCategory, NotificationChannelPrefs>;
   notificationsEnabled: boolean;
+  /** Master switch for the in-app notification centre and its badge, independent of push/foreground. */
+  inAppNotificationsEnabled: boolean;
   quietHours: { enabled: boolean; from: string; to: string };
   widgets: WidgetSetting[];
   mobileTabs: string[];
@@ -193,6 +195,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     locale: 'en',
     notifications: defaultNotificationPrefs(),
     notificationsEnabled: true,
+    inAppNotificationsEnabled: true,
     quietHours: { enabled: false, from: '22:00', to: '07:00' },
     widgets: defaultWidgets(mode),
     mobileTabs: [...(mode === 'system' ? DEFAULT_MOBILE_TABS : DEFAULT_SINGLET_TABS)],
@@ -289,6 +292,7 @@ export function notificationAllowed(
   at: Date = new Date(),
 ): boolean {
   if (!settings.notificationsEnabled && channel !== 'inApp') return false;
+  if (!settings.inAppNotificationsEnabled && (channel === 'inApp' || channel === 'badge')) return false;
   const prefs = settings.notifications[category];
   if (!prefs?.[channel]) return false;
   if (channel === 'inApp' || channel === 'badge') return true;

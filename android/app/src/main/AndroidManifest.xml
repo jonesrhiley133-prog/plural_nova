@@ -39,6 +39,20 @@
             android:windowSoftInputMode="adjustResize" />
 
         <!--
+          Only ever reachable when a Firebase project is configured (see
+          app/build.gradle.kts) and Firebase's own auto-init has something to
+          hand it. Declaring it unconditionally here is harmless either way —
+          with no google-services.json, nothing ever calls it.
+        -->
+        <service
+            android:name=".PushMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!--
           The package installer is another process, so a downloaded update is
           passed to it as a content:// URI scoped to the update folder rather
           than as a file path it has no permission to read.

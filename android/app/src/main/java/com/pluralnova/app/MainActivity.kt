@@ -15,6 +15,7 @@ import android.view.View
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
+import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -29,6 +30,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
+import com.google.android.gms.tasks.Tasks
+import com.google.firebase.messaging.FirebaseMessaging
 import com.pluralnova.app.databinding.ActivityMainBinding
 import java.net.URL
 import java.util.concurrent.Executors
@@ -124,10 +127,24 @@ class MainActivity : AppCompatActivity() {
         if (savedInstanceState != null) {
             binding.webView.restoreState(savedInstanceState)
         } else {
-            load()
+            load(intent.getStringExtra(EXTRA_LINK))
         }
 
         checkForUpdate()
+    }
+
+    /**
+     * A tapped notification while the app is already running — `singleTask`
+     * routes it here instead of a fresh `onCreate`. A plain re-launch (no
+     * link extra) leaves the page exactly as it was; only a real deep link
+     * navigates it, and never on a configuration-change recreation, which
+     * redelivers the same intent `onCreate` already handled once.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val link = intent.getStringExtra(EXTRA_LINK) ?: return
+        if (::binding.isInitialized) load(link)
     }
 
     // ----------------------------------------------------------- updating
@@ -230,6 +247,10 @@ class MainActivity : AppCompatActivity() {
 
         webView.setBackgroundColor(getColor(R.color.app_background))
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
+        // The one thing a bare WebView cannot give the page for free: there is
+        // no Web Push service behind it, so this is how it reaches Firebase
+        // Cloud Messaging instead. See core/push.ts on the web side.
+        webView.addJavascriptInterface(WebAppBridge(), "PluralNovaAndroid")
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -318,10 +339,11 @@ class MainActivity : AppCompatActivity() {
         return uri.host == ours.host && (uri.port == ours.port || uri.port == -1)
     }
 
-    private fun load() {
+    /** `path`, when given, is an in-app route like "/fronting" from a notification tap. */
+    private fun load(path: String? = null) {
         binding.error.visibility = View.GONE
         binding.webView.visibility = View.VISIBLE
-        binding.webView.loadUrl(serverUrl)
+        binding.webView.loadUrl(serverUrl + (path ?: ""))
     }
 
     private fun showError(detail: String?) {
@@ -352,5 +374,46 @@ class MainActivity : AppCompatActivity() {
         downloadWatcher = null
         worker.shutdownNow()
         super.onDestroy()
+    }
+
+    /**
+     * What core/push.ts reaches into the app for, as `window.PluralNovaAndroid`.
+     * Kept to just the one thing a WebView cannot do on its own: everything
+     * else the page already handles itself.
+     *
+     * WebView calls every `@JavascriptInterface` method off the UI thread, which
+     * is what makes the blocking `Tasks.await` calls below safe rather than a
+     * frozen page — this is the documented, standard way to bridge an
+     * inherently asynchronous native API back to JS as a plain return value.
+     */
+    private inner class WebAppBridge {
+
+        @JavascriptInterface
+        fun getFcmToken(): String = try {
+            Tasks.await(FirebaseMessaging.getInstance().token)
+        } catch (error: Exception) {
+            // No google-services.json, no network, or no Play Services on this
+            // device — any of these just leave native push unavailable here.
+            ""
+        }
+
+        @JavascriptInterface
+        fun deleteFcmToken() {
+            runCatching { Tasks.await(FirebaseMessaging.getInstance().deleteToken()) }
+        }
+
+        @JavascriptInterface
+        fun notificationsAllowed(): Boolean {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        }
+    }
+
+    companion object {
+        /** Intent extra a notification tap carries: an in-app route to open, like "/fronting". */
+        const val EXTRA_LINK = "link"
     }
 }

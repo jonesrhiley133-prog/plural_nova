@@ -12,6 +12,21 @@ different versions of PluralNova.
 
 ### Added
 
+- **Push notifications now work on the native Android app, not just in a
+  browser.** A plain WebView has no Web Push service behind it, so the app
+  talks to Firebase Cloud Messaging instead — entirely optional, and off
+  until a self-hoster sets up a Firebase project (see the Push notifications
+  section of `android/README.md`). With nothing configured, the app works
+  exactly as it did before; with it configured, turning on notifications in
+  Settings on the phone registers this device the same way a browser
+  subscription does, and tapping a notification opens the app to whatever it
+  was about. Web Push in a browser, or a PWA installed from Chrome, is
+  unaffected either way.
+- **A separate switch to turn notifications inside the app off, distinct
+  from push.** Settings → Notifications → Globally now has two independent
+  switches: one for notifications outside the app (push, as before) and a
+  new one for the notification centre and its badge count. Turning either
+  off leaves the other exactly as it was.
 - **A real numeric keypad on the app lock screen.** PIN entry now works the
   way a phone's own lock screen does — digit dots and a tappable 0-9 grid
   with a backspace key — instead of typing into a text field. A physical
@@ -143,6 +158,13 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Turning off a notification category's "in app" checkbox silently also
+  stopped its push notifications, and turning off "push" silently also
+  stopped it appearing in the notification centre.** Settings presents all
+  four channels — in app, foreground, push, badge — as independent per
+  category, but the two were wired together so that disabling either one
+  disabled both. Each channel is now genuinely gated on only its own
+  checkbox.
 - **A wrong app-lock PIN attempt left the failed digits sitting in place.**
   Retrying after an error appended the correct PIN onto the rejected one
   instead of starting fresh, capping out at the maximum length before the

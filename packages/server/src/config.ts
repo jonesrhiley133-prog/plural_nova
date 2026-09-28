@@ -20,6 +20,7 @@ function envInt(name: string, fallback: number): number {
 }
 
 const dataDir = resolve(env('PLURALNOVA_DATA_DIR', './data'));
+const firebaseCredentialsEnv = env('PLURALNOVA_FIREBASE_CREDENTIALS', '');
 
 /**
  * The built client sits beside the server inside the monorepo, so its default
@@ -57,6 +58,12 @@ export const config = {
     process.env['NODE_ENV'] !== 'production' && env('PLURALNOVA_MAIL_FROM', '') === '',
   /** Contact address embedded in push subscriptions, per the web-push spec. */
   pushContact: env('PLURALNOVA_PUSH_CONTACT', 'mailto:notifications@pluralnova.app'),
+  /**
+   * Path to a Firebase service-account JSON key, only needed to reach native
+   * Android devices (browsers use Web Push and never touch this). Relative
+   * paths resolve inside the data dir; empty means FCM delivery is disabled.
+   */
+  firebaseCredentialsFile: firebaseCredentialsEnv ? resolve(dataDir, firebaseCredentialsEnv) : '',
 } as const;
 
 export function ensureDirectories(): void {

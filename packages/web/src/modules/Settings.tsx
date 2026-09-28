@@ -678,6 +678,14 @@ function Notifications(): JSX.Element {
           }}
         />
         <SwitchRow
+          label="Notifications inside the app"
+          hint="Off means nothing appears in the notification centre or its badge. Push notifications, if turned on above, still arrive."
+          checked={settings.inAppNotificationsEnabled}
+          onChange={(value) => {
+            update({ inAppNotificationsEnabled: value });
+          }}
+        />
+        <SwitchRow
           label="Quiet hours"
           hint="Holds push notifications overnight. They still arrive in the app."
           checked={settings.quietHours.enabled}

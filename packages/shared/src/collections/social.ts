@@ -292,6 +292,11 @@ export const devices: CollectionDef = {
     f.text('pushEndpoint', 'Push endpoint', { sensitive: true, maxLength: 2000 }),
     f.text('pushP256dh', 'Push key', { sensitive: true }),
     f.text('pushAuth', 'Push auth', { sensitive: true }),
+    f.text('fcmToken', 'FCM token', {
+      sensitive: true,
+      maxLength: 4096,
+      hint: 'Firebase Cloud Messaging token, used instead of a Web Push subscription on the native Android app.',
+    }),
     f.datetime('lastSeenAt', 'Last seen', { inList: true }),
     f.datetime('lastSyncAt', 'Last sync'),
     f.bool('pushEnabled', 'Push enabled', { defaultValue: true }),

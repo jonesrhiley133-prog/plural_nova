@@ -230,6 +230,11 @@ cd android
 Then Settings → About on the phone has a download link, and the app updates
 itself from your server after that.
 
+Notifications work over Web Push with no setup either way. Native push on the
+APK needs one more optional step, a Firebase project — see
+[Push notifications](../android/README.md#push-notifications) in the Android
+README.
+
 ---
 
 ## When something is wrong

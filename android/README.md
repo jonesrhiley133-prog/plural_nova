@@ -124,10 +124,44 @@ Generated from the same artwork as the web app's, so the two cannot drift:
 npm run icons:android -w @pluralnova/web
 ```
 
-## What is not here
+## Push notifications
 
-Push notifications. Web push does not work in a plain WebView — Android
-delivery needs Firebase Cloud Messaging, which means a Google project and a
-service account. In-app notifications work; the notification centre and badges
-are unaffected. Installing the PWA from Chrome gives you real push today, which
-is the reason to prefer it if push matters to you.
+Web push does not work in a plain WebView — there is no browser push service
+behind it — so this app talks to Firebase Cloud Messaging instead. That needs
+a Firebase project, which is a Google account only you can create; nothing
+here can do it for you. Skip this section entirely and the app still works
+exactly as described above, just without native push — in-app notifications,
+the notification centre and badges are unaffected either way, and turning
+push off entirely is its own setting under Settings → Notifications.
+
+Two pieces, both optional and independent of each other:
+
+**The app needs to know your Firebase project**, so a phone can obtain a
+token at all:
+
+1. Create a project at the [Firebase console](https://console.firebase.google.com)
+   (the free Spark plan is enough).
+2. Add an Android app to it with application ID `com.pluralnova.app`.
+3. Download the `google-services.json` it offers you and save it as
+   `android/app/google-services.json`. It is read at build time, gitignored,
+   and safe to keep only on your own machine — this repository never sees it.
+4. Build as usual. The build log says plainly whether it found the file or is
+   building without Firebase.
+
+**The server needs to be able to send to that project**, so pushes actually
+go out:
+
+1. In the Firebase console, go to Project Settings → Service Accounts →
+   Generate new private key. That downloads a second, different JSON file —
+   this one is a real secret, unlike the app's own `google-services.json`.
+2. Put it somewhere the server can read, e.g. `<data>/firebase-credentials.json`
+   next to the database.
+3. Set `PLURALNOVA_FIREBASE_CREDENTIALS` to that path (a relative path
+   resolves inside `PLURALNOVA_DATA_DIR`) and restart the server.
+
+With both in place, a phone that turns on notifications in Settings gets a
+real Android notification, tapping it opens the app to whatever it was about.
+Without either one, that same phone falls back to nothing rather than an
+error — Settings says notifications could not be set up, same as a browser
+that has push blocked. Web push for anyone using the site in a browser, or
+installed from Chrome, never depends on any of this.
