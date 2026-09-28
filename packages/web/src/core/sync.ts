@@ -38,6 +38,7 @@ export interface SyncStatus {
 type Listener = (status: SyncStatus) => void;
 
 const CURSOR_KEY = 'sync.cursor';
+const CONFLICTS_KEY = 'sync.conflicts';
 
 class SyncEngine {
   private status: SyncStatus = {
@@ -73,6 +74,17 @@ class SyncEngine {
   private update(patch: Partial<SyncStatus>): void {
     this.status = { ...this.status, ...patch };
     for (const listener of this.listeners) listener(this.status);
+    if (patch.conflicts) void setMeta(CONFLICTS_KEY, patch.conflicts);
+  }
+
+  /**
+   * Conflicts otherwise live only in memory, so a reload before the person
+   * notices one would lose the notification (not the data — the losing value
+   * is still in `lostFields` server-side history — just the prompt to keep it).
+   */
+  async restoreConflicts(): Promise<void> {
+    const saved = await getMeta<SyncConflict[]>(CONFLICTS_KEY);
+    if (saved && saved.length > 0) this.update({ conflicts: saved });
   }
 
   /** Records a change locally and schedules it for the server. */
@@ -171,6 +183,7 @@ class SyncEngine {
           op: operation.op,
           payload: operation.payload,
           baseVersion: operation.baseVersion,
+          queuedAt: operation.queuedAt,
         })),
       });
 
@@ -239,6 +252,8 @@ export const syncEngine = new SyncEngine();
 
 /** Wires the engine to connectivity and visibility changes. */
 export function startSyncWatchers(): () => void {
+  void syncEngine.restoreConflicts();
+
   const online = (): void => {
     syncEngine.schedule(200);
   };

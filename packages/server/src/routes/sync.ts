@@ -13,19 +13,25 @@ import {
   changedSince,
   createRecord,
   deleteRecord,
+  getFieldMeta,
   getRecord,
   updateRecord,
 } from '../db/repository.js';
 import { getDb } from '../db/index.js';
 import { publish } from '../realtime/hub.js';
+import { recordHistory } from '../services/history.js';
 
 /**
  * Delta sync.
  *
  * Pull asks "what changed since this timestamp" and push replays the client's
- * offline queue in order. Conflicts are surfaced, not resolved silently: when
- * both sides moved, the server's copy is returned alongside the rejection so
- * the client can show both and let the person decide.
+ * offline queue in order. A record moving on since the client's base is not by
+ * itself a conflict — only a field the server itself changed is, checked one
+ * field at a time against `fieldMeta` (see db/repository.ts), so two devices
+ * editing different fields of the same record both survive instead of one
+ * silently overwriting the other. A genuine same-field clash is settled by
+ * whichever edit actually happened later; the value that loses is kept in
+ * system history and handed back in `conflicts` rather than discarded.
  *
  * Deletes travel as rows with `deletedAt` set, so a device that was offline
  * learns that something was removed rather than resurrecting it on the next push.
@@ -76,6 +82,8 @@ interface PushOperation {
   op: 'upsert' | 'delete';
   payload: Record<string, unknown> | null;
   baseVersion: number;
+  /** When the client made this edit, for deciding a genuine same-field conflict. */
+  queuedAt?: string;
 }
 
 syncRouter.post(
@@ -130,21 +138,94 @@ syncRouter.post(
           continue;
         }
 
-        // The client edited an older copy than the one stored. Rather than
-        // overwriting, hand back the server's version so the UI can offer both.
-        if (operation.baseVersion > 0 && existing.version > operation.baseVersion) {
+        if (existing.deletedAt) {
+          // Someone removed this while the client was offline. There is
+          // nothing left to apply the edit to, and it must not come back just
+          // because an old local copy still has it.
           conflicts.push({
             operationId: operation.id,
             collection: operation.collection,
             recordId: operation.recordId,
             server: existing,
-            resolution: 'needs_review',
+            resolution: 'server_wins',
+            lostFields: operation.payload,
           });
           continue;
         }
 
-        updateRecord(operation.collection, context.scope, operation.recordId, operation.payload);
-        applied.push(operation.id);
+        // Nothing has moved since the client's base: the common case, and the
+        // cheapest — every field in the payload applies as sent.
+        if (operation.baseVersion === 0 || existing.version <= operation.baseVersion) {
+          updateRecord(operation.collection, context.scope, operation.recordId, operation.payload);
+          applied.push(operation.id);
+          continue;
+        }
+
+        // Something changed the record since the client's base, but that is
+        // not automatically a conflict: a different device editing a
+        // different field should not cost either edit. Only a field the
+        // server itself changed since that base is a real, same-field clash.
+        const fieldMeta = getFieldMeta(operation.collection, context.scope, operation.recordId);
+        const payloadFields = Object.keys(operation.payload);
+        const contested = payloadFields.filter((field) => {
+          const meta = fieldMeta[field];
+          return meta !== undefined && meta.v > operation.baseVersion;
+        });
+
+        if (contested.length === 0) {
+          updateRecord(operation.collection, context.scope, operation.recordId, operation.payload, {
+            fieldTimestamp: operation.queuedAt,
+          });
+          applied.push(operation.id);
+          continue;
+        }
+
+        // For each contested field the later edit wins; a field nobody else
+        // touched still merges in regardless of how the contested ones land.
+        const toApply: Record<string, unknown> = {};
+        const lost: Record<string, unknown> = {};
+        for (const field of payloadFields) {
+          const serverWhen = fieldMeta[field]?.t ?? existing.updatedAt;
+          const clientIsNewer = typeof operation.queuedAt === 'string' && operation.queuedAt > serverWhen;
+          if (!contested.includes(field) || clientIsNewer) toApply[field] = operation.payload[field];
+          else lost[field] = operation.payload[field];
+        }
+
+        const merged =
+          Object.keys(toApply).length > 0
+            ? updateRecord(operation.collection, context.scope, operation.recordId, toApply, {
+                fieldTimestamp: operation.queuedAt,
+              })
+            : existing;
+
+        if (Object.keys(lost).length === 0) {
+          applied.push(operation.id);
+          continue;
+        }
+
+        // The losing value is not gone: system history keeps it (where the
+        // account has one) and the response hands it back so the client can
+        // offer to keep it instead of the server's answer.
+        recordHistory(context.scope, {
+          eventType: `${operation.collection}.conflict`,
+          summary: `A change to ${collection.singular} could not be saved because it had already changed elsewhere.`,
+          entityType: operation.collection,
+          entityId: operation.recordId,
+          previousValue: JSON.stringify(lost),
+          newValue: JSON.stringify(
+            Object.fromEntries(Object.keys(lost).map((field) => [field, merged[field]])),
+          ),
+          restorable: true,
+        });
+
+        conflicts.push({
+          operationId: operation.id,
+          collection: operation.collection,
+          recordId: operation.recordId,
+          server: merged,
+          resolution: 'needs_review',
+          lostFields: lost,
+        });
       } catch (error) {
         rejected.push({
           operationId: operation.id,

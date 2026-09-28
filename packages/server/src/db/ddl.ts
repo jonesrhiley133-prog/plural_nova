@@ -20,6 +20,14 @@ export const BASE_COLUMNS: { name: string; sql: string }[] = [
   { name: 'updatedAt', sql: '"updatedAt" TEXT NOT NULL' },
   { name: 'deletedAt', sql: '"deletedAt" TEXT' },
   { name: 'version', sql: '"version" INTEGER NOT NULL DEFAULT 1' },
+  /**
+   * Internal bookkeeping for sync, not part of the public record shape:
+   * `deserialize` deliberately skips it. Maps a field name to the version and
+   * timestamp it was last written at, so an offline push that touches fields
+   * nobody else changed can merge instead of losing to a stale whole-record
+   * version check. See `getFieldMeta` and the sync push route.
+   */
+  { name: 'fieldMeta', sql: '"fieldMeta" TEXT' },
 ];
 
 export const BASE_COLUMN_NAMES = BASE_COLUMNS.map((c) => c.name);

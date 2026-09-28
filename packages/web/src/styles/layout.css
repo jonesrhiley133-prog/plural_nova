@@ -551,6 +551,12 @@
   color: var(--info);
 }
 
+.sync-pill[data-state='conflict'] {
+  color: var(--caution);
+  border-color: color-mix(in srgb, var(--caution) 45%, transparent);
+  background: color-mix(in srgb, var(--caution) 12%, var(--surface-sunken));
+}
+
 /* ── Auth screens ───────────────────────────────────────────────────────── */
 
 .auth-screen {

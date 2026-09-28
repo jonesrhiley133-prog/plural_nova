@@ -61,9 +61,47 @@ function decodeValue(field: FieldDef, value: unknown): unknown {
 
 export function deserialize(collection: CollectionDef, row: Record<string, unknown>): StoredRecord {
   const out: Record<string, unknown> = {};
-  for (const name of BASE_COLUMN_NAMES) out[name] = row[name] ?? null;
+  for (const name of BASE_COLUMN_NAMES) {
+    // Sync bookkeeping, not part of the record a client ever sees.
+    if (name === 'fieldMeta') continue;
+    out[name] = row[name] ?? null;
+  }
   for (const field of ownFields(collection)) out[field.name] = decodeValue(field, row[field.name]);
   return out as StoredRecord;
+}
+
+export interface FieldMetaEntry {
+  /** The record's whole-row version at the moment this field was last written. */
+  v: number;
+  /** When it was written. */
+  t: string;
+}
+
+export type FieldMeta = Record<string, FieldMetaEntry>;
+
+function parseFieldMeta(raw: unknown): FieldMeta {
+  if (typeof raw !== 'string' || !raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object' ? (parsed as FieldMeta) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Per-field {version, timestamp} bookkeeping the sync push route uses to tell
+ * "a different field changed since the client's base" apart from "this exact
+ * field changed" — the difference between two offline edits that both survive
+ * and one that has to be decided. See routes/sync.ts.
+ */
+export function getFieldMeta(collectionName: string, scope: Scope, id: string): FieldMeta {
+  const collection = requireCollection(collectionName);
+  const { sql, params } = scopeClause(collection, scope);
+  const row = getDb()
+    .prepare(`SELECT "fieldMeta" FROM "${collection.name}" WHERE ${sql} AND "id" = ?`)
+    .get(...params, id) as { fieldMeta: string | null } | undefined;
+  return row ? parseFieldMeta(row.fieldMeta) : {};
 }
 
 export interface ListQuery {
@@ -212,6 +250,13 @@ export interface WriteOptions {
   memberId?: string | null;
   /** Skips validation for trusted internal writes (restore, demo seeding). */
   trusted?: boolean;
+  /**
+   * Field-level bookkeeping records this as when the edit happened, instead of
+   * when the server got around to processing it. Sync push passes the queued
+   * operation's original timestamp here so a late reconnect does not make a
+   * stale edit look newer than one a different device made in between.
+   */
+  fieldTimestamp?: string;
 }
 
 export function createRecord(
@@ -243,6 +288,7 @@ export function createRecord(
     updatedAt: timestamp,
     deletedAt: null,
     version: 1,
+    fieldMeta: '{}',
   };
 
   for (const field of ownFields(collection)) {
@@ -287,8 +333,9 @@ export function updateRecord(
     values = result.values;
   }
 
+  const timestamp = now();
   const assignments: string[] = ['"updatedAt" = ?', '"version" = "version" + 1'];
-  const params: unknown[] = [now()];
+  const params: unknown[] = [timestamp];
 
   if (options.visibility || values['visibility']) {
     assignments.push('"visibility" = ?');
@@ -299,10 +346,21 @@ export function updateRecord(
     params.push(options.memberId ?? values['memberId'] ?? null);
   }
 
+  const touchedFields: string[] = [];
   for (const field of ownFields(collection)) {
     if (!Object.prototype.hasOwnProperty.call(values, field.name)) continue;
     assignments.push(`"${field.name}" = ?`);
     params.push(encodeValue(field, values[field.name]));
+    touchedFields.push(field.name);
+  }
+
+  if (touchedFields.length > 0) {
+    const meta = getFieldMeta(collectionName, scope, id);
+    const nextVersion = existing.version + 1;
+    const fieldTimestamp = options.fieldTimestamp ?? timestamp;
+    for (const name of touchedFields) meta[name] = { v: nextVersion, t: fieldTimestamp };
+    assignments.push('"fieldMeta" = ?');
+    params.push(JSON.stringify(meta));
   }
 
   const { sql, params: scopeParams } = scopeClause(collection, scope);
