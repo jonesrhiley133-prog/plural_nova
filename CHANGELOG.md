@@ -12,6 +12,20 @@ different versions of PluralNova.
 
 ### Added
 
+- **Fronting works with no connection at all — switching, ending and clearing
+  included, not just Quick Front.** Every fronting action now applies to the
+  screen immediately and, if there is nowhere to send it yet, is kept and
+  sent the next time a connection is available — the same optimistic
+  approach Quick Front already used, now covering the full switch/end/clear/
+  co-fronter set the main Fronting flow and the dashboard use. Nothing about
+  fronting online changes; offline, none of it waits for a connection that
+  isn't there any more.
+- **The member directory scrolls smoothly with hundreds of members.** Every
+  layout — squares, circles, slim banners, thick banners — now renders only
+  the rows near what's on screen instead of the entire list at once, the way
+  the rest of the app's screens already treat any list that can get long.
+  Long-press multiselect, search, sort and Quick Front all work exactly the
+  same; only the number of DOM nodes changes.
 - **Long-press multiselect and bulk actions in the member directory.** Press
   and hold any member's card (mouse or touch — both behave the same way) to
   select several at once; a bulk-action bar then offers editing everyone
@@ -102,6 +116,12 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Long-pressing or tapping a thick or slim banner row's name/status text did
+  nothing.** The text and avatar sat visually above the row's own full-bleed
+  tap target, so a press landing on either — most of the row's area — never
+  reached it. Only the trailing quick-front button needed to sit above that
+  target; the rest of the row now lets a tap through the way the square and
+  circle layouts already did.
 - **The active-tab underline and the sidebar/bottom-nav's active colour used
   to snap instead of transitioning.** Both already had a transition rule, but
   a second, later rule with the same specificity was silently replacing it

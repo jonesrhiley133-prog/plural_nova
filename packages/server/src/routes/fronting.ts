@@ -317,6 +317,7 @@ frontingRouter.post(
       note?: string;
       activity?: string;
       mood?: string;
+      clientId?: string;
     };
     const at = body.at ?? now();
     const open = activeEvents(context.scope);
@@ -335,7 +336,11 @@ frontingRouter.post(
           mood: body.mood ?? '',
           statusType: (body.coFronterIds?.length ?? 0) > 0 ? 'cofronting' : 'fronting',
         },
-        { memberId: body.memberId ?? null, visibility: 'system' },
+        {
+          ...(body.clientId ? { id: `fev_${body.clientId}` } : {}),
+          memberId: body.memberId ?? null,
+          visibility: 'system',
+        },
       );
     });
 

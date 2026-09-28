@@ -984,13 +984,16 @@
   z-index: 1;
 }
 
-.member-banner-row__avatar,
-.member-banner-row__body,
-.member-banner-row__trailing {
-  position: relative;
-  z-index: 2;
-}
-
+/*
+ * Avatar and body paint above the scrim and banner image from DOM order
+ * alone — both come later in the markup — so neither needs a z-index of its
+ * own. Only the trailing slot does: it holds the one genuinely interactive
+ * thing in the row (the quick-front button or the selection mark), and it
+ * has to answer a tap instead of the full-bleed `__hit` button underneath it.
+ * Raising avatar or body the same way would put inert content ahead of that
+ * button across most of the row's area, and a tap there would land on
+ * nothing at all.
+ */
 .member-banner-row__avatar {
   flex-shrink: 0;
 }
@@ -1004,6 +1007,8 @@
 }
 
 .member-banner-row__trailing {
+  position: relative;
+  z-index: 2;
   flex-shrink: 0;
 }
 
