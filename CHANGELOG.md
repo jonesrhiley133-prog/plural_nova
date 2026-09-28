@@ -12,6 +12,20 @@ different versions of PluralNova.
 
 ### Added
 
+- **Instant Quick Front from a member's own card or profile.** Tapping the
+  bolt icon on a member's directory card or their profile banner fronts them
+  immediately — no dialog, no navigating to the Quick Front screen, and no
+  loading state, because fronting this way is a local fact applied on the
+  spot rather than something worth waiting on a request for. It joins
+  whoever is already out rather than replacing them, disables itself once
+  that member is already fronting so a second tap can't double it up, and
+  updates the dashboard and every other open screen at the same moment. If
+  there is no connection yet, the tap still lands and is sent for real the
+  next time one is available.
+- **The member directory's layout choice is remembered.** Squares, circles,
+  slim banners or thick banners — whichever was picked stays picked after
+  closing the app, logging out, or switching devices, instead of quietly
+  resetting to squares every time the screen opens.
 - **Saved places.** A short, one-tap list of the places you go often — home,
   work, anywhere worth naming — on the Locations screen and as a Dashboard
   widget. Tapping one starts a timed visit; a live counter shows how long
@@ -49,6 +63,14 @@ different versions of PluralNova.
   PIN.
 
 ### Changed
+
+- **Thick banner rows show an actual banner.** The member directory's thick
+  layout now renders each member's own banner image (or their accent colour,
+  if they haven't set one) behind their name, the same way their profile
+  page already does, instead of a plain row with no image at all. Their bio
+  no longer appears there — it stays on their profile, where opening it is
+  a deliberate choice — and their roles now do, alongside their pronouns and
+  current fronting status.
 
 - **The Emotions screen is no longer a separate destination in the nav, the
   bottom bar or the Hub.** Logging an emotion is unaffected — the Dashboard's

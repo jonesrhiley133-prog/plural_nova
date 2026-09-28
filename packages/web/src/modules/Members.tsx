@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ACCENT_PRESETS, formatDuration, type StoredRecord } from '@pluralnova/shared';
+import { ACCENT_PRESETS, MEMBER_LIST_LAYOUTS, formatDuration, type MemberListLayout, type StoredRecord } from '@pluralnova/shared';
 import { useCollection } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
-import { FRONT_STATUS_META } from '../core/fronting.js';
+import { FRONT_STATUS_META, useFronting } from '../core/fronting.js';
+import { useOptimisticSettings } from '../core/settings.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, IconButton, SegmentedControl, Status } from '../ui/primitives.js';
 import { SearchField, useDebounced } from '../ui/forms.js';
@@ -31,9 +32,7 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: 'newest', label: 'Newest' },
 ];
 
-type MemberLayout = 'square' | 'circle' | 'slimBanner' | 'thickBanner';
-
-const LAYOUTS: { value: MemberLayout; label: string }[] = [
+const LAYOUTS: { value: MemberListLayout; label: string }[] = [
   { value: 'square', label: 'Squares' },
   { value: 'circle', label: 'Circles' },
   { value: 'slimBanner', label: 'Slim banners' },
@@ -53,10 +52,13 @@ export default function Members(): JSX.Element {
   const [rawSearch, setRawSearch] = useState('');
   const search = useDebounced(rawSearch);
   const [sort, setSort] = useState<SortKey>('orbit');
-  const [layout, setLayout] = useState<MemberLayout>('square');
+  const { settings, update: updateSettings } = useOptimisticSettings();
+  const layout = settings.memberListLayout;
+  const setLayout = (value: MemberListLayout): void => updateSettings({ memberListLayout: value });
   const [columns, setColumns] = useState(3);
   const [showArchived, setShowArchived] = useState(false);
   const isGrid = layout === 'square' || layout === 'circle';
+  const fronting = useFronting();
 
   const groups = useCollection('memberGroups');
   const subsystems = useCollection('subsystems');
@@ -83,6 +85,13 @@ export default function Members(): JSX.Element {
   }
 
   const sorted = useMemo(() => sortMembers(items, sort), [items, sort]);
+
+  // Instant: applied to the shared fronting state before the request that
+  // tells the server about it resolves, so the tap never waits on anything.
+  const quickFrontMember = (member: StoredRecord): void => {
+    if (fronting.isFrontingAlready(member.id)) return;
+    void fronting.quickFront(member.id).catch((cause: unknown) => toast.fromError(cause));
+  };
 
   return (
     <>
@@ -203,14 +212,14 @@ export default function Members(): JSX.Element {
                         key={member.id}
                         member={member}
                         onOpen={() => navigate(`/members/${member.id}`)}
-                        onQuickFront={() => navigate(`/quick-front?member=${member.id}`)}
+                        onQuickFront={() => quickFrontMember(member)}
                       />
                     ) : (
                       <MemberCircleCard
                         key={member.id}
                         member={member}
                         onOpen={() => navigate(`/members/${member.id}`)}
-                        onQuickFront={() => navigate(`/quick-front?member=${member.id}`)}
+                        onQuickFront={() => quickFrontMember(member)}
                       />
                     ),
                   )}
@@ -224,7 +233,7 @@ export default function Members(): JSX.Element {
                         member={member}
                         thick={layout === 'thickBanner'}
                         onOpen={() => navigate(`/members/${member.id}`)}
-                        onQuickFront={() => navigate(`/quick-front?member=${member.id}`)}
+                        onQuickFront={() => quickFrontMember(member)}
                       />
                     ))}
                   </div>
@@ -302,7 +311,8 @@ function MemberCard({
         <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
           <IconButton
             icon="bolt"
-            label={term('Quick {{front}}')}
+            label={isFronting(member) ? term('Already {{fronting}}') : term('Quick {{front}}')}
+            disabled={isFronting(member)}
             size="sm"
             onClick={(event) => {
               event.stopPropagation();
@@ -401,7 +411,8 @@ function MemberCircleCard({
       <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
         <IconButton
           icon="bolt"
-          label={term('Quick {{front}}')}
+          label={isFronting(member) ? term('Already {{fronting}}') : term('Quick {{front}}')}
+          disabled={isFronting(member)}
           size="sm"
           onClick={(event) => {
             event.stopPropagation();
@@ -442,6 +453,77 @@ function MemberBannerRow({
   const { term } = useI18n();
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
   const minutes = Number(member['frontMinutes'] ?? 0);
+  const alreadyFronting = isFronting(member);
+  const roles = Array.isArray(member['roles']) ? (member['roles'] as string[]) : [];
+
+  const quickFrontButton = (
+    <IconButton
+      icon="bolt"
+      label={alreadyFronting ? term('Already {{fronting}}') : term('Quick {{front}}')}
+      disabled={alreadyFronting}
+      size="sm"
+      variant="ghost"
+      onClick={(event) => {
+        event.stopPropagation();
+        onQuickFront();
+      }}
+    />
+  );
+
+  if (thick) {
+    // A real banner, the same way the member's own profile shows one, rather
+    // than a taller version of the slim row — the point of "thick" is to
+    // recognise someone by more than a small circular avatar.
+    const color = (member['color'] as string) || 'var(--accent)';
+    return (
+      <div className="member-banner-row" style={{ ['--member-color' as never]: color }}>
+        {member['bannerUrl'] ? (
+          <img
+            className="member-banner-row__image"
+            src={String(member['bannerUrl'])}
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+        ) : null}
+        <span className="member-banner-row__scrim" />
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={String(member['name'])}
+          className="member-banner-row__hit"
+        />
+        <span className="member-banner-row__avatar">
+          <Avatar
+            name={String(member['name'])}
+            src={(member['avatarUrl'] as string) ?? null}
+            color={color}
+            icon={(member['icon'] as string) ?? null}
+            size={56}
+            round
+            ring={alreadyFronting}
+          />
+        </span>
+        <span className="member-banner-row__body">
+          <span className="list-row__title truncate">{String(member['name'])}</span>
+          <span className="list-row__meta">
+            {member['pronouns'] ? <span className="faint">{String(member['pronouns'])}</span> : null}
+            <Status label={term(meta.label)} glyph={meta.glyph} color={meta.color} />
+          </span>
+          {roles.length > 0 ? (
+            <span className="row" style={{ marginTop: 2, gap: 'var(--space-1)' }}>
+              {roles.map((role) => (
+                <Chip key={role} accent>
+                  {role}
+                </Chip>
+              ))}
+            </span>
+          ) : null}
+        </span>
+        <span className="member-banner-row__trailing">{quickFrontButton}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="list-row" style={{ position: 'relative' }}>
@@ -467,9 +549,9 @@ function MemberBannerRow({
         src={(member['avatarUrl'] as string) ?? null}
         color={(member['color'] as string) ?? null}
         icon={(member['icon'] as string) ?? null}
-        size={thick ? 64 : 40}
+        size={40}
         round
-        ring={isFronting(member)}
+        ring={alreadyFronting}
       />
       <span className="list-row__body">
         <span className="list-row__title">{String(member['name'])}</span>
@@ -482,23 +564,9 @@ function MemberBannerRow({
             </span>
           ) : null}
         </span>
-        {thick && member['bio'] ? (
-          <span className="small faint clamp-2" style={{ marginTop: 2 }}>
-            {String(member['bio'])}
-          </span>
-        ) : null}
       </span>
       <span className="list-row__trailing" style={{ position: 'relative', zIndex: 2 }}>
-        <IconButton
-          icon="bolt"
-          label={term('Quick {{front}}')}
-          size="sm"
-          variant="ghost"
-          onClick={(event) => {
-            event.stopPropagation();
-            onQuickFront();
-          }}
-        />
+        {quickFrontButton}
       </span>
     </div>
   );

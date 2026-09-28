@@ -17,6 +17,7 @@ import {
 import { ApiRequestError, api, getToken, messageFor, setToken } from './api.js';
 import { clearAll } from './localdb.js';
 import { recordStore } from './data.js';
+import { resetFrontingStore } from './fronting.js';
 import { syncEngine } from './sync.js';
 
 /**
@@ -261,6 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     await recordStore.clear();
     await clearAll();
     await syncEngine.reset();
+    resetFrontingStore();
     setState({
       status: 'anonymous',
       user: null,
@@ -299,6 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     async (systemId: string) => {
       await api.post(`/api/system/${systemId}/activate`);
       await recordStore.clear();
+      resetFrontingStore();
       await refresh();
       syncEngine.schedule(0);
     },
