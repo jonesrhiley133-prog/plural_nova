@@ -68,6 +68,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'relationships', path: '/relationships', label: 'Relationships', icon: 'relationship', systemOnly: true },
       { id: 'headspace', path: '/headspace', label: 'Headspace mapper', icon: 'headspace', systemOnly: true },
       { id: 'system-history', path: '/system-history', label: 'System history', icon: 'history', systemOnly: true },
+      { id: 'timeline', path: '/timeline', label: 'Timeline', icon: 'clock', systemOnly: true, description: 'Fronting, journal, moods and emotions, in the order they happened.', keywords: ['history', 'feed', 'log'] },
       { id: 'achievements', path: '/achievements', label: 'Achievements', icon: 'achievement' },
       { id: 'flags', path: '/flags', label: 'Flags', icon: 'flag' },
     ],

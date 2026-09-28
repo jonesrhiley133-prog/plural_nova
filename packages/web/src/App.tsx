@@ -44,6 +44,7 @@ const ProfileSelect = load(() => import('./modules/ProfileSelect.js'));
 const Organize = load(() => import('./modules/Organize.js'));
 const Subsystems = load(() => import('./modules/Subsystems.js'));
 const SystemHistory = load(() => import('./modules/SystemHistory.js'));
+const Timeline = load(() => import('./modules/Timeline.js'));
 const Journal = load(() => import('./modules/Journal.js'));
 const Notes = load(() => import('./modules/Notes.js'));
 const Tasks = load(() => import('./modules/Tasks.js'));
@@ -171,6 +172,7 @@ function AppRoutes(): JSX.Element {
           <Route path="organize" element={<SystemOnly><Organize /></SystemOnly>} />
           <Route path="subsystems" element={<SystemOnly><Subsystems /></SystemOnly>} />
           <Route path="system-history" element={<SystemOnly><SystemHistory /></SystemOnly>} />
+          <Route path="timeline" element={<SystemOnly><Timeline /></SystemOnly>} />
           <Route path="relationships" element={<SystemOnly><Relationships /></SystemOnly>} />
           <Route path="headspace" element={<SystemOnly><Headspace /></SystemOnly>} />
           <Route path="system-chat" element={<Navigate to="/chat" replace />} />
