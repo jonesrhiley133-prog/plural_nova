@@ -5,10 +5,10 @@ import { useCollection, useQuery } from '../core/data.js';
 import { useAllEmotions } from '../core/emotions.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
-import { useActiveMemberId } from '../core/auth.js';
+import { useActiveMemberId, useSystemMode } from '../core/auth.js';
 import { usePrefersReducedMotion } from '../core/theme.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, ListRow, Stat, Tabs } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, ListRow, Stat, Tabs } from '../ui/primitives.js';
 import { NumberField, TextField, SwitchRow } from '../ui/forms.js';
 import { DescriptiveNote, EmptyState, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
@@ -38,10 +38,16 @@ export default function Wellbeing(): JSX.Element {
   const dates = useDateFormat();
   const toast = useToast();
   const activeMemberId = useActiveMemberId();
+  const systemMode = useSystemMode();
 
   const moods = useCollection('moodEntries');
   const wellness = useCollection('wellnessEntries');
-  const emotions = useCollection('emotionEntries', { limit: 5 });
+  // 50 rather than the 5 "Recent emotions" shows: also the pool "How we're
+  // feeling" draws each member's latest entry from, so a system with more
+  // than a handful of members doesn't lose someone's only recent log to the
+  // window before it is even looked at.
+  const emotions = useCollection('emotionEntries', { limit: 50 });
+  const members = useCollection('members', { enabled: systemMode });
   const { findEmotion } = useAllEmotions();
 
   const checkIn = useDialog();
@@ -175,7 +181,7 @@ export default function Wellbeing(): JSX.Element {
                   <p className="small faint">Nothing logged yet.</p>
                 ) : (
                   <div className="stack stack--tight">
-                    {emotions.items.map((entry) => {
+                    {emotions.items.slice(0, 5).map((entry) => {
                       const emotion = findEmotion(String(entry['emotionId']));
                       return (
                         <div key={entry.id} className="row row--between small">
@@ -190,6 +196,8 @@ export default function Wellbeing(): JSX.Element {
                 )}
               </Card>
             </div>
+
+            <HowWeFeelCard members={members.items} emotions={emotions.items} moods={moods.items} findEmotion={findEmotion} dates={dates} />
 
             <Card title="More tracking" subtitle="Each of these is separate, and each is optional" flush>
               <div className="list">
@@ -247,6 +255,96 @@ export default function Wellbeing(): JSX.Element {
         }}
       />
     </>
+  );
+}
+
+/**
+ * How everyone's doing, at a glance — each member's most recent mood or
+ * emotion log side by side, rather than the account-wide blend the stats
+ * above already show. Singlet Mode has no second person to compare against,
+ * and a lone member in an otherwise-empty system has nothing to be "beside"
+ * either, so this only appears once there is genuinely more than one person
+ * to see at once.
+ */
+function HowWeFeelCard({
+  members,
+  emotions,
+  moods,
+  findEmotion,
+  dates,
+}: {
+  members: StoredRecord[];
+  emotions: StoredRecord[];
+  moods: StoredRecord[];
+  findEmotion: (id: string) => { emoji: string; name: string } | undefined;
+  dates: ReturnType<typeof useDateFormat>;
+}): JSX.Element | null {
+  if (members.length < 2) return null;
+
+  const latestByMember = <T extends StoredRecord>(entries: T[]): Map<string, T> => {
+    const map = new Map<string, T>();
+    for (const entry of entries) {
+      const memberId = String(entry['memberId'] ?? '');
+      if (memberId && !map.has(memberId)) map.set(memberId, entry);
+    }
+    return map;
+  };
+  const latestEmotion = latestByMember(emotions);
+  const latestMood = latestByMember(moods);
+
+  const rows = members
+    .map((member) => ({
+      member,
+      emotion: latestEmotion.get(member.id) ?? null,
+      mood: latestMood.get(member.id) ?? null,
+    }))
+    .filter((row) => row.emotion || row.mood)
+    .map((row) => ({
+      ...row,
+      mostRecentAt: [row.emotion?.['recordedAt'], row.mood?.['recordedAt']]
+        .filter((value): value is string => Boolean(value))
+        .sort()
+        .reverse()[0],
+    }))
+    .sort((a, b) => Date.parse(String(b.mostRecentAt)) - Date.parse(String(a.mostRecentAt)));
+
+  return (
+    <Card title="How we're feeling" subtitle="Each person's most recent log">
+      {rows.length === 0 ? (
+        <p className="small faint">Nobody has logged a mood or an emotion yet.</p>
+      ) : (
+        <div className="stack stack--tight">
+          {rows.map(({ member, emotion, mood, mostRecentAt }) => {
+            const emotionDef = emotion ? findEmotion(String(emotion['emotionId'])) : null;
+            return (
+              <div key={member.id} className="row row--between row--nowrap small">
+                <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
+                  <Avatar
+                    name={String(member['name'])}
+                    color={(member['color'] as string) ?? null}
+                    icon={(member['icon'] as string) ?? null}
+                    size={24}
+                    round
+                  />
+                  {String(member['name'])}
+                  {emotionDef ? (
+                    <span>
+                      {emotionDef.emoji} {emotionDef.name}
+                    </span>
+                  ) : mood ? (
+                    <span className="faint">
+                      {String(mood['label'])}
+                      {mood['score'] ? ` · ${String(mood['score'])}/10` : ''}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="faint tiny">{mostRecentAt ? dates.relative(mostRecentAt) : ''}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
   );
 }
 
