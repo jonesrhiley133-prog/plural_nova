@@ -4,6 +4,7 @@ import { messageFor } from '../core/api.js';
 import { Atmosphere, Logo } from './Atmosphere.js';
 import { Button } from '../ui/primitives.js';
 import { TextField } from '../ui/forms.js';
+import { PinPad } from '../ui/PinPad.js';
 import { SkeletonList } from '../ui/feedback.js';
 
 /**
@@ -52,6 +53,10 @@ function AppLockScreen(): JSX.Element {
       setPin('');
     } catch (cause) {
       setFormError(messageFor(cause));
+      // A rejected attempt still clears the pad — otherwise it sits at
+      // whatever length it reached, silently capping how many more digits
+      // the keypad will accept once a correct retry is typed on top of it.
+      setPin('');
     } finally {
       setBusy(false);
     }
@@ -107,15 +112,23 @@ function AppLockScreen(): JSX.Element {
                 void submit();
               }}
             >
-              <TextField
-                label="App lock PIN"
-                type="password"
-                inputMode="numeric"
+              <PinPad
                 value={pin}
                 onChange={setPin}
-                autoFocus
-                {...(formError ?? error ? { error: (formError ?? error) as string } : {})}
+                disabled={busy}
+                onEnter={() => {
+                  if (pin.length >= 4 && !busy) void submit();
+                }}
               />
+              {formError ?? error ? (
+                <p
+                  className="field__error"
+                  role="alert"
+                  style={{ justifyContent: 'center', textAlign: 'center', marginBottom: 'var(--space-4)' }}
+                >
+                  {formError ?? error}
+                </p>
+              ) : null}
               <Button variant="primary" block type="submit" disabled={pin.length < 4} loading={busy}>
                 Unlock
               </Button>

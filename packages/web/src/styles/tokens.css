@@ -31,6 +31,15 @@
   --critical-text: #05070d;
   --info: #8bd5ff;
   --atmosphere: #132250;
+  /*
+   * Direct Messages' own identity, not the theming engine's: unlike every
+   * other colour above, this is never rewritten when the account changes
+   * theme. System Chat is internal and wears whatever accent the system
+   * already chose; Direct Messages talks to other accounts and reads as its
+   * own kind of place, the way a different app would, regardless of theme.
+   */
+  --chat-dm-accent: #5865f2;
+  --chat-dm-accent-text: #f5f6ff;
   --shadow: 0 18px 40px -24px rgb(0 0 0 / 0.9);
 
   /* Glass, and the colour fields it refracts. Also written at runtime. */
