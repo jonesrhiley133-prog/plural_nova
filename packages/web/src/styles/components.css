@@ -2270,3 +2270,86 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* ── PIN pad ─────────────────────────────────────────────────────────────── */
+
+.pin-pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  margin: var(--space-2) 0 var(--space-5);
+}
+
+.pin-pad__dots {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.pin-pad__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: var(--border-width) solid var(--border-strong);
+  background: transparent;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+.pin-pad__dot--filled {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.1);
+}
+
+.pin-pad__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.pin-pad__key {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: var(--border-width) solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-size: var(--size-xl);
+  font-weight: var(--weight-medium);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease);
+}
+
+.pin-pad__key:hover:not(:disabled) {
+  background: var(--surface-raised);
+}
+
+.pin-pad__key:active:not(:disabled) {
+  transform: scale(0.92);
+  background: var(--surface-raised);
+}
+
+.pin-pad__key:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pin-pad__key--corner,
+.pin-pad__key--spacer {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+}
+
+.pin-pad__key--spacer {
+  pointer-events: none;
+}

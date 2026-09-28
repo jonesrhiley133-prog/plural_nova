@@ -18,9 +18,10 @@ import { NewChatDialog } from './NewChatDialog.js';
 interface ChatHomeProps {
   systemModeAvailable: boolean;
   onOpenConversation: (kind: ChatKind, threadId: string) => void;
+  onClose: () => void;
 }
 
-export function ChatHome({ systemModeAvailable, onOpenConversation }: ChatHomeProps): JSX.Element {
+export function ChatHome({ systemModeAvailable, onOpenConversation, onClose }: ChatHomeProps): JSX.Element {
   const { user, settings } = useAuth();
   const { term } = useI18n();
   const dates = useDateFormat();
@@ -55,8 +56,9 @@ export function ChatHome({ systemModeAvailable, onOpenConversation }: ChatHomePr
   };
 
   return (
-    <div className="chat-home">
+    <div className="chat-home" data-tab={tab}>
       <header className="chat-home__header">
+        <IconButton icon="chevronLeft" label="Back to PluralNova" variant="ghost" onClick={onClose} />
         <Avatar name={settings.mode === 'system' ? term('The {{system}}') : user?.displayName ?? 'Me'} size={36} round />
         <h1 className="chat-home__title">Chat</h1>
         <IconButton icon="create" label="New chat" variant="ghost" onClick={() => setNewChatOpen(true)} />

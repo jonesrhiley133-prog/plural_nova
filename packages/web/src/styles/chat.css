@@ -196,6 +196,21 @@
   flex-shrink: 0;
 }
 
+/* Direct Messages carries its own accent into the list too, not just the
+   open conversation — see the matching block in the conversation view. */
+.chat-home[data-tab='dm'] .tab[aria-selected='true'] {
+  color: var(--chat-dm-accent);
+  border-bottom-color: var(--chat-dm-accent);
+}
+
+.chat-home[data-tab='dm'] .chat-unread-dot {
+  background: var(--chat-dm-accent);
+}
+
+.chat-home[data-tab='dm'] .chat-conversation-row__pin--active {
+  color: var(--chat-dm-accent);
+}
+
 .chat-picker-list {
   display: flex;
   flex-direction: column;
@@ -278,6 +293,33 @@
 .chat-conversation[data-spacing='compact'] {
   --chat-msg-gap: 0px;
   --chat-bubble-pad-y: 5px;
+}
+
+/*
+ * Direct Messages reads as its own place, not a reskinned System Chat — same
+ * markup, same gestures, a different identity. Everything here only ever
+ * sets the *fallback* a customisable colour falls through to when nobody has
+ * set one; an account or per-conversation appearance choice still wins.
+ */
+.chat-conversation[data-kind='dm'] {
+  --chat-bubble-mine-fallback: var(--chat-dm-accent);
+  --chat-bubble-mine-text-fallback: var(--chat-dm-accent-text);
+}
+
+.chat-conversation[data-kind='dm'] .chat-bubble {
+  border-radius: var(--radius-sm);
+}
+
+.chat-conversation[data-kind='dm'] .chat-conversation__status {
+  color: var(--chat-dm-accent);
+}
+
+.chat-conversation[data-kind='dm'] .chat-message__quote {
+  border-left-color: var(--chat-dm-accent);
+}
+
+.chat-conversation[data-kind='dm'] .chat-reply-preview__author {
+  color: var(--chat-dm-accent);
 }
 
 .chat-conversation__loading {
@@ -462,8 +504,11 @@
 }
 
 .chat-message--mine .chat-bubble {
-  background: var(--chat-bubble-mine, var(--accent));
-  color: var(--chat-bubble-mine-text, var(--accent-text));
+  /* --chat-bubble-mine-fallback exists only for a Direct Message conversation
+     (below) and only when the account has not chosen its own bubble colour —
+     an explicit choice on either side always wins over both. */
+  background: var(--chat-bubble-mine, var(--chat-bubble-mine-fallback, var(--accent)));
+  color: var(--chat-bubble-mine-text, var(--chat-bubble-mine-text-fallback, var(--accent-text)));
 }
 
 .chat-bubble__text {

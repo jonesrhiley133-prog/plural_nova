@@ -173,7 +173,7 @@ export function ChatConversationView({
   } as never;
 
   return (
-    <div className="chat-conversation" style={appearanceStyle} data-spacing={appearance.spacing}>
+    <div className="chat-conversation" style={appearanceStyle} data-spacing={appearance.spacing} data-kind={kind}>
       <header className="chat-conversation__header">
         <IconButton icon="chevronLeft" label="Back to conversations" variant="ghost" className="chat-conversation__back" onClick={onBack} />
         {isGroupLike ? (

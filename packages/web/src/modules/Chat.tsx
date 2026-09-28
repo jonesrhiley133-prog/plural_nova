@@ -31,10 +31,20 @@ export default function Chat(): JSX.Element {
   };
   const closeConversation = (): void => navigate('/chat');
 
+  // Chat is the one screen outside the standard shell, so leaving it needs its
+  // own way back. `navigate(-1)` returns to wherever the account actually was
+  // when it opened Chat; a direct link or a fresh tab has no such entry, and
+  // react-router's own history index is how that is told apart from a real one.
+  const closeChat = (): void => {
+    const historyIndex = (window.history.state as { idx?: number } | null)?.idx;
+    if (typeof historyIndex === 'number' && historyIndex > 0) navigate(-1);
+    else navigate('/');
+  };
+
   return (
     <div className="chat-app" data-active-pane={activePane}>
       <div className="chat-pane chat-pane--list">
-        <ChatHome systemModeAvailable={systemModeAvailable} onOpenConversation={openConversation} />
+        <ChatHome systemModeAvailable={systemModeAvailable} onOpenConversation={openConversation} onClose={closeChat} />
       </div>
       <div className="chat-pane chat-pane--conversation">
         {kind && threadId ? (

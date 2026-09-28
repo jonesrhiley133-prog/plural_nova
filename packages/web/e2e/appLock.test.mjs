@@ -7,10 +7,20 @@ import { BASE, openBrowser, signUp } from './helpers.mjs';
  * routes (including across a reload, the way relaunching the app would),
  * recovering a forgotten PIN with the account password, and turning it back
  * off — the whole loop, not just the settings card.
+ *
+ * The lock screen itself is a numeric keypad, not a text field, so entering a
+ * PIN here means tapping digit buttons in order rather than filling a labelled
+ * input.
  */
 
 let session;
 const ACCOUNT_PASSWORD = 'orbit-lantern-4417';
+
+async function typePin(page, pin) {
+  for (const digit of pin) {
+    await page.getByRole('button', { name: digit, exact: true }).click();
+  }
+}
 
 before(async () => {
   session = await openBrowser();
@@ -42,22 +52,22 @@ describe('app-wide PIN lock', () => {
 
     await page.getByRole('button', { name: 'Lock now' }).click();
     await page.waitForTimeout(500);
-    await page.getByLabel('App lock PIN').waitFor({ state: 'visible' });
+    await page.locator('.pin-pad').waitFor({ state: 'visible' });
 
     // A relaunch (reload) while locked must still show the lock screen rather
     // than the settings page it was showing before — this is what "protects
     // the entire app" means, not just the one screen that requested a lock.
     await page.reload({ waitUntil: 'networkidle' });
-    await page.getByLabel('App lock PIN').waitFor({ state: 'visible' });
+    await page.locator('.pin-pad').waitFor({ state: 'visible' });
     assert.equal(await page.getByRole('button', { name: 'Lock now' }).count(), 0);
 
-    await page.getByLabel('App lock PIN').fill('000000');
+    await typePin(page, '000000');
     await page.getByRole('button', { name: 'Unlock' }).click();
     await page.waitForTimeout(400);
     assert.match(await page.textContent('body'), /not right/);
-    await page.getByLabel('App lock PIN').waitFor({ state: 'visible' });
+    await page.locator('.pin-pad').waitFor({ state: 'visible' });
 
-    await page.getByLabel('App lock PIN').fill('135790');
+    await typePin(page, '135790');
     await page.getByRole('button', { name: 'Unlock' }).click();
     await page.waitForTimeout(500);
     await page.getByRole('button', { name: 'Lock now' }).waitFor({ state: 'visible' });
@@ -75,7 +85,7 @@ describe('app-wide PIN lock', () => {
     // The recovered PIN is the one that works from now on.
     await page.getByRole('button', { name: 'Lock now' }).click();
     await page.waitForTimeout(500);
-    await page.getByLabel('App lock PIN').fill('222444');
+    await typePin(page, '222444');
     await page.getByRole('button', { name: 'Unlock' }).click();
     await page.waitForTimeout(500);
     await page.getByRole('button', { name: 'Lock now' }).waitFor({ state: 'visible' });
@@ -90,7 +100,7 @@ describe('app-wide PIN lock', () => {
 
     // With the lock off, a reload must never show a lock screen.
     await page.reload({ waitUntil: 'networkidle' });
-    assert.equal(await page.getByLabel('App lock PIN').count(), 0);
+    assert.equal(await page.locator('.pin-pad').count(), 0);
     await page.getByRole('button', { name: 'Turn on app lock' }).waitFor({ state: 'visible' });
   });
 });

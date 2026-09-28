@@ -123,6 +123,7 @@ const PATHS = {
   emoji: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M8.5 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2M15.5 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2M8 14.5a5 5 0 0 0 8 0',
   checkDouble: 'M2 12.5 6.5 17 15 7M9 12.5 13.5 17 22 7',
   camera: 'M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1M12 18a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
+  backspace: 'M9 6h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-6-6zM11 10l6 4M17 10l-6 4',
 } as const;
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

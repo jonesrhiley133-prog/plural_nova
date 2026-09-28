@@ -12,6 +12,23 @@ different versions of PluralNova.
 
 ### Added
 
+- **A real numeric keypad on the app lock screen.** PIN entry now works the
+  way a phone's own lock screen does — digit dots and a tappable 0-9 grid
+  with a backspace key — instead of typing into a text field. A physical
+  keyboard still works exactly as before for anyone who would rather type.
+- **Direct Messages has its own visual identity, distinct from System
+  Chat.** Same conversation list, same composer, same gestures — Direct
+  Messages (the end-to-end encrypted, cross-account side of Chat) now reads
+  as its own kind of place at a glance, with its own accent carried through
+  the tab, unread markers and message bubbles, closer to a dedicated
+  messaging app. System Chat (alters talking to each other, internal to the
+  account) is completely unaffected and keeps the system's own theme accent
+  — the two were already separate collections end to end; this only makes
+  that separation visible.
+- **A way back to the rest of the app from Chat.** Chat is the one screen
+  that takes the full viewport, with no sidebar or bottom nav to fall back
+  on — its conversation list had no way out at all before this, short of
+  the browser's own back button.
 - **Offline edits to different parts of the same record now both survive
   instead of one overwriting the other.** Two devices working apart — a bio
   changed on one, pronouns changed on another — merge cleanly the next time
@@ -126,6 +143,12 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **A wrong app-lock PIN attempt left the failed digits sitting in place.**
+  Retrying after an error appended the correct PIN onto the rejected one
+  instead of starting fresh, capping out at the maximum length before the
+  full correct PIN could be entered on the new keypad. It was there before
+  too, just easier to miss when a text field let you see and clear the
+  leftover digits by hand.
 - **A device's own second offline edit to a record could quietly overwrite —
   or be overwritten by — its first one.** Sync compared a whole record's
   version number rather than the specific field being written, so applying
