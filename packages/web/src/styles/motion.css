@@ -83,7 +83,15 @@
     transform calc(160ms * var(--motion)) var(--ease),
     background-color calc(200ms * var(--motion)) var(--ease),
     border-color calc(200ms * var(--motion)) var(--ease),
-    box-shadow calc(240ms * var(--motion)) var(--ease);
+    box-shadow calc(240ms * var(--motion)) var(--ease),
+    /*
+     * Both nav components declare their own `color` transition in layout.css,
+     * but `transition` is a single shorthand — this rule loads after theirs
+     * and has equal specificity, so without restating `color` here the same
+     * active-state change that fades the background would pop the icon and
+     * label color instantly instead.
+     */
+    color calc(200ms * var(--motion)) var(--ease);
 }
 
 .card--interactive:active,

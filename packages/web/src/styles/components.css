@@ -1569,7 +1569,9 @@
   font-weight: var(--weight-medium);
   cursor: pointer;
   white-space: nowrap;
-  transition: color var(--duration-fast) var(--ease);
+  transition:
+    color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
 }
 
 .tab:hover {
