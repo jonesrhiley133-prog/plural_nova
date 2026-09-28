@@ -14,6 +14,7 @@ import {
   ColorField,
   DateTimeField,
   Field,
+  FileButton,
   ImageField,
   NumberField,
   ReferenceField,
@@ -299,6 +300,53 @@ function nextBirthdayOccurrence(birthday: string): { date: Date; age: number } |
     next = new Date(year, born.getMonth(), born.getDate());
   }
   return { date: next, age: year - born.getFullYear() };
+}
+
+/** Reads a birthday written any of the everyday ways, into the YYYY-MM-DD this field stores. */
+function normaliseImportedDate(raw: unknown): string | null {
+  const value = String(raw ?? '').trim();
+  if (!value) return null;
+
+  const slash = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (slash) {
+    const [, month, day, year] = slash;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+  }
+
+  // A bare year-less "03-15" has no date this field's own recurrence logic
+  // needs — it already treats the stored year as irrelevant to when the
+  // birthday next comes around — but the age shown beside it does need one,
+  // so a source that never gave a year is a value this cannot use rather
+  // than one it guesses at.
+  if (!/\d{4}/.test(value)) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+/** The one member this name belongs to, or why it couldn't be resolved to one. */
+function findMemberByName(members: StoredRecord[], name: string): { member: StoredRecord | null; ambiguous: boolean } {
+  const needle = name.trim().toLowerCase();
+  const matches = members.filter((member) => String(member['name'] ?? '').trim().toLowerCase() === needle);
+  if (matches.length === 1) return { member: matches[0]!, ambiguous: false };
+  return { member: null, ambiguous: matches.length > 1 };
+}
+
+type BirthdayImportStatus = 'new' | 'unchanged' | 'conflict';
+
+interface BirthdayImportRow {
+  key: string;
+  rawName: string;
+  member: StoredRecord;
+  current: string;
+  proposed: string;
+  status: BirthdayImportStatus;
+}
+
+interface BirthdayImportProblem {
+  key: string;
+  rawName: string;
+  reason: string;
 }
 
 function MonthGrid({
@@ -1046,6 +1094,7 @@ function BirthdaysPanel({
 }): JSX.Element {
   const dates = useDateFormat();
   const dialog = useDialog<StoredRecord>();
+  const importDialog = useDialog();
 
   const upcoming = useMemo(() => {
     return members
@@ -1064,9 +1113,14 @@ function BirthdaysPanel({
     <Card
       title="Birthdays"
       actions={
-        <Button variant="ghost" size="sm" icon="plus" onClick={() => dialog.show()}>
-          Add
-        </Button>
+        <>
+          <Button variant="ghost" size="sm" icon="import" onClick={() => importDialog.show()}>
+            Import
+          </Button>
+          <Button variant="ghost" size="sm" icon="plus" onClick={() => dialog.show()}>
+            Add
+          </Button>
+        </>
       }
       flush
     >
@@ -1120,6 +1174,7 @@ function BirthdaysPanel({
       )}
 
       <BirthdayDialog dialog={dialog} members={members} onSave={onSave} />
+      <BirthdayImportDialog dialog={importDialog} members={members} onSave={onSave} />
     </Card>
   );
 }
@@ -1210,6 +1265,193 @@ function BirthdayDialog({
         />
       )}
       <DateTimeField label="Birthday" value={date} onChange={setDate} dateOnly required />
+    </Dialog>
+  );
+}
+
+/**
+ * Birthdays from a JSON file, matched against members already here by name.
+ *
+ * Not a general import — there is no id an outside file could share with a
+ * member record, so a name is the only handle available, and an entry that
+ * matches no one, or more than one, is reported rather than guessed at.
+ * Nothing already recorded is overwritten unless a conflicting row is
+ * checked by hand, same as the rest of the app's imports.
+ */
+function BirthdayImportDialog({
+  dialog,
+  members,
+  onSave,
+}: {
+  dialog: ReturnType<typeof useDialog<true>>;
+  members: StoredRecord[];
+  onSave: (id: string, patch: Record<string, unknown>) => Promise<unknown>;
+}): JSX.Element {
+  const toast = useToast();
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [rows, setRows] = useState<BirthdayImportRow[]>([]);
+  const [problems, setProblems] = useState<BirthdayImportProblem[]>([]);
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [applying, setApplying] = useState(false);
+
+  const reset = (): void => {
+    setFileName(null);
+    setParseError(null);
+    setRows([]);
+    setProblems([]);
+    setChecked({});
+  };
+
+  const readFile = async (file: File): Promise<void> => {
+    reset();
+    setFileName(file.name);
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      const list = Array.isArray(parsed) ? parsed : [];
+      if (list.length === 0) throw new Error('No entries found — this expects a JSON array.');
+
+      const nextRows: BirthdayImportRow[] = [];
+      const nextProblems: BirthdayImportProblem[] = [];
+      const nextChecked: Record<string, boolean> = {};
+
+      list.forEach((entry, index) => {
+        const row = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
+        const rawName = String(row['name'] ?? row['fullName'] ?? row['full_name'] ?? row['displayName'] ?? '').trim();
+        const rawBirthday = String(row['birthday'] ?? row['dob'] ?? row['date'] ?? row['birthDate'] ?? '');
+        const key = `${index}`;
+
+        if (!rawName) {
+          nextProblems.push({ key, rawName: '(no name)', reason: 'No name on this entry.' });
+          return;
+        }
+        const { member, ambiguous } = findMemberByName(members, rawName);
+        if (ambiguous) {
+          nextProblems.push({ key, rawName, reason: `More than one member is named "${rawName}" — set this from their profile instead.` });
+          return;
+        }
+        if (!member) {
+          nextProblems.push({ key, rawName, reason: `No member named "${rawName}".` });
+          return;
+        }
+        const proposed = normaliseImportedDate(rawBirthday);
+        if (!proposed) {
+          nextProblems.push({ key, rawName, reason: `"${rawBirthday}" is not a date this can read.` });
+          return;
+        }
+        const current = String(member['birthday'] ?? '');
+        const status: BirthdayImportStatus = !current ? 'new' : current === proposed ? 'unchanged' : 'conflict';
+        nextRows.push({ key, rawName, member, current, proposed, status });
+        nextChecked[key] = status === 'new';
+      });
+
+      setRows(nextRows);
+      setProblems(nextProblems);
+      setChecked(nextChecked);
+    } catch (cause) {
+      setParseError(cause instanceof Error ? cause.message : 'That file could not be read.');
+    }
+  };
+
+  const importable = rows.filter((row) => row.status !== 'unchanged');
+  const selectedCount = importable.filter((row) => checked[row.key]).length;
+
+  const apply = async (): Promise<void> => {
+    const toApply = importable.filter((row) => checked[row.key]);
+    if (toApply.length === 0) return;
+    setApplying(true);
+    try {
+      await Promise.all(toApply.map((row) => onSave(row.member.id, { birthday: row.proposed })));
+      toast.success(`Set ${toApply.length} birthday${toApply.length === 1 ? '' : 's'}`);
+      dialog.hide();
+      reset();
+    } catch (cause) {
+      toast.fromError(cause, 'Some birthdays did not save');
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={dialog.open}
+      onClose={() => {
+        dialog.hide();
+        reset();
+      }}
+      title="Import birthdays"
+      description="A JSON file listing a name and a birthday per entry — matched against members already here by name."
+      wide
+      footer={
+        <>
+          <Button variant="ghost" onClick={dialog.hide} disabled={applying}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={() => void apply()} loading={applying} disabled={selectedCount === 0}>
+            Set {selectedCount} birthday{selectedCount === 1 ? '' : 's'}
+          </Button>
+        </>
+      }
+    >
+      <FileButton
+        label={fileName ? `Chosen: ${fileName}` : 'Choose a file'}
+        accept="application/json,.json"
+        onFile={(file) => void readFile(file)}
+        variant="secondary"
+      />
+
+      {parseError ? (
+        <p className="small" style={{ color: 'var(--danger)', marginTop: 'var(--space-3)' }}>
+          {parseError}
+        </p>
+      ) : null}
+
+      {importable.length > 0 ? (
+        <div className="list" style={{ marginTop: 'var(--space-4)' }}>
+          {importable.map((row) => (
+            <div key={row.key} className="list-row">
+              <input
+                type="checkbox"
+                checked={Boolean(checked[row.key])}
+                onChange={(event) => setChecked((current) => ({ ...current, [row.key]: event.target.checked }))}
+                aria-label={`Set ${row.rawName}'s birthday`}
+              />
+              <Avatar
+                name={String(row.member['name'])}
+                color={(row.member['color'] as string) ?? null}
+                icon={(row.member['icon'] as string) ?? null}
+                size={30}
+                round
+              />
+              <span className="list-row__body">
+                <span className="list-row__title">{String(row.member['name'])}</span>
+                <span className="list-row__meta">
+                  {row.current ? <span className="faint">{row.current} → </span> : null}
+                  {row.proposed}
+                  {row.status === 'conflict' ? <Chip>Replaces existing</Chip> : null}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {rows.some((row) => row.status === 'unchanged') ? (
+        <p className="tiny faint" style={{ marginTop: 'var(--space-3)' }}>
+          {rows.filter((row) => row.status === 'unchanged').length} already match what's here and are left out.
+        </p>
+      ) : null}
+
+      {problems.length > 0 ? (
+        <div style={{ marginTop: 'var(--space-4)' }}>
+          <p className="small muted">{problems.length} could not be matched:</p>
+          <ul className="tiny faint" style={{ margin: 'var(--space-2) 0 0', paddingLeft: 'var(--space-4)' }}>
+            {problems.slice(0, 20).map((problem) => (
+              <li key={problem.key}>{problem.reason}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </Dialog>
   );
 }
