@@ -102,7 +102,7 @@ export async function claimHandle(page, handle, displayName) {
 export const ROUTES = [
   '',
   'quick-front', 'fronting', 'stats', 'members', 'profiles', 'organize',
-  'subsystems', 'system-history', 'relationships', 'headspace', 'bulletin',
+  'subsystems', 'system-history', 'timeline', 'relationships', 'headspace', 'bulletin',
   'polls', 'journal', 'notes', 'tasks', 'calendar', 'media', 'flags', 'achievements',
   'daily-summary', 'wellbeing', 'emotions', 'body-map', 'emotion-insights', 'sleep',
   'fitness', 'cycle', 'finances', 'contacts', 'emergency', 'locations', 'work', 'vault',
