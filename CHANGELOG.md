@@ -93,6 +93,13 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **The active-tab underline and the sidebar/bottom-nav's active colour used
+  to snap instead of transitioning.** Both already had a transition rule, but
+  a second, later rule with the same specificity was silently replacing it
+  and dropping the property that actually moves — the tab's underline colour,
+  and the nav items' icon/label colour. Switching tabs and navigating between
+  sections now animates the same way the rest of the interface's active
+  states already do.
 - A heatmap chart (used on the Stats page) rendered each of its rows without
   a key on the outer element, which React warns about on every render past
   a handful of rows.
