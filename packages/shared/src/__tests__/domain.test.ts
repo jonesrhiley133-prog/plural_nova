@@ -316,6 +316,15 @@ describe('settings', () => {
     expect(notificationAllowed(settings, 'messages', 'inApp', at)).toBe(true);
   });
 
+  it('turns off in-app notifications and their badge without touching push', () => {
+    const settings = defaultSettings();
+    settings.inAppNotificationsEnabled = false;
+    expect(notificationAllowed(settings, 'messages', 'inApp')).toBe(false);
+    expect(notificationAllowed(settings, 'messages', 'badge')).toBe(false);
+    expect(notificationAllowed(settings, 'messages', 'push')).toBe(true);
+    expect(notificationAllowed(settings, 'messages', 'foreground')).toBe(true);
+  });
+
   it('keeps a saved theme preset across a merge', () => {
     const mine = createCustomPreset('Mine', DEFAULT_THEME);
     const merged = mergeSettings({ customThemePresets: [mine] } as never);

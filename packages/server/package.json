@@ -1,6 +1,6 @@
 {
   "name": "@pluralnova/server",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -17,6 +17,7 @@
     "better-sqlite3": "^11.5.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
+    "firebase-admin": "^14.5.0",
     "web-push": "^3.6.7",
     "ws": "^8.18.0"
   },

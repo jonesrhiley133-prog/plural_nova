@@ -44,6 +44,25 @@ val keystoreProperties = Properties().apply {
 }
 val hasReleaseKey = keystoreProperties.containsKey("storeFile")
 
+/*
+ * Push notifications need a Firebase project, which is a self-hoster's own
+ * Google account to create — nothing this repository can supply. The
+ * `firebase-messaging` dependency below can always compile without one, but
+ * the `google-services` Gradle plugin reads this file at build time and fails
+ * the build outright if it is missing, so applying the plugin has to be
+ * conditional the same way release signing is: present, use it; absent, skip
+ * it and the app still builds, just without native push. See android/README.md.
+ */
+val hasFirebaseConfig = project.file("google-services.json").exists()
+if (hasFirebaseConfig) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.lifecycle(
+        "\n[pluralnova] No app/google-services.json — building without Firebase Cloud Messaging.\n" +
+            "Web Push still works everywhere; see android/README.md to add native Android push.\n",
+    )
+}
+
 android {
     namespace = "com.pluralnova.app"
     compileSdk = 35
@@ -163,4 +182,10 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.webkit)
+    // Always present: it compiles and links fine with no google-services.json.
+    // Without one, FirebaseMessaging simply has no default app to attach to,
+    // which PushMessagingService and the bridge in MainActivity both expect
+    // and handle rather than crash on.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 }

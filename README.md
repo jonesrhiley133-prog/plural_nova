@@ -52,6 +52,7 @@ Everything has a working default. The ones worth knowing:
 | `PLURALNOVA_CORS` | localhost dev origins | comma separated |
 | `PLURALNOVA_MAIL_FROM` | unset | without it, reset codes come back in the response outside production |
 | `PLURALNOVA_MAX_UPLOAD` | 25 MB | per file |
+| `PLURALNOVA_FIREBASE_CREDENTIALS` | unset | only for push to the native Android app — see [`android/README.md`](android/README.md#push-notifications) |
 
 Set `NODE_ENV=production` before exposing it to anything.
 

@@ -19,6 +19,13 @@ import { sendPush } from './push.js';
  * badge — by reading the account's saved preferences. Nothing else in the
  * server creates a notification, so a category the user switched off is off
  * everywhere, including on the lock screen.
+ *
+ * The channels are independent: whether this becomes a row in the in-app
+ * notification centre and whether it gets pushed to a device are decided
+ * separately, because the settings screen presents them as separate
+ * checkboxes. Gating one behind the other would mean unchecking just "In
+ * app" for a category silently also stopped its push notifications, which
+ * is not what that checkbox says it does.
  */
 
 export interface NotifyInput {
@@ -40,7 +47,9 @@ export async function notify(input: NotifyInput): Promise<StoredRecord | null> {
   if (!user) return null;
   const settings = readSettings(user);
 
-  if (!notificationAllowed(settings, input.category, 'inApp')) return null;
+  const showInApp = notificationAllowed(settings, input.category, 'inApp');
+  const sendAsPush = notificationAllowed(settings, input.category, 'push');
+  if (!showInApp && !sendAsPush) return null;
 
   // Titles and bodies are authored with {{tokens}} exactly like client-side
   // strings, so a switch/journal/etc. mention lands in the account's own
@@ -49,36 +58,39 @@ export async function notify(input: NotifyInput): Promise<StoredRecord | null> {
   const title = applyTerminology(input.title, terms);
   const body = input.body ? applyTerminology(input.body, terms) : input.body;
 
-  const timestamp = now();
-  const id = newId('ntf');
-  getDb()
-    .prepare(
-      `INSERT INTO "notifications"
-        ("id","userId","systemId","memberId","visibility","createdAt","updatedAt","deletedAt","version",
-         "kind","title","body","category","link","readAt","meta","actorUserId","actorMemberId")
-       VALUES (?,?,?,?,?,?,?,NULL,1,?,?,?,?,?,NULL,?,?,?)`,
-    )
-    .run(
-      id,
-      input.userId,
-      user.activeSystemId,
-      input.actorMemberId ?? null,
-      'private',
-      timestamp,
-      timestamp,
-      input.kind,
-      title,
-      (body ?? '').slice(0, 500),
-      input.category,
-      input.link ?? '',
-      input.meta ? JSON.stringify(input.meta) : null,
-      input.actorUserId ?? '',
-      input.actorMemberId ?? null,
-    );
+  let id: string | null = null;
+  if (showInApp) {
+    const timestamp = now();
+    id = newId('ntf');
+    getDb()
+      .prepare(
+        `INSERT INTO "notifications"
+          ("id","userId","systemId","memberId","visibility","createdAt","updatedAt","deletedAt","version",
+           "kind","title","body","category","link","readAt","meta","actorUserId","actorMemberId")
+         VALUES (?,?,?,?,?,?,?,NULL,1,?,?,?,?,?,NULL,?,?,?)`,
+      )
+      .run(
+        id,
+        input.userId,
+        user.activeSystemId,
+        input.actorMemberId ?? null,
+        'private',
+        timestamp,
+        timestamp,
+        input.kind,
+        title,
+        (body ?? '').slice(0, 500),
+        input.category,
+        input.link ?? '',
+        input.meta ? JSON.stringify(input.meta) : null,
+        input.actorUserId ?? '',
+        input.actorMemberId ?? null,
+      );
 
-  publish(input.userId, { type: 'notification.new', notificationId: id, category: input.category });
+    publish(input.userId, { type: 'notification.new', notificationId: id, category: input.category });
+  }
 
-  if (notificationAllowed(settings, input.category, 'push')) {
+  if (sendAsPush) {
     // Previews are suppressed for private content and whenever the account has
     // turned them off, so a locked screen shows that something arrived without
     // showing what it said.
@@ -95,7 +107,7 @@ export async function notify(input: NotifyInput): Promise<StoredRecord | null> {
     });
   }
 
-  return { id } as unknown as StoredRecord;
+  return id ? ({ id } as unknown as StoredRecord) : null;
 }
 
 export function unreadCount(userId: string): number {

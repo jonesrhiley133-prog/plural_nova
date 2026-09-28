@@ -10,6 +10,14 @@ import { api } from './api.js';
  * Delivery while the app is closed is handled by the service worker, not by the
  * page — that is what makes these behave like application notifications rather
  * than something that only appears while a tab is open.
+ *
+ * The native Android app has no service worker push channel to subscribe
+ * through — a plain WebView has no Web Push service behind it — so it bridges
+ * to Firebase Cloud Messaging instead, through a small native object the app
+ * injects as `window.PluralNovaAndroid`. Every function below checks for that
+ * bridge first and, when it is there, takes an entirely separate path that
+ * never touches `Notification`/`PushManager` at all. Everything calling into
+ * this module (Settings, onboarding) is unaffected either way.
  */
 
 export type PushState =
@@ -26,6 +34,77 @@ export interface PushStatus {
   canAsk: boolean;
 }
 
+/** The interface `MainActivity` injects. Absent entirely outside the Android app. */
+interface AndroidPushBridge {
+  getFcmToken?: () => string;
+  deleteFcmToken?: () => void;
+  notificationsAllowed?: () => boolean;
+}
+
+/** The last token this device successfully registered with the server, if any. */
+const FCM_TOKEN_KEY = 'pluralnova.fcmToken';
+
+function androidBridge(): AndroidPushBridge | null {
+  const bridge = (window as unknown as { PluralNovaAndroid?: AndroidPushBridge }).PluralNovaAndroid;
+  return bridge && typeof bridge.getFcmToken === 'function' ? bridge : null;
+}
+
+function androidPushStatus(bridge: AndroidPushBridge): PushStatus {
+  if (bridge.notificationsAllowed && !bridge.notificationsAllowed()) {
+    return {
+      state: 'denied',
+      message: 'Your device is blocking notifications for PluralNova. Allow them in Android settings, then try again.',
+      canAsk: false,
+    };
+  }
+  return localStorage.getItem(FCM_TOKEN_KEY)
+    ? { state: 'subscribed', message: 'Notifications are on for this device.', canAsk: false }
+    : { state: 'default', message: 'Notifications are not turned on yet.', canAsk: true };
+}
+
+async function enableAndroidPush(bridge: AndroidPushBridge, label: string): Promise<PushStatus> {
+  if (bridge.notificationsAllowed && !bridge.notificationsAllowed()) {
+    return {
+      state: 'denied',
+      message: 'Notifications are blocked. Allow them in Android settings to turn them on.',
+      canAsk: false,
+    };
+  }
+
+  try {
+    const token = bridge.getFcmToken?.();
+    if (!token) {
+      return { state: 'error', message: 'Notifications could not be set up on this device.', canAsk: true };
+    }
+
+    await api.post('/api/devices', { label, platform: 'android', fcmToken: token });
+    localStorage.setItem(FCM_TOKEN_KEY, token);
+
+    return { state: 'subscribed', message: 'Notifications are on for this device.', canAsk: false };
+  } catch (error) {
+    return {
+      state: 'error',
+      message:
+        error instanceof Error
+          ? `Notifications could not be set up: ${error.message}`
+          : 'Notifications could not be set up on this device.',
+      canAsk: true,
+    };
+  }
+}
+
+function disableAndroidPush(bridge: AndroidPushBridge): void {
+  localStorage.removeItem(FCM_TOKEN_KEY);
+  // Best-effort: this invalidates the token at the source, so a stale device
+  // row gets cleaned up server-side the same way an expired browser
+  // subscription does, the next time delivery to it is attempted.
+  try {
+    bridge.deleteFcmToken?.();
+  } catch {
+    // Nothing more to do from here if the native side could not clear it.
+  }
+}
+
 function base64ToUint8Array(base64: string) {
   const padded = `${base64}${'='.repeat((4 - (base64.length % 4)) % 4)}`
     .replace(/-/g, '+')
@@ -38,10 +117,14 @@ function base64ToUint8Array(base64: string) {
 }
 
 export function pushSupported(): boolean {
+  if (androidBridge()) return true;
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
 export async function pushStatus(): Promise<PushStatus> {
+  const bridge = androidBridge();
+  if (bridge) return androidPushStatus(bridge);
+
   if (!pushSupported()) {
     return {
       state: 'unsupported',
@@ -72,6 +155,9 @@ export async function pushStatus(): Promise<PushStatus> {
 }
 
 export async function enablePush(label = deviceLabel()): Promise<PushStatus> {
+  const bridge = androidBridge();
+  if (bridge) return enableAndroidPush(bridge, label);
+
   if (!pushSupported()) return pushStatus();
 
   const permission =
@@ -122,6 +208,12 @@ export async function enablePush(label = deviceLabel()): Promise<PushStatus> {
 }
 
 export async function disablePush(): Promise<void> {
+  const bridge = androidBridge();
+  if (bridge) {
+    disableAndroidPush(bridge);
+    return;
+  }
+
   const registration = await navigator.serviceWorker.getRegistration();
   const subscription = await registration?.pushManager.getSubscription();
   await subscription?.unsubscribe();
@@ -132,6 +224,7 @@ export async function sendTestNotification(): Promise<void> {
 }
 
 function deviceLabel(): string {
+  if (androidBridge()) return 'PluralNova (Android app)';
   const agent = navigator.userAgent;
   if (/iPhone|iPad|iPod/.test(agent)) return 'iPhone or iPad';
   if (/Android/.test(agent)) return 'Android device';
@@ -162,6 +255,7 @@ export async function setAppBadge(count: number): Promise<void> {
 /** True when the app is running installed rather than in a browser tab. */
 export function isInstalled(): boolean {
   return (
+    Boolean(androidBridge()) ||
     window.matchMedia('(display-mode: standalone)').matches ||
     window.matchMedia('(display-mode: window-controls-overlay)').matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true

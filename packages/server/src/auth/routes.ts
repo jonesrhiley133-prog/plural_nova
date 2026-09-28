@@ -431,6 +431,7 @@ const LOGGABLE_SETTINGS: Record<string, { label: string; category: HistoryCatego
   terminology: { label: 'Terminology', category: 'settings' },
   notifications: { label: 'Notification preferences', category: 'settings' },
   notificationsEnabled: { label: 'Notifications', category: 'settings' },
+  inAppNotificationsEnabled: { label: 'In-app notifications', category: 'settings' },
   quietHours: { label: 'Quiet hours', category: 'settings' },
   privacy: { label: 'Privacy defaults', category: 'settings' },
   mode: { label: 'Mode', category: 'settings' },

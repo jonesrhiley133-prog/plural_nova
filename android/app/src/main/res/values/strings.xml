@@ -26,4 +26,7 @@
     <string name="error_detail">%1$s did not respond.\n\n%2$s</string>
     <string name="error_retry">Try again</string>
     <string name="error_change_server">Use a different address</string>
+
+    <string name="notification_channel_name">PluralNova</string>
+    <string name="notification_channel_description">Messages, fronting and other activity from your PluralNova server.</string>
 </resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A small status-bar mark distilled from the launcher icon's core-and-orbit
+  shape (see packages/web/public/icons/icon.svg): a ring around a dot. Android
+  draws this as a flat silhouette from its alpha channel alone — every colour
+  here is discarded — so it is simplified rather than a scaled-down copy of
+  the full icon, which would just read as noise at this size.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12,3 A9,9 0 1,0 12.01,3"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M12,8.6 A3.4,3.4 0 1,0 12.01,8.6"
+        android:fillColor="#FFFFFF" />
+</vector>

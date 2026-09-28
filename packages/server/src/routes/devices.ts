@@ -12,8 +12,10 @@ import { publicKey, sendPush } from '../services/push.js';
  *
  * A subscription belongs to a device, not to the account, so signing out on one
  * phone does not stop notifications on another. Registering the same endpoint
- * twice updates the existing row instead of creating a duplicate that would
- * deliver everything twice.
+ * (or, for the native Android app, the same FCM token) twice updates the
+ * existing row instead of creating a duplicate that would deliver everything
+ * twice. A device carries exactly one of the two: a browser sends `subscription`,
+ * the Android shell sends `fcmToken`.
  */
 
 export const devicesRouter: Router = Router();
@@ -36,8 +38,8 @@ devicesRouter.get(
           lastSeenAt: device['lastSeenAt'],
           lastSyncAt: device['lastSyncAt'],
           pushEnabled: device['pushEnabled'],
-          // The endpoint itself is a capability URL, so it is never returned.
-          hasPush: Boolean(device['pushEndpoint']),
+          // The endpoint/token itself is a capability secret, so it is never returned.
+          hasPush: Boolean(device['pushEndpoint'] || device['fcmToken']),
         })),
       vapidPublicKey: publicKey(),
     });
@@ -52,20 +54,27 @@ devicesRouter.post(
       label?: string;
       platform?: string;
       subscription?: { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+      /** Alternative to `subscription`, from the native Android app's Firebase bridge. */
+      fcmToken?: string;
     };
 
     const endpoint = body.subscription?.endpoint ?? null;
+    const fcmToken = body.fcmToken ?? null;
     const timestamp = now();
     const existing = endpoint
       ? (getDb()
           .prepare('SELECT "id" FROM "devices" WHERE "userId" = ? AND "pushEndpoint" = ?')
           .get(context.user.id, endpoint) as { id: string } | undefined)
-      : undefined;
+      : fcmToken
+        ? (getDb()
+            .prepare('SELECT "id" FROM "devices" WHERE "userId" = ? AND "fcmToken" = ?')
+            .get(context.user.id, fcmToken) as { id: string } | undefined)
+        : undefined;
 
     if (existing) {
       getDb()
         .prepare(
-          `UPDATE "devices" SET "label" = ?, "platform" = ?, "pushP256dh" = ?, "pushAuth" = ?,
+          `UPDATE "devices" SET "label" = ?, "platform" = ?, "pushP256dh" = ?, "pushAuth" = ?, "fcmToken" = ?,
            "pushEnabled" = 1, "lastSeenAt" = ?, "updatedAt" = ?, "deletedAt" = NULL WHERE "id" = ?`,
         )
         .run(
@@ -73,6 +82,7 @@ devicesRouter.post(
           body.platform ?? '',
           body.subscription?.keys?.p256dh ?? null,
           body.subscription?.keys?.auth ?? null,
+          fcmToken,
           timestamp,
           timestamp,
           existing.id,
@@ -86,8 +96,8 @@ devicesRouter.post(
       .prepare(
         `INSERT INTO "devices"
           ("id","userId","systemId","memberId","visibility","createdAt","updatedAt","deletedAt","version",
-           "label","platform","pushEndpoint","pushP256dh","pushAuth","lastSeenAt","lastSyncAt","pushEnabled")
-         VALUES (?,?,?,NULL,'private',?,?,NULL,1,?,?,?,?,?,?,NULL,?)`,
+           "label","platform","pushEndpoint","pushP256dh","pushAuth","fcmToken","lastSeenAt","lastSyncAt","pushEnabled")
+         VALUES (?,?,?,NULL,'private',?,?,NULL,1,?,?,?,?,?,?,?,NULL,?)`,
       )
       .run(
         id,
@@ -100,8 +110,9 @@ devicesRouter.post(
         endpoint,
         body.subscription?.keys?.p256dh ?? null,
         body.subscription?.keys?.auth ?? null,
+        fcmToken,
         timestamp,
-        endpoint ? 1 : 0,
+        endpoint || fcmToken ? 1 : 0,
       );
     ok(res, { id, created: true }, 201);
   }),
