@@ -90,6 +90,46 @@
   font-weight: 700;
 }
 
+.chatter-switch {
+  background: none;
+  border: none;
+  padding: 2px;
+  border-radius: 50%;
+  cursor: pointer;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.chatter-switch:hover,
+.chatter-switch:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.chat-home__notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 var(--space-4) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.chat-home__notice-action {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .chat-home__search {
   padding: var(--space-2) var(--space-4);
   flex-shrink: 0;
@@ -720,6 +760,57 @@
   color: var(--text-faint);
   padding: 6px;
   display: flex;
+}
+
+.chatter-popover {
+  z-index: var(--z-modal);
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.chatter-popover__title {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+.chatter-popover__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.chatter-popover__option span:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+
+.chatter-popover__option:hover,
+.chatter-popover__option:focus-visible {
+  background: var(--surface-sunken);
+}
+
+.chatter-popover__option[aria-current='true'] {
+  color: var(--accent);
 }
 
 /* ── Attachments ─────────────────────────────────────────────────────────── */

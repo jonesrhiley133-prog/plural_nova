@@ -71,7 +71,8 @@ const Constellations = load(() => import('./modules/Constellations.js'));
 const ConstellationProfile = load(() => import('./modules/ConstellationProfile.js'));
 const Friends = load(() => import('./modules/Friends.js'));
 const Flux = load(() => import('./modules/Flux.js'));
-const Chat = load(() => import('./modules/Chat.js'));
+const SystemChatPage = load(() => import('./systemChat/SystemChatPage.js'));
+const MessagesPage = load(() => import('./messages/MessagesPage.js'));
 const Bulletin = load(() => import('./modules/Bulletin.js'));
 const Polls = load(() => import('./modules/Polls.js'));
 const NotificationCentre = load(() => import('./modules/NotificationCentre.js'));
@@ -111,10 +112,10 @@ function SystemOnly({ children }: { children: JSX.Element }): JSX.Element {
   return children;
 }
 
-/** Old /messages links — a bookmark, or a link inside a notification sent before the cutover — land on the same conversation in Chat instead of a dead page. */
+/** Old /messages links — a bookmark, or a link inside a notification sent before the cutover — land on the same conversation in Messages instead of a dead page. */
 function MessagesRedirect(): JSX.Element {
   const { threadId } = useParams<{ threadId?: string }>();
-  return <Navigate to={threadId ? `/chat/dm/${threadId}` : '/chat'} replace />;
+  return <Navigate to={threadId ? `/social/messages/${threadId}` : '/social/messages'} replace />;
 }
 
 function AppRoutes(): JSX.Element {
@@ -158,9 +159,13 @@ function AppRoutes(): JSX.Element {
     <AppLockGate>
       <Routes>
         {/* Outside <Layout> on purpose: the full viewport is the messaging
-            interface here, not a page inside the standard shell. */}
-        <Route path="chat" element={<Chat />} />
-        <Route path="chat/:kind/:threadId" element={<Chat />} />
+            interface here, not a page inside the standard shell. In-Sys Chat
+            and Messages are genuinely separate features under this shared
+            visual treatment — two route trees, not one generic chat page. */}
+        <Route path="system/chat" element={<SystemOnly><SystemChatPage /></SystemOnly>} />
+        <Route path="system/chat/:threadId" element={<SystemOnly><SystemChatPage /></SystemOnly>} />
+        <Route path="social/messages" element={<MessagesPage />} />
+        <Route path="social/messages/:threadId" element={<MessagesPage />} />
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="quick-front" element={<SystemOnly><QuickFront /></SystemOnly>} />
@@ -175,7 +180,7 @@ function AppRoutes(): JSX.Element {
           <Route path="timeline" element={<SystemOnly><Timeline /></SystemOnly>} />
           <Route path="relationships" element={<SystemOnly><Relationships /></SystemOnly>} />
           <Route path="headspace" element={<SystemOnly><Headspace /></SystemOnly>} />
-          <Route path="system-chat" element={<Navigate to="/chat" replace />} />
+          <Route path="system-chat" element={<Navigate to="/system/chat" replace />} />
           <Route path="bulletin" element={<SystemOnly><Bulletin /></SystemOnly>} />
           <Route path="polls" element={<SystemOnly><Polls /></SystemOnly>} />
 

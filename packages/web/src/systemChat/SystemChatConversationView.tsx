@@ -1,38 +1,35 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { readableTextOn } from '@pluralnova/shared';
+import { useEffect, useRef, useState } from 'react';
+import { readableTextOn, resolveChatAppearance } from '@pluralnova/shared';
 import { useAuth } from '../core/auth.js';
 import { useCollection } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import {
-  resolveChatAppearance,
-  useChatConversation,
-  uploadChatAttachment,
-  type ChatAttachment,
-  type ChatKind,
-  type ChatMessage,
-} from '../core/chat.js';
+  useSystemChatConversation,
+  useSystemChatThreads,
+  uploadSystemChatAttachment,
+  type SystemChatAttachment,
+  type SystemChatMessage,
+} from '../core/systemChat.js';
 import { Avatar, AvatarStack, Button, IconButton } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
-import { MessageBubble } from './MessageBubble.js';
-import { PendingAttachmentChip } from './ChatAttachmentView.js';
-import { useVoiceRecorder, VoiceRecorderPanel } from './VoiceRecorder.js';
+import { MessageBubble } from '../chat/MessageBubble.js';
+import { PendingAttachmentChip, type ChatAttachmentLike } from '../chat/ChatAttachmentView.js';
+import { useVoiceRecorder, VoiceRecorderPanel } from '../chat/VoiceRecorder.js';
+import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
 import { SendAsStrip } from './SendAsStrip.js';
-import { ChatInfoDialog } from './ChatInfoDialog.js';
-import { ForwardDialog } from './ForwardDialog.js';
+import { SystemChatInfoDialog } from './SystemChatInfoDialog.js';
 
 const ATTACH_ACCEPT = 'image/*,video/*,audio/*,.pdf,.txt';
 
 /**
- * One open conversation: header, the message history, and the composer. The
- * composer itself adapts to what is happening — a plain text row normally,
- * queued attachment thumbnails above it once something is picked, and the
- * whole row replaced by the recorder while a voice message is in progress.
+ * One open In-Sys Chat conversation: header, history, composer. The header
+ * avatar/title reflect this thread's counterpart, not the active chatter —
+ * that only decides which threads are listed and who "mine" means below.
  */
-interface ChatConversationViewProps {
-  kind: ChatKind;
+interface SystemChatConversationViewProps {
   threadId: string;
   viewerMemberId: string | null;
   onBack: () => void;
@@ -42,26 +39,22 @@ function dayKey(iso: string): string {
   return iso.slice(0, 10);
 }
 
-export function ChatConversationView({
-  kind,
-  threadId,
-  viewerMemberId,
-  onBack,
-}: ChatConversationViewProps): JSX.Element {
+export function SystemChatConversationView({ threadId, viewerMemberId, onBack }: SystemChatConversationViewProps): JSX.Element {
   const dates = useDateFormat();
   const toast = useToast();
   const { settings } = useAuth();
-  const members = useCollection('members', { enabled: kind === 'system' });
-  const conversation = useChatConversation(kind, threadId, viewerMemberId);
+  const members = useCollection('members');
+  const conversation = useSystemChatConversation(threadId, viewerMemberId);
+  const { threads: allThreads } = useSystemChatThreads();
 
   const [draft, setDraft] = useState('');
-  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [replyTo, setReplyTo] = useState<SystemChatMessage | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<SystemChatAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [lightbox, setLightbox] = useState<ChatAttachment | null>(null);
-  const forwardDialog = useDialog<ChatMessage>();
-  const deleteDialog = useDialog<ChatMessage>();
+  const [lightbox, setLightbox] = useState<ChatAttachmentLike | null>(null);
+  const forwardDialog = useDialog<SystemChatMessage>();
+  const deleteDialog = useDialog<SystemChatMessage>();
   const recorder = useVoiceRecorder();
   const attachInputRef = useRef<HTMLInputElement>(null);
 
@@ -111,7 +104,7 @@ export function ChatConversationView({
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
-        const attachment = await uploadChatAttachment(file, file.name);
+        const attachment = await uploadSystemChatAttachment(file, file.name);
         setPendingAttachments((current) => [...current, attachment]);
       }
     } catch (cause) {
@@ -123,7 +116,7 @@ export function ChatConversationView({
 
   const sendVoiceMessage = async (blob: Blob): Promise<void> => {
     try {
-      const attachment = await uploadChatAttachment(blob, `voice-message.${blob.type.includes('mp4') ? 'm4a' : 'webm'}`);
+      const attachment = await uploadSystemChatAttachment(blob, `voice-message.${blob.type.includes('mp4') ? 'm4a' : 'webm'}`);
       await conversation.send('', { replyToId: replyTo?.id ?? null, attachments: [attachment] });
       setReplyTo(null);
     } catch (cause) {
@@ -135,7 +128,7 @@ export function ChatConversationView({
     void conversation.react(messageId, emoji).catch((cause: unknown) => toast.fromError(cause, 'That reaction did not go through'));
   };
 
-  const copy = (message: ChatMessage): void => {
+  const copy = (message: SystemChatMessage): void => {
     void navigator.clipboard
       .writeText(message.body)
       .then(() => toast.success('Copied'))
@@ -161,7 +154,7 @@ export function ChatConversationView({
   }
 
   const thread = conversation.thread;
-  const isGroupLike = thread?.subKind === 'group' || thread?.subKind === 'system';
+  const isGroupLike = thread?.kind === 'group' || thread?.kind === 'system';
 
   const appearance = resolveChatAppearance(settings.chatAppearance, thread?.settings ?? null);
   const appearanceStyle = {
@@ -172,8 +165,20 @@ export function ChatConversationView({
     ...(appearance.bubbleTheirs ? { '--chat-bubble-theirs': appearance.bubbleTheirs } : {}),
   } as never;
 
+  const forwardCandidates: ForwardCandidate[] = allThreads.map((candidate) => {
+    const candidateGroupLike = candidate.kind === 'group' || candidate.kind === 'system';
+    return {
+      id: candidate.id,
+      title: candidate.title,
+      avatarUrl: candidate.person?.avatarUrl,
+      color: candidate.person?.color ?? (candidateGroupLike ? 'var(--accent)' : null),
+      icon: candidateGroupLike ? 'group' : candidate.person?.icon,
+      isGroupLike: candidateGroupLike,
+    };
+  });
+
   return (
-    <div className="chat-conversation" style={appearanceStyle} data-spacing={appearance.spacing} data-kind={kind}>
+    <div className="chat-conversation" style={appearanceStyle} data-spacing={appearance.spacing}>
       <header className="chat-conversation__header">
         <IconButton icon="chevronLeft" label="Back to conversations" variant="ghost" className="chat-conversation__back" onClick={onBack} />
         {isGroupLike ? (
@@ -198,16 +203,10 @@ export function ChatConversationView({
         )}
         <div className="chat-conversation__title">
           <span className="chat-conversation__name">{thread?.title}</span>
-          {kind === 'dm' ? (
+          {isGroupLike ? (
             <span className="chat-conversation__status">
-              {!conversation.cryptoSupported
-                ? ''
-                : conversation.encryptionReady
-                  ? 'End-to-end encrypted'
-                  : 'Not encrypted yet'}
+              {(thread?.participants.length ?? 0) || 'Everyone'} {thread?.kind === 'system' ? '· whole system' : ''}
             </span>
-          ) : isGroupLike ? (
-            <span className="chat-conversation__status">{(thread?.participants.length ?? 0) || 'Everyone'} {thread?.subKind === 'system' ? '· whole system' : ''}</span>
           ) : null}
         </div>
         <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
@@ -231,7 +230,7 @@ export function ChatConversationView({
               const senderKey = `${message.isMine}:${message.sender?.id ?? ''}`;
               const showDayHeading = day !== lastDay;
               const showAvatar = showDayHeading || senderKey !== lastSenderKey;
-              const showName = kind === 'system' && showAvatar && !message.isMine;
+              const showName = showAvatar && !message.isMine;
               lastDay = day;
               lastSenderKey = senderKey;
               const quoted = message.replyToId ? byId.get(message.replyToId) ?? null : null;
@@ -345,18 +344,16 @@ export function ChatConversationView({
         </>
       )}
 
-      {kind === 'system' ? (
-        <SendAsStrip members={members.items} value={conversation.activeChatterId} onChange={conversation.setActiveChatterId} />
-      ) : null}
+      <SendAsStrip members={members.items} value={conversation.sendAsMemberId} onChange={conversation.setSendAsMemberId} />
 
       {thread ? (
-        <ChatInfoDialog open={infoOpen} onClose={() => setInfoOpen(false)} thread={thread} onChanged={conversation.refreshThread} />
+        <SystemChatInfoDialog open={infoOpen} onClose={() => setInfoOpen(false)} thread={thread} onChanged={conversation.refreshThread} />
       ) : null}
 
       <ForwardDialog
         open={forwardDialog.open}
         onClose={forwardDialog.hide}
-        kind={kind}
+        candidates={forwardCandidates}
         excludeThreadId={threadId}
         message={forwardDialog.value}
         onForward={(targetThreadIds) => conversation.forward(forwardDialog.value!.id, targetThreadIds)}

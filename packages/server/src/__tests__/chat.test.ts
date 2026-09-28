@@ -351,3 +351,102 @@ describe('system chat threads', () => {
     expect(threads.body.data.threads.some((t: any) => t.id === created.body.data.thread.id)).toBe(false);
   });
 });
+
+describe('active-chatter thread visibility', () => {
+  let client: TestClient;
+  let token: string;
+  let ashId: string;
+  let corvidId: string;
+  let juniperId: string;
+
+  const setActive = (memberId: string | null) =>
+    client.request('POST', '/api/system/active-member', { token, body: { memberId } });
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    const account = await registerUser(client, { email: 'active-chatter@example.com' });
+    token = account.token;
+
+    ashId = (await client.request('POST', '/api/records/members', { token, body: { name: 'Ash' } })).body.data.id;
+    corvidId = (await client.request('POST', '/api/records/members', { token, body: { name: 'Corvid' } })).body.data
+      .id;
+    juniperId = (await client.request('POST', '/api/records/members', { token, body: { name: 'Juniper' } })).body
+      .data.id;
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('shows a direct thread only to its own participants, whoever is active', async () => {
+    await setActive(ashId);
+    const created = await client.request('POST', '/api/system/chat/threads', {
+      token,
+      body: { kind: 'direct', participantMemberIds: [corvidId] },
+    });
+    const threadId = created.body.data.thread.id;
+
+    const asAsh = await client.request('GET', '/api/system/chat/threads', { token });
+    expect(asAsh.body.data.threads.some((t: any) => t.id === threadId)).toBe(true);
+
+    await setActive(juniperId);
+    const asJuniper = await client.request('GET', '/api/system/chat/threads', { token });
+    expect(asJuniper.body.data.threads.some((t: any) => t.id === threadId)).toBe(false);
+
+    await setActive(corvidId);
+    const asCorvid = await client.request('GET', '/api/system/chat/threads', { token });
+    expect(asCorvid.body.data.threads.some((t: any) => t.id === threadId)).toBe(true);
+
+    // Switching back to the creator must still show it — the bug this guards
+    // against hid a thread from its own creator once someone else had been
+    // active and come back.
+    await setActive(ashId);
+    const backToAsh = await client.request('GET', '/api/system/chat/threads', { token });
+    expect(backToAsh.body.data.threads.some((t: any) => t.id === threadId)).toBe(true);
+  });
+
+  it('shows only the whole-system thread when no one is the active chatter', async () => {
+    await setActive(ashId);
+    await client.request('POST', '/api/system/chat/threads', {
+      token,
+      body: { kind: 'direct', participantMemberIds: [corvidId] },
+    });
+
+    await setActive(null);
+    const threads = await client.request('GET', '/api/system/chat/threads', { token });
+    expect(threads.body.data.threads).toHaveLength(1);
+    expect(threads.body.data.threads[0].kind).toBe('system');
+  });
+
+  it('reuses the same direct thread regardless of who starts it', async () => {
+    await setActive(ashId);
+    const fromAsh = await client.request('POST', '/api/system/chat/threads', {
+      token,
+      body: { kind: 'direct', participantMemberIds: [juniperId] },
+    });
+    expect(fromAsh.status).toBe(201);
+
+    await setActive(juniperId);
+    const fromJuniper = await client.request('POST', '/api/system/chat/threads', {
+      token,
+      body: { kind: 'direct', participantMemberIds: [ashId] },
+    });
+    expect(fromJuniper.status).toBe(200);
+    expect(fromJuniper.body.data.thread.id).toBe(fromAsh.body.data.thread.id);
+  });
+
+  it("never lists the viewer as their own conversation's participant", async () => {
+    await setActive(ashId);
+    const created = await client.request('POST', '/api/system/chat/threads', {
+      token,
+      body: { kind: 'direct', participantMemberIds: [corvidId] },
+    });
+    expect(created.body.data.thread.participants.map((p: any) => p.name)).toEqual(['Corvid']);
+
+    await setActive(corvidId);
+    const asCorvid = await client.request(
+      'GET',
+      `/api/system/chat/threads/${created.body.data.thread.id}/messages`,
+      { token },
+    );
+    expect(asCorvid.body.data.thread.participants.map((p: any) => p.name)).toEqual(['Ash']);
+  });
+});

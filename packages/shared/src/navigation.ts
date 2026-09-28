@@ -22,7 +22,7 @@ export interface NavItem {
   quickAction?: boolean;
   description?: string;
   /** Badge source, if this item can show an unread count. */
-  badge?: 'notifications' | 'messages' | 'friendRequests' | 'flux';
+  badge?: 'notifications' | 'messages' | 'friendRequests' | 'flux' | 'systemChat';
   keywords?: readonly string[];
 }
 
@@ -61,6 +61,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'organize', path: '/organize', label: 'Organise', icon: 'organize', systemOnly: true, keywords: ['groups', 'folders', 'sort'] },
       { id: 'subsystems', path: '/subsystems', label: 'Subsystems', icon: 'subsystem', systemOnly: true },
       { id: 'fronting', path: '/fronting', label: 'Fronting', icon: 'front', systemOnly: true, keywords: ['front tracker', 'timeline'] },
+      { id: 'system-chat', path: '/system/chat', label: 'In-Sys Chat', icon: 'chat', primary: true, systemOnly: true, badge: 'systemChat', keywords: ['internal chat', 'alter chat', 'system chat'] },
       { id: 'stats', path: '/stats', label: 'Stats', icon: 'stats', systemOnly: true, keywords: ['analytics', 'charts'] },
       { id: 'journal', path: '/journal', label: 'Journal', icon: 'journal', primary: true, quickAction: true },
       { id: 'bulletin', path: '/bulletin', label: 'Bulletin board', icon: 'bulletin', systemOnly: true },
@@ -104,7 +105,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'constellations', path: '/constellations', label: 'Constellations', icon: 'constellation' },
       { id: 'friends', path: '/friends', label: 'Friends', icon: 'friend', badge: 'friendRequests' },
       { id: 'flux', path: '/flux', label: 'Flux', icon: 'flux', primary: true, badge: 'flux' },
-      { id: 'chat', path: '/chat', label: 'Chat', icon: 'message', primary: true, badge: 'messages', keywords: ['messages', 'system chat', 'dm'] },
+      { id: 'messages', path: '/social/messages', label: 'Messages', icon: 'message', primary: true, badge: 'messages', keywords: ['dm', 'direct message'] },
     ],
   },
   {

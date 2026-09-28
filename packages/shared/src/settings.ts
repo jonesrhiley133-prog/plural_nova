@@ -131,6 +131,23 @@ export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
   spacing: 'cozy',
 };
 
+/**
+ * The look a conversation actually renders with: its own override where it
+ * has one, filled in from whichever account-wide default applies — In-Sys
+ * Chat's `chatAppearance` or Messages' own `messagesAppearance` — everywhere
+ * it doesn't. Kind-agnostic on purpose: it only ever merges two
+ * `ChatAppearance` objects, so both features call the same function with
+ * their own default rather than each carrying a copy of it.
+ */
+export function resolveChatAppearance(
+  accountDefault: ChatAppearance,
+  threadSettings: Record<string, unknown> | null | undefined,
+): ChatAppearance {
+  const override = threadSettings?.['appearance'];
+  if (!override || typeof override !== 'object') return accountDefault;
+  return { ...accountDefault, ...(override as Partial<ChatAppearance>) };
+}
+
 export interface AppSettings {
   mode: AppMode;
   theme: ThemeSettings;
@@ -148,8 +165,10 @@ export interface AppSettings {
   privacy: PrivacyDefaults;
   /** App-wide lock, separate from the vault and from per-alter profile PINs. */
   appLock: AppLockSettings;
-  /** Default conversation look, used by any thread without its own override. */
+  /** Default In-Sys Chat conversation look, used by any thread without its own override. */
   chatAppearance: ChatAppearance;
+  /** Same, for Messages — independent of chatAppearance so customizing one never touches the other. */
+  messagesAppearance: ChatAppearance;
   /** Cuts animation, blur and background effects independently of the theme. */
   performanceMode: boolean;
   /** Skips the atmosphere layer on the login screen for low-end devices. */
@@ -211,6 +230,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
       lockOnBackground: true,
     },
     chatAppearance: { ...DEFAULT_CHAT_APPEARANCE },
+    messagesAppearance: { ...DEFAULT_CHAT_APPEARANCE },
     performanceMode: false,
     lowEndLogin: false,
     achievementsEnabled: true,
@@ -272,6 +292,7 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
     privacy: { ...base.privacy, ...(stored.privacy ?? {}) },
     appLock: { ...base.appLock, ...(stored.appLock ?? {}) },
     chatAppearance: { ...base.chatAppearance, ...(stored.chatAppearance ?? {}) },
+    messagesAppearance: { ...base.messagesAppearance, ...(stored.messagesAppearance ?? {}) },
     widgets: widgets.sort((a, b) => a.order - b.order),
     mobileTabs:
       Array.isArray(stored.mobileTabs) && stored.mobileTabs.length >= 3

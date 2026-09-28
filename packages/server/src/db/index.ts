@@ -103,6 +103,54 @@ function backfillSystemChatThreads(db: Db): number {
 }
 
 /**
+ * Direct and group system-chat threads used to store only the participants a
+ * member picked when starting the chat, not the member who started it — which
+ * the active-chatter thread-list filter now depends on knowing. Backfills
+ * every distinct sender its own messages already prove was really part of the
+ * conversation. A thread nobody has ever sent a message in is left as it was;
+ * the first message sent in it goes through the normal create path, which
+ * already records the sender as a participant going forward.
+ *
+ * Idempotent: re-running only ever adds ids to a thread's stored list, and a
+ * thread whose list already names everyone its messages do is left untouched.
+ */
+function backfillThreadParticipants(db: Db): number {
+  const threads = db
+    .prepare(
+      `SELECT id, participantMemberIds FROM systemChatThreads
+       WHERE deletedAt IS NULL AND kind IN ('direct', 'group')`,
+    )
+    .all() as { id: string; participantMemberIds: string | null }[];
+
+  let updated = 0;
+  for (const thread of threads) {
+    const senders = db
+      .prepare(
+        `SELECT DISTINCT memberId FROM systemChatMessages
+         WHERE threadId = ? AND deletedAt IS NULL AND memberId IS NOT NULL AND memberId != ''`,
+      )
+      .all(thread.id) as { memberId: string }[];
+    if (senders.length === 0) continue;
+
+    let current: string[] = [];
+    try {
+      current = JSON.parse(thread.participantMemberIds || '[]') as string[];
+    } catch {
+      current = [];
+    }
+    const merged = [...new Set([...current, ...senders.map((row) => row.memberId)])];
+    if (merged.length === current.length) continue;
+
+    db.prepare('UPDATE systemChatThreads SET participantMemberIds = ? WHERE id = ?').run(
+      JSON.stringify(merged),
+      thread.id,
+    );
+    updated += 1;
+  }
+  return updated;
+}
+
+/**
  * Brings the database up to the registry's shape.
  *
  * Tables are created if missing and columns are added if the registry grew,
@@ -113,10 +161,13 @@ function backfillSystemChatThreads(db: Db): number {
  * Column removals are deliberately not automated — dropping a column drops the
  * data in it, and that should be a decision someone makes on purpose.
  */
-export function migrate(db: Db): { created: string[]; addedColumns: string[]; backfilledChatThreads: number } {
+export function migrate(
+  db: Db,
+): { created: string[]; addedColumns: string[]; backfilledChatThreads: number; backfilledThreadParticipants: number } {
   const created: string[] = [];
   const addedColumns: string[] = [];
   let backfilledChatThreads = 0;
+  let backfilledThreadParticipants = 0;
 
   db.exec('BEGIN');
   try {
@@ -174,6 +225,7 @@ export function migrate(db: Db): { created: string[]; addedColumns: string[]; ba
     // Runs last, once systemChatThreads and systemChatMessages.threadId both
     // definitely exist from the steps above.
     backfilledChatThreads = backfillSystemChatThreads(db);
+    backfilledThreadParticipants = backfillThreadParticipants(db);
 
     db.exec('COMMIT');
   } catch (error) {
@@ -181,7 +233,7 @@ export function migrate(db: Db): { created: string[]; addedColumns: string[]; ba
     throw error;
   }
 
-  return { created, addedColumns, backfilledChatThreads };
+  return { created, addedColumns, backfilledChatThreads, backfilledThreadParticipants };
 }
 
 export function getMeta(key: string): string | null {

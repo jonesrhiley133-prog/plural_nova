@@ -447,7 +447,7 @@ messagesRouter.post(
         kind: 'message.new',
         title: `${counterpartSummary(context.user.id)['displayName']} sent a message`,
         body: body.encrypted ? 'Encrypted message' : text.slice(0, 120),
-        link: `/chat/dm/${threadId}`,
+        link: `/social/messages/${threadId}`,
         actorUserId: context.user.id,
         private: Boolean(body.encrypted),
       });

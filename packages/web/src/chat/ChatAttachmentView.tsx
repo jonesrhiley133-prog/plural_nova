@@ -1,6 +1,20 @@
 import { IconButton } from '../ui/primitives.js';
 import { Icon, type IconName } from '../ui/Icon.js';
-import type { ChatAttachment } from '../core/chat.js';
+
+/**
+ * Structural, not imported from either chat feature: `SystemChatAttachment`
+ * (core/systemChat.ts) and `MessageAttachment` (core/messages.ts) both already
+ * shape-match this, so either can be passed straight in with no coupling
+ * between the two features' data layers.
+ */
+export interface ChatAttachmentLike {
+  id: string;
+  url: string;
+  mediaType: 'image' | 'video' | 'audio' | 'document';
+  mimeType: string;
+  sizeBytes: number;
+  title: string;
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -11,7 +25,7 @@ function formatBytes(bytes: number): string {
 const DOC_ICON: IconName = 'note';
 
 /** One attachment as it renders inside a sent message bubble. */
-export function ChatAttachmentView({ attachment, onOpen }: { attachment: ChatAttachment; onOpen?: () => void }): JSX.Element {
+export function ChatAttachmentView({ attachment, onOpen }: { attachment: ChatAttachmentLike; onOpen?: () => void }): JSX.Element {
   if (attachment.mediaType === 'image') {
     return (
       <button type="button" className="chat-attachment chat-attachment--image" onClick={onOpen}>
@@ -52,7 +66,7 @@ export function ChatAttachmentView({ attachment, onOpen }: { attachment: ChatAtt
 }
 
 /** An attachment already uploaded but not sent yet, shown above the composer with a way to drop it. */
-export function PendingAttachmentChip({ attachment, onRemove }: { attachment: ChatAttachment; onRemove: () => void }): JSX.Element {
+export function PendingAttachmentChip({ attachment, onRemove }: { attachment: ChatAttachmentLike; onRemove: () => void }): JSX.Element {
   const icon: IconName = attachment.mediaType === 'video' ? 'video' : attachment.mediaType === 'audio' ? 'mic' : DOC_ICON;
   return (
     <div className="chat-pending-attachment">

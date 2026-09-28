@@ -129,6 +129,26 @@ different versions of PluralNova.
 
 ### Changed
 
+- **In-Sys Chat and Messages are now genuinely separate features, not one
+  screen with a tab.** In-Sys Chat — alters talking to each other, internal
+  to the account — has moved out of Social and into System, alongside Who's
+  There and Fronting, at its own `/system/chat`; Messages — the end-to-end
+  encrypted, cross-account side — stays in Social at `/social/messages`,
+  with its own conversation list, notifications and unread count that a busy
+  In-Sys Chat can no longer affect, or vice versa. The one new piece of UI:
+  In-Sys Chat's header avatar is now the *active chatter* — tap it to
+  switch, the same active-profile picker Profile Select already uses, in a
+  small popover rather than leaving the screen — and it decides whose direct
+  and group threads even show up in the list, the way each alter's own
+  contact list would. Switching never rewrites anything: a message's sender,
+  timestamp and order stay exactly as they were, only which side of the
+  screen it renders on changes. Both still look and behave like the same
+  familiar chat — bubbles, replies, reactions, attachments, voice messages,
+  per-conversation themes — since only the underlying identity and data
+  changed, not the visual language they share. Existing conversations,
+  groups and message history are untouched, and old `/chat` and `/messages`
+  links still open to the right place.
+
 - **Thick banner rows show an actual banner.** The member directory's thick
   layout now renders each member's own banner image (or their accent colour,
   if they haven't set one) behind their name, the same way their profile

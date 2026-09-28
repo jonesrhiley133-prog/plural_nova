@@ -2,11 +2,32 @@ import { createPortal } from 'react-dom';
 import { Avatar, IconButton } from '../ui/primitives.js';
 import { ActionMenu, useActionMenu, type ActionMenuItem, type ActionMenuPosition } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
-import type { ChatAttachment, ChatMessage } from '../core/chat.js';
-import { ChatAttachmentView } from './ChatAttachmentView.js';
+import { ChatAttachmentView, type ChatAttachmentLike } from './ChatAttachmentView.js';
 
 /** Common reactions, in the order most chat apps settle on. */
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+/**
+ * Structural, not imported from either chat feature — `SystemChatMessage`
+ * (core/systemChat.ts) and `Message` (core/messages.ts) both already
+ * shape-match this. `encrypted` is optional rather than a `kind` check: it is
+ * present (true or false) only for a message that could ever be encrypted at
+ * all, i.e. a Messages conversation, and simply absent for In-Sys Chat, which
+ * is what decides whether the lock icon renders at all.
+ */
+export interface ChatBubbleMessage {
+  id: string;
+  body: string;
+  isMine: boolean;
+  sender: { name: string; avatarUrl?: string | null; color?: string | null; icon?: string | null; prefix?: string | null } | null;
+  replyToId: string | null;
+  reactions: Record<string, string[]>;
+  attachments: ChatAttachmentLike[];
+  forwardedFrom: { senderLabel: string } | null;
+  encrypted?: boolean;
+  pending?: boolean;
+  failed?: string;
+}
 
 /**
  * One message. Grouping (whether to repeat the avatar/name) and the quoted
@@ -18,10 +39,10 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
  * action a right-click or long-press would also open.
  */
 interface MessageBubbleProps {
-  message: ChatMessage;
+  message: ChatBubbleMessage;
   showAvatar: boolean;
   showName: boolean;
-  quotedMessage: ChatMessage | null;
+  quotedMessage: ChatBubbleMessage | null;
   timeLabel: string;
   onReact: (emoji: string) => void;
   onRetry: () => void;
@@ -29,7 +50,7 @@ interface MessageBubbleProps {
   onForward: () => void;
   onCopy: () => void;
   onDelete: () => void;
-  onOpenAttachment: (attachment: ChatAttachment) => void;
+  onOpenAttachment: (attachment: ChatAttachmentLike) => void;
   onQuoteClick?: () => void;
 }
 
@@ -118,7 +139,7 @@ export function MessageBubble({
             ))}
             {message.body ? <p className="chat-bubble__text">{message.body}</p> : null}
             <span className="chat-bubble__meta">
-              {message.kind === 'dm' ? (
+              {message.encrypted !== undefined ? (
                 <Icon name={message.encrypted ? 'lock' : 'unlock'} size={9} label={message.encrypted ? 'Encrypted' : 'Not encrypted'} />
               ) : null}
               <span className="chat-bubble__time">{timeLabel}</span>

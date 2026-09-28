@@ -85,12 +85,8 @@ describe('messaging between two systems', () => {
     assert.ok(sender.every((at) => at >= 0), 'the sender cannot see what they sent');
     assert.ok(sender[0] < sender[1] && sender[1] < sender[2], 'the sender sees them newest first');
 
-    await beacon.page.goto(`${BASE}/chat`, { waitUntil: 'networkidle' });
+    await beacon.page.goto(`${BASE}/social/messages`, { waitUntil: 'networkidle' });
     await beacon.page.waitForTimeout(1500);
-    // Beacon is a System Mode account, so Chat Home opens on the System tab —
-    // a dm from Aurora is on the Direct tab.
-    await beacon.page.getByRole('tab', { name: /direct/i }).click();
-    await beacon.page.waitForTimeout(500);
     const thread = beacon.page.getByRole('button', { name: /Aurora/i }).first();
     if (await thread.count()) {
       await thread.click();

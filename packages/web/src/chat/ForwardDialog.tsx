@@ -1,38 +1,46 @@
 import { useState } from 'react';
-import { useChatThreads, type ChatKind, type ChatMessage } from '../core/chat.js';
 import { useToast } from '../core/toast.js';
 import { Avatar, Button } from '../ui/primitives.js';
 import { SearchField } from '../ui/forms.js';
 import { EmptyState } from '../ui/feedback.js';
 import { Dialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
+import type { ChatBubbleMessage } from './MessageBubble.js';
 
 /**
- * Forwarding is scoped to conversations of the same kind as the message being
- * forwarded — a system message can only reach other system threads, a dm only
- * other dms. Both backends send a forward differently under the hood
- * (`useChatConversation.forward` already knows which), so this only needs to
- * offer valid targets, not care how the send happens.
+ * Structural, like `ChatBubbleMessage` — a forward target is just enough of a
+ * thread to draw a picker row. Each feature's conversation view fetches its
+ * own thread list (`useSystemChatThreads`/`useMessageThreads`) and maps it to
+ * this shape, so forwarding never has to know which feature it is running in
+ * or call a hook of its own.
  */
+export interface ForwardCandidate {
+  id: string;
+  title: string;
+  avatarUrl?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  isGroupLike?: boolean;
+}
+
 interface ForwardDialogProps {
   open: boolean;
   onClose: () => void;
-  kind: ChatKind;
+  candidates: ForwardCandidate[];
   excludeThreadId: string;
-  message: ChatMessage | null;
+  message: ChatBubbleMessage | null;
   onForward: (targetThreadIds: string[]) => Promise<void>;
 }
 
-export function ForwardDialog({ open, onClose, kind, excludeThreadId, message, onForward }: ForwardDialogProps): JSX.Element {
+export function ForwardDialog({ open, onClose, candidates, excludeThreadId, message, onForward }: ForwardDialogProps): JSX.Element {
   const toast = useToast();
-  const { threads } = useChatThreads(kind);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const candidates = threads.filter((thread) => thread.id !== excludeThreadId);
+  const targets = candidates.filter((thread) => thread.id !== excludeThreadId);
   const needle = query.trim().toLowerCase();
-  const filtered = needle ? candidates.filter((thread) => thread.title.toLowerCase().includes(needle)) : candidates;
+  const filtered = needle ? targets.filter((thread) => thread.title.toLowerCase().includes(needle)) : targets;
 
   const toggle = (id: string): void => {
     setSelected((current) => (current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id]));
@@ -66,7 +74,7 @@ export function ForwardDialog({ open, onClose, kind, excludeThreadId, message, o
           </div>
         ) : null}
 
-        {candidates.length === 0 ? (
+        {targets.length === 0 ? (
           <EmptyState
             icon="forward"
             title="No other chats yet"
@@ -78,7 +86,6 @@ export function ForwardDialog({ open, onClose, kind, excludeThreadId, message, o
             <div className="chat-picker-list">
               {filtered.map((thread) => {
                 const isSelected = selected.includes(thread.id);
-                const isGroupLike = thread.subKind === 'group' || thread.subKind === 'system';
                 return (
                   <button
                     key={thread.id}
@@ -90,9 +97,9 @@ export function ForwardDialog({ open, onClose, kind, excludeThreadId, message, o
                     <span className="chat-picker-row__avatar">
                       <Avatar
                         name={thread.title || '?'}
-                        src={thread.person?.avatarUrl ?? null}
-                        color={thread.person?.color ?? (isGroupLike ? 'var(--accent)' : null)}
-                        icon={isGroupLike ? 'group' : thread.person?.icon ?? null}
+                        src={thread.avatarUrl ?? null}
+                        color={thread.color ?? (thread.isGroupLike ? 'var(--accent)' : null)}
+                        icon={thread.isGroupLike ? 'group' : (thread.icon ?? null)}
                         size={38}
                         round
                       />

@@ -26,6 +26,9 @@ if (schema.addedColumns.length > 0) {
 if (schema.backfilledChatThreads > 0) {
   console.log(`[pluralnova] system chat: ${schema.backfilledChatThreads} message(s) moved onto threads`);
 }
+if (schema.backfilledThreadParticipants > 0) {
+  console.log(`[pluralnova] system chat: ${schema.backfilledThreadParticipants} thread(s) had a participant backfilled`);
+}
 
 const app = createApp();
 const server = createServer(app);
