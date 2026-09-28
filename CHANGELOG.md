@@ -12,6 +12,16 @@ different versions of PluralNova.
 
 ### Added
 
+- **Offline edits to different parts of the same record now both survive
+  instead of one overwriting the other.** Two devices working apart — a bio
+  changed on one, pronouns changed on another — merge cleanly the next time
+  either reconnects; only an actual clash, the same field changed in both
+  places, gets decided, and it's decided by whichever edit genuinely
+  happened later rather than whichever device happened to sync first. If a
+  value ever loses that decision it isn't gone: the sync indicator flags it
+  for review, showing both versions with the choice to keep either one. An
+  edit to something already deleted elsewhere is reported the same clean
+  way, rather than being able to bring the record back.
 - **Fronting works with no connection at all — switching, ending and clearing
   included, not just Quick Front.** Every fronting action now applies to the
   screen immediately and, if there is nowhere to send it yet, is kept and
@@ -116,6 +126,12 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **A device's own second offline edit to a record could quietly overwrite —
+  or be overwritten by — its first one.** Sync compared a whole record's
+  version number rather than the specific field being written, so applying
+  one queued edit made the very next one (to a different field, possibly
+  from the same device) look stale and get discarded. Conflicts are now
+  judged one field at a time.
 - **Long-pressing or tapping a thick or slim banner row's name/status text did
   nothing.** The text and avatar sat visually above the row's own full-bleed
   tap target, so a press landing on either — most of the row's area — never

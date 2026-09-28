@@ -1,4 +1,4 @@
-import { DEFAULT_THEME } from '@pluralnova/shared';
+import { DEFAULT_THEME, now } from '@pluralnova/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp, registerUser, type TestClient } from './harness.js';
 
@@ -695,6 +695,129 @@ describe('records, settings, backup and sync', () => {
 
     const unchanged = await client.request('GET', `/api/records/notes/${id}`, { token });
     expect(unchanged.body.data.title).toBe('Server edit');
+  });
+
+  it('merges edits to different fields instead of one clobbering the other', async () => {
+    const created = await client.request('POST', '/api/records/notes', {
+      token,
+      body: { title: 'Original title', body: 'Original body' },
+    });
+    const id = created.body.data.id;
+
+    // One session edits the title directly, online.
+    await client.request('PATCH', `/api/records/notes/${id}`, { token, body: { title: 'New title' } });
+
+    // A second device, offline since version 1, edits the body — a field the
+    // title edit never touched — and only pushes once it reconnects.
+    const pushed = await client.request('POST', '/api/sync/push', {
+      token,
+      body: {
+        operations: [
+          {
+            id: 'op-body',
+            collection: 'notes',
+            recordId: id,
+            op: 'upsert',
+            payload: { body: 'New body' },
+            baseVersion: 1,
+            queuedAt: now(),
+          },
+        ],
+      },
+    });
+
+    expect(pushed.body.data.applied).toEqual(['op-body']);
+    expect(pushed.body.data.conflicts).toHaveLength(0);
+
+    const final = await client.request('GET', `/api/records/notes/${id}`, { token });
+    expect(final.body.data.title).toBe('New title');
+    expect(final.body.data.body).toBe('New body');
+  });
+
+  it('lets the later edit win a genuine same-field conflict and keeps the value that lost', async () => {
+    const created = await client.request('POST', '/api/records/notes', { token, body: { title: 'Original' } });
+    const id = created.body.data.id;
+
+    await client.request('PATCH', `/api/records/notes/${id}`, { token, body: { title: 'Edited at the desk' } });
+
+    // The phone made its own edit to the very same field earlier than that,
+    // while offline, and is only reconnecting now.
+    const pushed = await client.request('POST', '/api/sync/push', {
+      token,
+      body: {
+        operations: [
+          {
+            id: 'op-phone',
+            collection: 'notes',
+            recordId: id,
+            op: 'upsert',
+            payload: { title: 'Typed on the phone' },
+            baseVersion: 1,
+            queuedAt: new Date(Date.now() - 60_000).toISOString(),
+          },
+        ],
+      },
+    });
+
+    expect(pushed.body.data.applied).toEqual([]);
+    expect(pushed.body.data.conflicts).toHaveLength(1);
+    expect(pushed.body.data.conflicts[0].server.title).toBe('Edited at the desk');
+    expect(pushed.body.data.conflicts[0].lostFields).toEqual({ title: 'Typed on the phone' });
+
+    // This time the phone's edit genuinely happened after the desk's.
+    const laterPush = await client.request('POST', '/api/sync/push', {
+      token,
+      body: {
+        operations: [
+          {
+            id: 'op-phone-2',
+            collection: 'notes',
+            recordId: id,
+            op: 'upsert',
+            payload: { title: 'Typed later on the phone' },
+            baseVersion: 1,
+            queuedAt: new Date(Date.now() + 60_000).toISOString(),
+          },
+        ],
+      },
+    });
+
+    expect(laterPush.body.data.applied).toEqual(['op-phone-2']);
+    expect(laterPush.body.data.conflicts).toHaveLength(0);
+
+    const final = await client.request('GET', `/api/records/notes/${id}`, { token });
+    expect(final.body.data.title).toBe('Typed later on the phone');
+  });
+
+  it('does not resurrect a record that was deleted while a device was offline', async () => {
+    const created = await client.request('POST', '/api/records/notes', { token, body: { title: 'To be deleted' } });
+    const id = created.body.data.id;
+    await client.request('DELETE', `/api/records/notes/${id}`, { token });
+
+    const pushed = await client.request('POST', '/api/sync/push', {
+      token,
+      body: {
+        operations: [
+          {
+            id: 'op-after-delete',
+            collection: 'notes',
+            recordId: id,
+            op: 'upsert',
+            payload: { title: 'Edited after delete' },
+            baseVersion: 1,
+            queuedAt: now(),
+          },
+        ],
+      },
+    });
+
+    expect(pushed.body.data.applied).toEqual([]);
+    expect(pushed.body.data.conflicts).toHaveLength(1);
+    expect(pushed.body.data.conflicts[0].resolution).toBe('server_wins');
+    expect(pushed.body.data.conflicts[0].server.deletedAt).toBeTruthy();
+
+    const stillGone = await client.request('GET', `/api/records/notes/${id}`, { token });
+    expect(stillGone.status).toBe(404);
   });
 
   it('sends deletions through sync so another device does not resurrect them', async () => {

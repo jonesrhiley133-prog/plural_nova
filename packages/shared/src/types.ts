@@ -118,4 +118,10 @@ export interface SyncConflict {
   /** Server's copy, so the client can present both sides rather than guessing. */
   server: StoredRecord;
   resolution: 'server_wins' | 'client_wins' | 'needs_review';
+  /**
+   * Field name → the value the client tried to save that lost to a newer
+   * edit made elsewhere. Present so nothing is silently gone: a client can
+   * show what changed and offer to keep it after all.
+   */
+  lostFields?: Record<string, unknown>;
 }

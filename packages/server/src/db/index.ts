@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { COLLECTIONS, newId, now } from '@pluralnova/shared';
 import { config, ensureDirectories } from '../config.js';
-import { allStatements, columnDefinition, ownFields } from './ddl.js';
+import { allStatements, BASE_COLUMNS, columnDefinition, ownFields } from './ddl.js';
 
 export type Db = Database.Database;
 
@@ -129,6 +129,13 @@ export function migrate(db: Db): { created: string[]; addedColumns: string[]; ba
           .all()
           .map((row) => (row as { name: string }).name),
       );
+      // A base column can grow after a table already exists (fieldMeta did),
+      // the same way a registry field can — same PRAGMA-then-ALTER technique.
+      for (const column of BASE_COLUMNS) {
+        if (existing.has(column.name)) continue;
+        db.exec(`ALTER TABLE "${collection.name}" ADD COLUMN ${column.sql.replace(/ NOT NULL/, '')}`);
+        addedColumns.push(`${collection.name}.${column.name}`);
+      }
       for (const field of ownFields(collection)) {
         if (existing.has(field.name)) continue;
         db.exec(`ALTER TABLE "${collection.name}" ADD COLUMN ${columnDefinition(field)}`);

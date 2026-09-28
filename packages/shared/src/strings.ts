@@ -29,6 +29,15 @@ export const EN = {
   'app.syncFailed': 'Sync paused',
   'app.retry': 'Retry',
   'app.pendingChanges': '{count} change(s) waiting to sync',
+  'sync.conflicts.pill': '{count} to review',
+  'sync.conflicts.title': 'Some changes need your attention',
+  'sync.conflicts.subtitle':
+    'These changed in the same place on two devices at once. Everything else already synced normally.',
+  'sync.conflicts.kept': '{field} — kept: {value}',
+  'sync.conflicts.yours': '{field} — yours: {value}',
+  'sync.conflicts.keepSynced': 'Keep synced',
+  'sync.conflicts.keepMine': 'Keep mine',
+  'sync.conflicts.deletedNotice': 'This was deleted elsewhere, so this change could not be saved.',
 
   // — Common actions ————————————————————————————————————————
   'action.save': 'Save',
@@ -326,6 +335,15 @@ export const ES: StringTable = {
   'app.syncFailed': 'Sincronización en pausa',
   'app.retry': 'Reintentar',
   'app.pendingChanges': '{count} cambio(s) esperando a sincronizarse',
+  'sync.conflicts.pill': '{count} por revisar',
+  'sync.conflicts.title': 'Algunos cambios necesitan tu atención',
+  'sync.conflicts.subtitle':
+    'Esto cambió en el mismo lugar en dos dispositivos a la vez. Todo lo demás ya se sincronizó con normalidad.',
+  'sync.conflicts.kept': '{field} — guardado: {value}',
+  'sync.conflicts.yours': '{field} — tuyo: {value}',
+  'sync.conflicts.keepSynced': 'Mantener lo sincronizado',
+  'sync.conflicts.keepMine': 'Mantener lo mío',
+  'sync.conflicts.deletedNotice': 'Esto se eliminó en otro lugar, así que este cambio no se pudo guardar.',
   'action.save': 'Guardar',
   'action.saving': 'Guardando…',
   'action.cancel': 'Cancelar',

@@ -85,6 +85,9 @@ export function restoreCollections(
       }
 
       const timestamp = now();
+      // Positional, and in the exact order of BASE_COLUMN_NAMES above — a base
+      // column added there needs a value added here in the same slot, or every
+      // field after it silently shifts into the wrong column.
       const values: unknown[] = [
         id,
         scope.userId,
@@ -95,6 +98,9 @@ export function restoreCollections(
         (row.updatedAt as string) ?? timestamp,
         (row.deletedAt as string) ?? null,
         Number(row.version ?? 1),
+        // Sync bookkeeping starts fresh: a restored/imported row has no field
+        // history yet to compare a future offline push's base version against.
+        '{}',
       ];
       for (const field of fields) values.push(encodeValue(field, row[field.name] ?? field.defaultValue ?? null));
       insert.run(...(values as never[]));
