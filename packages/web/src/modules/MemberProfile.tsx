@@ -47,9 +47,8 @@ export default function MemberProfile(): JSX.Element {
 
   const member = useRecord('members', id);
   const { update, remove, loading } = useCollection('members');
-  const { start } = useFronting();
+  const { quickFront: fireQuickFront, isFrontingAlready } = useFronting();
   const [tab, setTab] = useState<Tab>('overview');
-  const [quickFronting, setQuickFronting] = useState(false);
   const editor = useDialog();
   const confirm = useDialog();
 
@@ -83,18 +82,12 @@ export default function MemberProfile(): JSX.Element {
 
   const color = (member['color'] as string) || 'var(--accent)';
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
-  const alreadyFronting = member['frontStatus'] === 'fronting' || member['frontStatus'] === 'cofronting';
+  const alreadyFronting = isFrontingAlready(member.id);
 
-  const quickFront = async (): Promise<void> => {
-    setQuickFronting(true);
-    try {
-      await start({ memberId: member.id, endOthers: false });
-      toast.success(`${String(member['name'])} ${term('is {{fronting}}')}`);
-    } catch (cause) {
-      toast.fromError(cause);
-    } finally {
-      setQuickFronting(false);
-    }
+  // Instant: applied to the shared fronting state before the request that
+  // tells the server about it resolves, so this never shows a loading state.
+  const quickFront = (): void => {
+    fireQuickFront(member.id).catch((cause: unknown) => toast.fromError(cause));
   };
 
   const flagsVisible = member['flagDisplayEnabled'] !== false && attachedFlags.length > 0;
@@ -136,8 +129,7 @@ export default function MemberProfile(): JSX.Element {
                   icon="bolt"
                   label={alreadyFronting ? term('Already {{fronting}}') : term('Quick {{front}}')}
                   disabled={alreadyFronting}
-                  loading={quickFronting}
-                  onClick={() => void quickFront()}
+                  onClick={quickFront}
                 />
                 <IconButton icon="edit" label="Edit profile" onClick={() => editor.show()} />
                 <IconButton

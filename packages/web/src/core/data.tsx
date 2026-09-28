@@ -246,6 +246,23 @@ class RecordStore {
     const existing = this.cache.get(collection);
     if (existing) this.cache.set(collection, { ...existing, loadedAt: 0 });
   }
+
+  /**
+   * Inserts or replaces a record without a network call, for state a
+   * specialised store (fronting) already owns and reconciles itself, but
+   * still wants reflected wherever this collection is read from.
+   */
+  upsertLocal(collection: string, record: StoredRecord): void {
+    this.replace(collection, record);
+    void putRecords(collection, [record]);
+  }
+
+  removeLocal(collection: string, id: string): void {
+    this.set(collection, {
+      records: this.snapshot(collection).records.filter((record) => record.id !== id),
+    });
+    void removeRecord(collection, id);
+  }
 }
 
 function defaultsFor(collection: string): Record<string, unknown> {

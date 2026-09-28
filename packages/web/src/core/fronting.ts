@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { StoredRecord } from '@pluralnova/shared';
+import { useEffect, useState } from 'react';
+import { randomToken, now, type StoredRecord } from '@pluralnova/shared';
 import { NetworkError, api, isOffline, messageFor } from './api.js';
 import { getMeta, setMeta } from './localdb.js';
 import { realtime } from './realtime.js';
@@ -9,9 +9,11 @@ import { recordStore } from './data.js';
  * The current front.
  *
  * Fronting is the one thing in the app that several screens need to agree on at
- * once, so it is fetched from the server rather than derived on each screen, and
- * every device is told when it changes. The state survives a reload because it
- * lives in the database, not in the page.
+ * once, so this is a single store shared by the whole app rather than one fetch
+ * per screen — a front started from a member's card and a front shown on the
+ * dashboard are the same fact, seen through the same subscription, not two
+ * independent reads that happen to usually agree. The state survives a reload
+ * because it lives in the database, not in the page.
  */
 
 export interface ActiveFront extends StoredRecord {
@@ -38,15 +40,22 @@ const EMPTY: FrontState = {
 };
 
 const CACHE_KEY = 'fronting.current';
+const PENDING_KEY = 'fronting.pendingQuickFronts';
+
+interface PendingQuickFront {
+  memberId: string;
+  queuedAt: string;
+}
 
 /**
  * Starting, switching, ending and clearing a front all run business rules that
  * only the server can enforce — duplicate detection, member status, totals,
  * history, achievements — so unlike a plain record they are never queued for
- * later. `NetworkError`'s own default text says a change is "saved on this
- * device," which is true of a queued write and false of these; offline, this
- * replaces it with a message that does not promise something that did not
- * happen.
+ * later the way a normal collection write is. `NetworkError`'s own default text
+ * says a change is "saved on this device," which is true of a queued write and
+ * false of these; offline, this replaces it with a message that does not
+ * promise something that did not happen. Quick Front is the one exception —
+ * see `quickFront` below.
  */
 function rethrowForDisplay(cause: unknown): never {
   throw isOffline(cause)
@@ -67,6 +76,260 @@ export interface StartFrontInput {
   unknownFronter?: boolean;
 }
 
+type Listener = () => void;
+
+class FrontingStore {
+  state: FrontState = EMPTY;
+  loading = true;
+  error: string | null = null;
+  private listeners = new Set<Listener>();
+  private started = false;
+  private teardown: (() => void) | null = null;
+
+  subscribe(listener: Listener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private emit(): void {
+    for (const listener of this.listeners) listener();
+  }
+
+  /** Runs once for the app's lifetime — later calls (every screen that reads fronting) are no-ops. */
+  ensureStarted(): void {
+    if (this.started) return;
+    this.started = true;
+    void this.reload();
+    // Another device — or another tab's optimistic Quick Front — changing the
+    // front updates this one without a manual refresh.
+    const stopRealtime = realtime.on((event) => {
+      if (event.type === 'front.changed') void this.reload();
+    });
+    // Reconnecting is exactly when a cached or optimistic answer is most
+    // likely to need reconciling against the server, and when anything Quick
+    // Front queued while offline can finally be sent.
+    const onOnline = (): void => void this.reload();
+    window.addEventListener('online', onOnline);
+    this.teardown = () => {
+      stopRealtime();
+      window.removeEventListener('online', onOnline);
+    };
+  }
+
+  /** Signing out or switching the active system means this state belongs to nobody any more. */
+  reset(): void {
+    this.teardown?.();
+    this.teardown = null;
+    this.started = false;
+    this.state = EMPTY;
+    this.loading = true;
+    this.error = null;
+    this.emit();
+  }
+
+  isFrontingAlready(memberId: string): boolean {
+    return this.state.active.some(
+      (event) => event.memberId === memberId || event.coFronters.some((co) => co.id === memberId),
+    );
+  }
+
+  async reload(): Promise<void> {
+    if (navigator.onLine) await this.drainPending();
+
+    try {
+      const result = await api.get<FrontState>('/api/fronting/current');
+      this.state = result;
+      this.error = null;
+      void setMeta(CACHE_KEY, result);
+    } catch (cause) {
+      // The default cache-miss state is "nobody's fronting," which is a real
+      // answer everywhere else in the app — here specifically it would be a
+      // false one, so a device that has already seen who's out keeps showing
+      // that instead of quietly reverting to empty the moment it goes offline.
+      if (isOffline(cause)) {
+        const cached = await getMeta<FrontState>(CACHE_KEY);
+        if (cached) {
+          this.state = cached;
+          this.error = 'Shown from this device. Reconnect for the latest.';
+          this.loading = false;
+          this.emit();
+          return;
+        }
+      }
+      this.error = messageFor(cause);
+    }
+    this.loading = false;
+    this.emit();
+  }
+
+  private async after(): Promise<void> {
+    // Members and events both moved, so their caches are re-read rather than
+    // patched — the server already recalculated the totals.
+    recordStore.invalidate('members');
+    recordStore.invalidate('frontEvents');
+    await Promise.all([
+      recordStore.load('members', { force: true }),
+      recordStore.load('frontEvents', { force: true }),
+      this.reload(),
+    ]);
+  }
+
+  async start(input: StartFrontInput): Promise<void> {
+    try {
+      await api.post('/api/fronting/start', input);
+    } catch (cause) {
+      rethrowForDisplay(cause);
+    }
+    await this.after();
+  }
+
+  async switchTo(input: StartFrontInput): Promise<void> {
+    try {
+      await api.post('/api/fronting/switch', input);
+    } catch (cause) {
+      rethrowForDisplay(cause);
+    }
+    await this.after();
+  }
+
+  async end(eventId?: string): Promise<void> {
+    try {
+      await api.post('/api/fronting/end', eventId ? { eventId } : {});
+    } catch (cause) {
+      rethrowForDisplay(cause);
+    }
+    await this.after();
+  }
+
+  async clear(): Promise<void> {
+    try {
+      await api.post('/api/fronting/clear', {});
+    } catch (cause) {
+      rethrowForDisplay(cause);
+    }
+    await this.after();
+  }
+
+  async addCoFronter(eventId: string, memberId: string): Promise<void> {
+    try {
+      await api.post(`/api/fronting/${eventId}/co-fronters`, { memberId });
+    } catch (cause) {
+      rethrowForDisplay(cause);
+    }
+    await this.after();
+  }
+
+  async removeCoFronter(eventId: string, memberId: string): Promise<void> {
+    try {
+      await api.delete(`/api/fronting/${eventId}/co-fronters/${memberId}`);
+    } catch (cause) {
+      rethrowForDisplay(cause);
+    }
+    await this.after();
+  }
+
+  /**
+   * One tap, from wherever a member's own card or profile shows it: front them
+   * alongside whoever is already out, without a form and without waiting for
+   * the server. Fronting is primarily a local fact — the tap applies it to
+   * this store immediately, using a client-chosen id the server is told to
+   * reuse, so the request that follows reconciles the same record instead of
+   * creating a second one. Offline, the request cannot be sent yet, so it is
+   * kept and replayed the next time this store reloads with a connection.
+   */
+  async quickFront(memberId: string): Promise<void> {
+    if (this.isFrontingAlready(memberId)) return;
+
+    const previousState = this.state;
+    const previousMember =
+      recordStore.snapshot('members').records.find((record) => record.id === memberId) ?? null;
+
+    const clientId = randomToken();
+    const id = `fev_${clientId}`;
+    const timestamp = now();
+
+    const record: StoredRecord = {
+      id,
+      userId: '',
+      systemId: null,
+      memberId,
+      visibility: 'system',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      version: 1,
+      coFronterIds: [],
+      startedAt: timestamp,
+      endedAt: null,
+      durationMinutes: null,
+      durationSeconds: null,
+      activity: '',
+      locationIds: [],
+      mood: '',
+      note: '',
+      tags: [],
+      statusType: 'fronting',
+      unknownFronter: false,
+    };
+
+    const optimistic: ActiveFront = {
+      ...record,
+      minutes: 0,
+      duration: '0m',
+      member: previousMember,
+      coFronters: [],
+    };
+
+    this.state = { ...this.state, active: [...this.state.active, optimistic], isEmpty: false };
+    this.emit();
+    recordStore.upsertLocal('frontEvents', record);
+    if (previousMember) recordStore.upsertLocal('members', { ...previousMember, frontStatus: 'fronting' });
+    void setMeta(CACHE_KEY, this.state);
+
+    try {
+      await api.post('/api/fronting/start', { memberId, endOthers: false, clientId });
+      await this.after();
+    } catch (cause) {
+      if (isOffline(cause)) {
+        const pending = (await getMeta<PendingQuickFront[]>(PENDING_KEY)) ?? [];
+        if (!pending.some((entry) => entry.memberId === memberId)) {
+          await setMeta(PENDING_KEY, [...pending, { memberId, queuedAt: timestamp }]);
+        }
+        return;
+      }
+      // A real rejection (not a connection problem) means this never actually
+      // happened, so the optimistic copy is undone rather than left behind.
+      this.state = previousState;
+      this.emit();
+      recordStore.removeLocal('frontEvents', id);
+      if (previousMember) recordStore.upsertLocal('members', previousMember);
+      throw cause;
+    }
+  }
+
+  /** Sends whatever Quick Front could not reach the server while offline, oldest first. */
+  private async drainPending(): Promise<void> {
+    const pending = (await getMeta<PendingQuickFront[]>(PENDING_KEY)) ?? [];
+    if (pending.length === 0) return;
+    await setMeta(PENDING_KEY, []);
+    for (const { memberId } of pending) {
+      try {
+        await api.post('/api/fronting/start', { memberId, endOthers: false });
+      } catch {
+        // Dropped rather than requeued — the fetch this drain runs ahead of
+        // shows whatever is actually true now, optimistic guess or not.
+      }
+    }
+  }
+}
+
+const store = new FrontingStore();
+
+/** Only for the sign-out and switch-account paths in core/auth.tsx. */
+export function resetFrontingStore(): void {
+  store.reset();
+}
+
 export function useFronting(): {
   state: FrontState;
   loading: boolean;
@@ -78,116 +341,30 @@ export function useFronting(): {
   clear: () => Promise<void>;
   addCoFronter: (eventId: string, memberId: string) => Promise<void>;
   removeCoFronter: (eventId: string, memberId: string) => Promise<void>;
+  /** Instant, no dialog: fronts `memberId` alongside anyone already out. */
+  quickFront: (memberId: string) => Promise<void>;
+  isFrontingAlready: (memberId: string) => boolean;
 } {
-  const [state, setState] = useState<FrontState>(EMPTY);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const reload = useCallback(async () => {
-    try {
-      const result = await api.get<FrontState>('/api/fronting/current');
-      setState(result);
-      setError(null);
-      void setMeta(CACHE_KEY, result);
-    } catch (cause) {
-      // The default cache-miss state is "nobody's fronting," which is a real
-      // answer everywhere else in the app — here specifically it would be a
-      // false one, so a device that has already seen who's out keeps showing
-      // that instead of quietly reverting to empty the moment it goes offline.
-      if (isOffline(cause)) {
-        const cached = await getMeta<FrontState>(CACHE_KEY);
-        if (cached) {
-          setState(cached);
-          setError('Shown from this device. Reconnect for the latest.');
-          return;
-        }
-      }
-      setError(messageFor(cause));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    void reload();
-    // Another device changing the front updates this one without a refresh.
-    const stopRealtime = realtime.on((event) => {
-      if (event.type === 'front.changed') void reload();
-    });
-    // Reconnecting is exactly when a cached answer is most likely to be stale.
-    const onOnline = (): void => void reload();
-    window.addEventListener('online', onOnline);
-    return () => {
-      stopRealtime();
-      window.removeEventListener('online', onOnline);
-    };
-  }, [reload]);
-
-  const after = useCallback(async () => {
-    // Members and events both moved, so their caches are re-read rather than
-    // patched — the server already recalculated the totals.
-    recordStore.invalidate('members');
-    recordStore.invalidate('frontEvents');
-    await Promise.all([
-      recordStore.load('members', { force: true }),
-      recordStore.load('frontEvents', { force: true }),
-      reload(),
-    ]);
-  }, [reload]);
+    store.ensureStarted();
+    return store.subscribe(() => setTick((value) => value + 1));
+  }, []);
 
   return {
-    state,
-    loading,
-    error,
-    reload,
-    start: async (input) => {
-      try {
-        await api.post('/api/fronting/start', input);
-      } catch (cause) {
-        rethrowForDisplay(cause);
-      }
-      await after();
-    },
-    switchTo: async (input) => {
-      try {
-        await api.post('/api/fronting/switch', input);
-      } catch (cause) {
-        rethrowForDisplay(cause);
-      }
-      await after();
-    },
-    end: async (eventId) => {
-      try {
-        await api.post('/api/fronting/end', eventId ? { eventId } : {});
-      } catch (cause) {
-        rethrowForDisplay(cause);
-      }
-      await after();
-    },
-    clear: async () => {
-      try {
-        await api.post('/api/fronting/clear', {});
-      } catch (cause) {
-        rethrowForDisplay(cause);
-      }
-      await after();
-    },
-    addCoFronter: async (eventId, memberId) => {
-      try {
-        await api.post(`/api/fronting/${eventId}/co-fronters`, { memberId });
-      } catch (cause) {
-        rethrowForDisplay(cause);
-      }
-      await after();
-    },
-    removeCoFronter: async (eventId, memberId) => {
-      try {
-        await api.delete(`/api/fronting/${eventId}/co-fronters/${memberId}`);
-      } catch (cause) {
-        rethrowForDisplay(cause);
-      }
-      await after();
-    },
+    state: store.state,
+    loading: store.loading,
+    error: store.error,
+    reload: () => store.reload(),
+    start: (input) => store.start(input),
+    switchTo: (input) => store.switchTo(input),
+    end: (eventId) => store.end(eventId),
+    clear: () => store.clear(),
+    addCoFronter: (eventId, memberId) => store.addCoFronter(eventId, memberId),
+    removeCoFronter: (eventId, memberId) => store.removeCoFronter(eventId, memberId),
+    quickFront: (memberId) => store.quickFront(memberId),
+    isFrontingAlready: (memberId) => store.isFrontingAlready(memberId),
   };
 }
 

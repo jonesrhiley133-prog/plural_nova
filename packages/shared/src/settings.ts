@@ -84,6 +84,9 @@ export const DASHBOARD_WIDGETS = [
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id'];
 
+export const MEMBER_LIST_LAYOUTS = ['square', 'circle', 'slimBanner', 'thickBanner'] as const;
+export type MemberListLayout = (typeof MEMBER_LIST_LAYOUTS)[number];
+
 export interface PrivacyDefaults {
   /** Visibility applied to new records unless the screen says otherwise. */
   defaultVisibility: 'private' | 'system' | 'members' | 'friends' | 'public';
@@ -157,6 +160,8 @@ export interface AppSettings {
   currency: string;
   /** Which optional life modules the user wants visible at all. */
   hiddenModules: string[];
+  /** How the member directory displays its cards — chosen once, kept until changed. */
+  memberListLayout: MemberListLayout;
   /** Cycle tracking is entirely opt-in and its fields are user-named. */
   cycleEnabled: boolean;
   onboardingCompleted: boolean;
@@ -215,6 +220,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     onboardingCompleted: false,
     lastBackupAt: null,
     syncEnabled: true,
+    memberListLayout: 'square',
   };
 }
 
@@ -269,6 +275,9 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
         ? stored.mobileTabs.slice(0, 5)
         : base.mobileTabs,
     hiddenModules: Array.isArray(stored.hiddenModules) ? stored.hiddenModules : [],
+    memberListLayout: MEMBER_LIST_LAYOUTS.includes(stored.memberListLayout as MemberListLayout)
+      ? (stored.memberListLayout as MemberListLayout)
+      : base.memberListLayout,
   };
 }
 

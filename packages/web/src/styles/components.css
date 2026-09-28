@@ -927,6 +927,86 @@
   );
 }
 
+/*
+ * The thick-banner row in the member directory — a compact version of the
+ * profile's own banner (same gradient formula, same layered structure) rather
+ * than a taller list row, so a member is recognised by more than a circular
+ * avatar without opening their profile.
+ */
+.member-banner-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 96px;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--member-color, var(--accent)) 30%, var(--bg-subtle)),
+    var(--bg-subtle)
+  );
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.member-banner-row:last-child {
+  border-bottom: none;
+}
+
+.member-banner-row__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.member-banner-row__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--bg) 80%, transparent) 10%,
+    transparent 75%
+  );
+}
+
+.member-banner-row__hit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.member-banner-row__avatar,
+.member-banner-row__body,
+.member-banner-row__trailing {
+  position: relative;
+  z-index: 2;
+}
+
+.member-banner-row__avatar {
+  flex-shrink: 0;
+}
+
+.member-banner-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.member-banner-row__trailing {
+  flex-shrink: 0;
+}
+
 /* ── Wellbeing games ────────────────────────────────────────────────────── */
 
 .bubble-grid {
