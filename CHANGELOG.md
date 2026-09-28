@@ -12,6 +12,15 @@ different versions of PluralNova.
 
 ### Added
 
+- **Long-press multiselect and bulk actions in the member directory.** Press
+  and hold any member's card (mouse or touch — both behave the same way) to
+  select several at once; a bulk-action bar then offers editing everyone
+  selected's bio in one go, adding a custom field to all of them (only the
+  field actually filled in changes — anything else already set on each
+  member is left exactly as it was), moving them all into an existing or
+  brand-new group, or deleting them together with one confirmation naming
+  how many. A plain tap still opens a profile as it always has; only a press
+  held for half a second enters selection mode.
 - **Instant Quick Front from a member's own card or profile.** Tapping the
   bolt icon on a member's directory card or their profile banner fronts them
   immediately — no dialog, no navigating to the Quick Front screen, and no

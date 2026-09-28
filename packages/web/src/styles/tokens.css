@@ -133,6 +133,10 @@
      actually playing — set by MusicPlayerBar, not written here directly. */
   --music-bar-height: 64px;
   --music-bar-space: 0px;
+  /* The multiselect bulk-action bar (Members). Read by whichever screen
+     shows it, to reserve enough room that the bar never sits over the last
+     row of whatever it is acting on. */
+  --bulk-bar-height: 56px;
 
   /* Safe areas, so the floating nav never sits under a home indicator. */
   --safe-top: env(safe-area-inset-top, 0px);
