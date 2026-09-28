@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { randomToken, now, type StoredRecord } from '@pluralnova/shared';
-import { NetworkError, api, isOffline, messageFor } from './api.js';
+import { api, isOffline, messageFor } from './api.js';
 import { getMeta, setMeta } from './localdb.js';
 import { realtime } from './realtime.js';
 import { recordStore } from './data.js';
@@ -41,6 +41,7 @@ const EMPTY: FrontState = {
 
 const CACHE_KEY = 'fronting.current';
 const PENDING_KEY = 'fronting.pendingQuickFronts';
+const PENDING_ACTIONS_KEY = 'fronting.pendingActions';
 
 interface PendingQuickFront {
   memberId: string;
@@ -48,20 +49,21 @@ interface PendingQuickFront {
 }
 
 /**
- * Starting, switching, ending and clearing a front all run business rules that
- * only the server can enforce — duplicate detection, member status, totals,
- * history, achievements — so unlike a plain record they are never queued for
- * later the way a normal collection write is. `NetworkError`'s own default text
- * says a change is "saved on this device," which is true of a queued write and
- * false of these; offline, this replaces it with a message that does not
- * promise something that did not happen. Quick Front is the one exception —
- * see `quickFront` below.
+ * Every fronting mutation applies to this store immediately and is queued for
+ * the server if there is nowhere to send it yet — fronting is a local fact
+ * first, the way it is in a paper system, and a phone with no signal is not a
+ * reason a switch failed to happen. `start` and `switchTo` carry a
+ * client-chosen record id the server is told to reuse, so the request that
+ * eventually lands reconciles the same record instead of creating a second
+ * one, online or replayed later.
  */
-function rethrowForDisplay(cause: unknown): never {
-  throw isOffline(cause)
-    ? new NetworkError('This needs a connection — nothing was recorded. Try again once you are back online.')
-    : cause;
-}
+type PendingAction =
+  | { kind: 'start'; clientId: string; input: StartFrontInput }
+  | { kind: 'switchTo'; clientId: string; input: StartFrontInput }
+  | { kind: 'end'; eventId?: string }
+  | { kind: 'clear' }
+  | { kind: 'addCoFronter'; eventId: string; memberId: string }
+  | { kind: 'removeCoFronter'; eventId: string; memberId: string };
 
 export interface StartFrontInput {
   memberId?: string | null;
@@ -134,7 +136,10 @@ class FrontingStore {
   }
 
   async reload(): Promise<void> {
-    if (navigator.onLine) await this.drainPending();
+    if (navigator.onLine) {
+      await this.drainPending();
+      await this.drainPendingActions();
+    }
 
     try {
       const result = await api.get<FrontState>('/api/fronting/current');
@@ -174,58 +179,214 @@ class FrontingStore {
     ]);
   }
 
-  async start(input: StartFrontInput): Promise<void> {
+  private resolveMember(memberId: string): StoredRecord | null {
+    return recordStore.snapshot('members').records.find((record) => record.id === memberId) ?? null;
+  }
+
+  private buildSyntheticEvent(
+    memberId: string | null,
+    coFronterIds: string[],
+    clientId: string,
+    unknownFronter = false,
+  ): { record: StoredRecord; active: ActiveFront } {
+    const timestamp = now();
+    const record: StoredRecord = {
+      id: `fev_${clientId}`,
+      userId: '',
+      systemId: null,
+      memberId,
+      visibility: 'system',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      version: 1,
+      coFronterIds,
+      startedAt: timestamp,
+      endedAt: null,
+      durationMinutes: null,
+      durationSeconds: null,
+      activity: '',
+      locationIds: [],
+      mood: '',
+      note: '',
+      tags: [],
+      statusType: coFronterIds.length > 0 ? 'cofronting' : 'fronting',
+      unknownFronter,
+    };
+    const active: ActiveFront = {
+      ...record,
+      minutes: 0,
+      duration: '0m',
+      member: memberId ? this.resolveMember(memberId) : null,
+      coFronters: coFronterIds
+        .map((id) => this.resolveMember(id))
+        .filter((value): value is StoredRecord => value !== null),
+    };
+    return { record, active };
+  }
+
+  /**
+   * Applies `nextState` before the network call `send` even starts, and
+   * reconciles or rolls back once it settles. Offline, `action` is kept and
+   * replayed the next time this store reloads with a connection — the
+   * optimistic guess stays on screen in the meantime rather than reverting to
+   * whatever was true before the tap, because it is what the user just did,
+   * not a request still in flight.
+   */
+  private async runOptimistic(
+    nextState: FrontState,
+    action: PendingAction,
+    send: () => Promise<unknown>,
+    onRollback?: () => void,
+  ): Promise<void> {
+    const previousState = this.state;
+    this.state = nextState;
+    this.emit();
+    void setMeta(CACHE_KEY, this.state);
+
     try {
-      await api.post('/api/fronting/start', input);
+      await send();
+      await this.after();
     } catch (cause) {
-      rethrowForDisplay(cause);
+      if (isOffline(cause)) {
+        await this.enqueueAction(action);
+        return;
+      }
+      this.state = previousState;
+      this.emit();
+      onRollback?.();
+      throw cause;
     }
-    await this.after();
+  }
+
+  async start(input: StartFrontInput): Promise<void> {
+    const clientId = randomToken();
+    const { record, active } = this.buildSyntheticEvent(
+      input.memberId ?? null,
+      input.coFronterIds ?? [],
+      clientId,
+      input.unknownFronter ?? false,
+    );
+    recordStore.upsertLocal('frontEvents', record);
+    const nextActive = input.endOthers ? [active] : [...this.state.active, active];
+
+    await this.runOptimistic(
+      { ...this.state, active: nextActive, isEmpty: false },
+      { kind: 'start', clientId, input },
+      () => api.post('/api/fronting/start', { ...input, clientId }),
+      () => recordStore.removeLocal('frontEvents', record.id),
+    );
   }
 
   async switchTo(input: StartFrontInput): Promise<void> {
-    try {
-      await api.post('/api/fronting/switch', input);
-    } catch (cause) {
-      rethrowForDisplay(cause);
-    }
-    await this.after();
+    const clientId = randomToken();
+    const { record, active } = this.buildSyntheticEvent(
+      input.memberId ?? null,
+      input.coFronterIds ?? [],
+      clientId,
+    );
+    recordStore.upsertLocal('frontEvents', record);
+
+    await this.runOptimistic(
+      { ...this.state, active: [active], isEmpty: false },
+      { kind: 'switchTo', clientId, input },
+      () => api.post('/api/fronting/switch', { ...input, clientId }),
+      () => recordStore.removeLocal('frontEvents', record.id),
+    );
   }
 
   async end(eventId?: string): Promise<void> {
-    try {
-      await api.post('/api/fronting/end', eventId ? { eventId } : {});
-    } catch (cause) {
-      rethrowForDisplay(cause);
-    }
-    await this.after();
+    const nextActive = eventId ? this.state.active.filter((event) => event.id !== eventId) : [];
+    await this.runOptimistic(
+      { ...this.state, active: nextActive, isEmpty: nextActive.length === 0 },
+      { kind: 'end', eventId },
+      () => api.post('/api/fronting/end', eventId ? { eventId } : {}),
+    );
   }
 
   async clear(): Promise<void> {
-    try {
-      await api.post('/api/fronting/clear', {});
-    } catch (cause) {
-      rethrowForDisplay(cause);
-    }
-    await this.after();
+    await this.runOptimistic(
+      { ...this.state, active: [], isEmpty: true },
+      { kind: 'clear' },
+      () => api.post('/api/fronting/clear', {}),
+    );
   }
 
   async addCoFronter(eventId: string, memberId: string): Promise<void> {
-    try {
-      await api.post(`/api/fronting/${eventId}/co-fronters`, { memberId });
-    } catch (cause) {
-      rethrowForDisplay(cause);
-    }
-    await this.after();
+    const member = this.resolveMember(memberId);
+    const nextActive = this.state.active.map((event) =>
+      event.id === eventId && !event.coFronters.some((co) => co.id === memberId)
+        ? {
+            ...event,
+            coFronterIds: [...(event['coFronterIds'] as string[]), memberId],
+            coFronters: member ? [...event.coFronters, member] : event.coFronters,
+            statusType: 'cofronting',
+          }
+        : event,
+    );
+
+    await this.runOptimistic(
+      { ...this.state, active: nextActive },
+      { kind: 'addCoFronter', eventId, memberId },
+      () => api.post(`/api/fronting/${eventId}/co-fronters`, { memberId }),
+    );
   }
 
   async removeCoFronter(eventId: string, memberId: string): Promise<void> {
-    try {
-      await api.delete(`/api/fronting/${eventId}/co-fronters/${memberId}`);
-    } catch (cause) {
-      rethrowForDisplay(cause);
+    const nextActive = this.state.active.map((event) =>
+      event.id === eventId
+        ? {
+            ...event,
+            coFronterIds: (event['coFronterIds'] as string[]).filter((id) => id !== memberId),
+            coFronters: event.coFronters.filter((co) => co.id !== memberId),
+          }
+        : event,
+    );
+
+    await this.runOptimistic(
+      { ...this.state, active: nextActive },
+      { kind: 'removeCoFronter', eventId, memberId },
+      () => api.delete(`/api/fronting/${eventId}/co-fronters/${memberId}`),
+    );
+  }
+
+  /** Sends whatever start/switch/end/clear/co-fronter calls could not reach the server while offline, oldest first. */
+  private async enqueueAction(action: PendingAction): Promise<void> {
+    const pending = (await getMeta<PendingAction[]>(PENDING_ACTIONS_KEY)) ?? [];
+    await setMeta(PENDING_ACTIONS_KEY, [...pending, action]);
+  }
+
+  private async drainPendingActions(): Promise<void> {
+    const pending = (await getMeta<PendingAction[]>(PENDING_ACTIONS_KEY)) ?? [];
+    if (pending.length === 0) return;
+    await setMeta(PENDING_ACTIONS_KEY, []);
+    for (const action of pending) {
+      try {
+        switch (action.kind) {
+          case 'start':
+            await api.post('/api/fronting/start', { ...action.input, clientId: action.clientId });
+            break;
+          case 'switchTo':
+            await api.post('/api/fronting/switch', { ...action.input, clientId: action.clientId });
+            break;
+          case 'end':
+            await api.post('/api/fronting/end', action.eventId ? { eventId: action.eventId } : {});
+            break;
+          case 'clear':
+            await api.post('/api/fronting/clear', {});
+            break;
+          case 'addCoFronter':
+            await api.post(`/api/fronting/${action.eventId}/co-fronters`, { memberId: action.memberId });
+            break;
+          case 'removeCoFronter':
+            await api.delete(`/api/fronting/${action.eventId}/co-fronters/${action.memberId}`);
+            break;
+        }
+      } catch {
+        // Dropped rather than requeued — the fetch this drain runs ahead of
+        // shows whatever is actually true now, optimistic guess or not.
+      }
     }
-    await this.after();
   }
 
   /**

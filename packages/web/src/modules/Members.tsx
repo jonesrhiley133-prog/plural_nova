@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ACCENT_PRESETS,
@@ -110,6 +111,117 @@ function SelectionMark({ selected }: { selected: boolean }): JSX.Element {
     >
       {selected ? <Icon name="check" size={13} /> : null}
     </span>
+  );
+}
+
+/**
+ * Windowed rendering for the grid layouts.
+ *
+ * The page itself scrolls — there is no inner scroll pane to hand a
+ * virtualizer — so this measures against the window, chunking the sorted
+ * members into rows of `columns` and rendering only the rows near the
+ * viewport. Each row keeps the exact `.grid.grid--columns` markup a
+ * non-virtualized page already used, so the visual result is identical; only
+ * the DOM node count while scrolling changes. Row height is a rough guess
+ * corrected after the first paint — a square card's height depends on a
+ * column width this component cannot compute from CSS alone, so it is
+ * measured rather than calculated.
+ */
+function VirtualizedGrid({
+  members,
+  columns,
+  estimateRowHeight,
+  renderCard,
+}: {
+  members: StoredRecord[];
+  columns: number;
+  estimateRowHeight: number;
+  renderCard: (member: StoredRecord) => ReactNode;
+}): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rows = useMemo(() => {
+    const chunks: StoredRecord[][] = [];
+    for (let index = 0; index < members.length; index += columns) {
+      chunks.push(members.slice(index, index + columns));
+    }
+    return chunks;
+  }, [members, columns]);
+
+  const virtualizer = useWindowVirtualizer({
+    count: rows.length,
+    estimateSize: () => estimateRowHeight,
+    overscan: 3,
+    scrollMargin: containerRef.current?.offsetTop ?? 0,
+    getItemKey: (index) => rows[index]?.[0]?.id ?? index,
+  });
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+      {virtualizer.getVirtualItems().map((virtualRow) => (
+        <div
+          key={virtualRow.key}
+          ref={virtualizer.measureElement}
+          data-index={virtualRow.index}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            paddingBottom: 'var(--space-3)',
+            transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+          }}
+        >
+          <div className="grid grid--columns" style={{ ['--grid-columns' as never]: columns }}>
+            {rows[virtualRow.index]!.map((member) => renderCard(member))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Windowed rendering for the slim/thick banner (list) layouts — the same
+ * window-measured approach as `VirtualizedGrid`, one row per member rather
+ * than one row per `columns` of them.
+ */
+function VirtualizedList({
+  members,
+  estimateRowHeight,
+  renderRow,
+}: {
+  members: StoredRecord[];
+  estimateRowHeight: number;
+  renderRow: (member: StoredRecord, isLast: boolean) => ReactNode;
+}): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useWindowVirtualizer({
+    count: members.length,
+    estimateSize: () => estimateRowHeight,
+    overscan: 6,
+    scrollMargin: containerRef.current?.offsetTop ?? 0,
+    getItemKey: (index) => members[index]?.id ?? index,
+  });
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+      {virtualizer.getVirtualItems().map((virtualRow) => (
+        <div
+          key={virtualRow.key}
+          ref={virtualizer.measureElement}
+          data-index={virtualRow.index}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+          }}
+        >
+          {renderRow(members[virtualRow.index]!, virtualRow.index === members.length - 1)}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -354,8 +466,11 @@ export default function Members(): JSX.Element {
           >
             {(records) =>
               isGrid ? (
-                <div className="grid grid--columns" style={{ ['--grid-columns' as never]: columns }}>
-                  {records.map((member) =>
+                <VirtualizedGrid
+                  members={records}
+                  columns={columns}
+                  estimateRowHeight={layout === 'square' ? 210 : 150}
+                  renderCard={(member) =>
                     layout === 'square' ? (
                       <MemberCard
                         key={member.id}
@@ -376,25 +491,28 @@ export default function Members(): JSX.Element {
                         selected={selectedIds.has(member.id)}
                         onLongPress={() => enterMultiselect(member.id)}
                       />
-                    ),
-                  )}
-                </div>
+                    )
+                  }
+                />
               ) : (
                 <Card flush>
-                  <div className="list">
-                    {records.map((member) => (
+                  <VirtualizedList
+                    members={records}
+                    estimateRowHeight={layout === 'thickBanner' ? 96 : 66}
+                    renderRow={(member, isLast) => (
                       <MemberBannerRow
                         key={member.id}
                         member={member}
                         thick={layout === 'thickBanner'}
+                        last={isLast}
                         onOpen={multiselect ? () => toggleSelected(member.id) : () => navigate(`/members/${member.id}`)}
                         onQuickFront={() => quickFrontMember(member)}
                         multiselect={multiselect}
                         selected={selectedIds.has(member.id)}
                         onLongPress={() => enterMultiselect(member.id)}
                       />
-                    ))}
-                  </div>
+                    )}
+                  />
                 </Card>
               )
             }
@@ -683,6 +801,7 @@ function MemberCircleCard({
 function MemberBannerRow({
   member,
   thick,
+  last,
   onOpen,
   onQuickFront,
   multiselect,
@@ -691,6 +810,15 @@ function MemberBannerRow({
 }: {
   member: StoredRecord;
   thick: boolean;
+  /**
+   * Virtualized rows are each the sole child of their own positioned
+   * wrapper, so `:last-child` — which the plain row's own divider relies on
+   * — matches every row instead of only the true last one. An inline
+   * `border-bottom` here outranks that rule for every row except the real
+   * last, where leaving it unset lets `:last-child` remove the divider as it
+   * always did.
+   */
+  last: boolean;
   onOpen: () => void;
   onQuickFront: () => void;
   multiselect: boolean;
@@ -703,6 +831,7 @@ function MemberBannerRow({
   const alreadyFronting = isFronting(member);
   const roles = Array.isArray(member['roles']) ? (member['roles'] as string[]) : [];
   const longPress = useLongPress(onLongPress);
+  const dividerStyle = last ? undefined : { borderBottom: 'var(--border-width) solid var(--border)' };
 
   const trailing = multiselect ? (
     <SelectionMark selected={selected} />
@@ -726,7 +855,7 @@ function MemberBannerRow({
     // recognise someone by more than a small circular avatar.
     const color = (member['color'] as string) || 'var(--accent)';
     return (
-      <div className="member-banner-row" style={{ ['--member-color' as never]: color }}>
+      <div className="member-banner-row" style={{ ['--member-color' as never]: color, ...dividerStyle }}>
         {member['bannerUrl'] ? (
           <img
             className="member-banner-row__image"
@@ -784,7 +913,7 @@ function MemberBannerRow({
   }
 
   return (
-    <div className="list-row" style={{ position: 'relative' }}>
+    <div className="list-row" style={{ position: 'relative', ...dividerStyle }}>
       <button
         type="button"
         onClick={() => {
