@@ -35,6 +35,12 @@ describe('applyTheme', () => {
     expect(document.documentElement.style.getPropertyValue('--text-scale')).toBe('1.25');
   });
 
+  it('applies UI zoom as a CSS `zoom` factor, independent of text scale', () => {
+    applyTheme({ ...DEFAULT_THEME, textScale: 130, uiZoom: 110 });
+    expect(document.documentElement.style.getPropertyValue('--text-scale')).toBe('1.3');
+    expect((document.documentElement.style as unknown as { zoom: string }).zoom).toBe('1.1');
+  });
+
   it('follows the page with the browser chrome colour', () => {
     const meta = document.createElement('meta');
     meta.setAttribute('name', 'theme-color');

@@ -48,8 +48,14 @@ export function applyTheme(settings: ThemeSettings): ThemeTokens {
   root.dataset['effects'] = resolved.effects;
   root.dataset['font'] = resolved.fontFamily;
   root.dataset['reducedMotion'] = String(resolved.reducedMotion);
-  root.dataset['largeText'] = String(resolved.largeText);
   root.style.setProperty('--text-scale', String(resolved.textScale / 100));
+  // `zoom` rather than `transform: scale` — transform creates a new
+  // containing block for `position: fixed` descendants, which would break
+  // the bottom nav, FABs and dialogs; zoom does not. Direct property
+  // assignment rather than `setProperty`: `zoom` predates the CSSOM
+  // property-registration spec that `setProperty` validates against, so
+  // some engines (including jsdom, in tests) only recognise it this way.
+  (root.style as unknown as { zoom: string }).zoom = String(resolved.uiZoom / 100);
   root.style.colorScheme = resolved.base === 'light' ? 'light' : 'dark';
 
   // The browser chrome follows the page, so an installed app does not show a
