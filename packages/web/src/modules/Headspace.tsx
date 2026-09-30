@@ -361,7 +361,6 @@ export default function Headspace(): JSX.Element {
                             name={String(member['name'])}
                             src={(member['avatarUrl'] as string) ?? null}
                             color={(member['color'] as string) ?? null}
-                            icon={(member['icon'] as string) ?? null}
                             size={Math.min(Number(object['width'] ?? 56), Number(object['height'] ?? 56)) - 8}
                             round
                           />

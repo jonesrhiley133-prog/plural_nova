@@ -52,7 +52,6 @@ export function SendAsStrip({ members, value, onChange, allowWholeSystem = true 
             name={String(member['name'])}
             src={(member['avatarUrl'] as string) ?? null}
             color={(member['color'] as string) ?? null}
-            icon={(member['icon'] as string) ?? null}
             size={34}
             round
             ring={value === member.id}

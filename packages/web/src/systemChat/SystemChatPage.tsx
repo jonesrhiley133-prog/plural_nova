@@ -22,7 +22,11 @@ export default function SystemChatPage(): JSX.Element {
   const openConversation = (nextThreadId: string): void => {
     navigate(`/system/chat/${nextThreadId}`);
   };
-  const closeConversation = (): void => navigate('/system/chat');
+  // Replace, not push — opening a conversation already pushed one entry, and
+  // stacking a second on the way back doubles the history depth "back to
+  // PluralNova" has to unwind, landing it on the conversation just left
+  // instead of wherever the account actually was before chat opened.
+  const closeConversation = (): void => navigate('/system/chat', { replace: true });
 
   // In-Sys Chat is the one screen outside the standard shell, so leaving it
   // needs its own way back. `navigate(-1)` returns to wherever the account

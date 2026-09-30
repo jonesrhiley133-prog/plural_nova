@@ -39,6 +39,16 @@ export type AppLockState = 'checking' | 'locked' | 'unlocked';
 
 const CACHE_KEY = 'pluralnova.appLockCache';
 
+/**
+ * In the Android shell, opening a file picker, a permission prompt, or a
+ * share sheet backgrounds the host Activity — and with it the WebView's own
+ * page visibility — exactly the way actually leaving the app does, then
+ * returns within a second or two. This grace period is what tells that
+ * round trip apart from a real backgrounding, without weakening the setting
+ * for anyone who genuinely switches away and stays away.
+ */
+const BACKGROUND_LOCK_GRACE_MS = 2000;
+
 interface CachedAppLock {
   configured: boolean;
   unlockedUntil: string | null;
@@ -162,19 +172,35 @@ export function AppLockProvider({ children }: { children: ReactNode }): JSX.Elem
 
   useEffect(() => {
     if (!active) return;
+    let pendingLock: number | null = null;
+    const cancelPendingLock = (): void => {
+      if (pendingLock === null) return;
+      window.clearTimeout(pendingLock);
+      pendingLock = null;
+    };
+
     const onVisibility = (): void => {
-      if (document.visibilityState !== 'hidden') return;
+      if (document.visibilityState !== 'hidden') {
+        cancelPendingLock();
+        return;
+      }
       if (!lockOnBackgroundRef.current) return;
       const current = statusRef.current;
       if (!current?.configured || !current.unlocked) return;
-      setState('locked');
-      setStatus((prev) => (prev ? { ...prev, unlocked: false, unlockedUntil: null } : prev));
-      // Best-effort: the flat window would otherwise still run out on its
-      // own, and the next status check reconciles either way.
-      void api.post('/api/app-lock/lock').catch(() => {});
+      pendingLock = window.setTimeout(() => {
+        pendingLock = null;
+        setState('locked');
+        setStatus((prev) => (prev ? { ...prev, unlocked: false, unlockedUntil: null } : prev));
+        // Best-effort: the flat window would otherwise still run out on its
+        // own, and the next status check reconciles either way.
+        void api.post('/api/app-lock/lock').catch(() => {});
+      }, BACKGROUND_LOCK_GRACE_MS);
     };
     document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelPendingLock();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [active]);
 
   const setup = useCallback(
@@ -201,6 +227,12 @@ export function AppLockProvider({ children }: { children: ReactNode }): JSX.Elem
   const removePin = useCallback(
     async (pin: string) => {
       await api.delete('/api/app-lock/pin', undefined, { body: { pin } });
+      // Written immediately, not only via the `refresh()` below: if that
+      // refresh hits a transient network failure, its catch block falls back
+      // to this same cache, and until now that fallback still read the PIN
+      // as configured — resurfacing a lock screen for an account that had
+      // just turned it off, on a later launch that also has a blip.
+      writeCachedAppLock({ configured: false, unlockedUntil: null });
       await refresh();
     },
     [refresh],

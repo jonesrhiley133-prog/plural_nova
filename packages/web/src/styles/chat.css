@@ -282,6 +282,11 @@
   background: var(--accent-soft);
 }
 
+.chat-picker-row__avatar {
+  width: 38px;
+  flex-shrink: 0;
+}
+
 .chat-picker-row__body {
   flex: 1;
   min-width: 0;
@@ -415,6 +420,27 @@
   background: var(--chat-wallpaper, transparent);
 }
 
+/*
+ * Each message's actual flex-child in `.chat-conversation__messages` is this
+ * row, not `.chat-message` itself — the day heading is that row's sibling,
+ * one level up from the bubble. `align-items` lives here so it has a direct
+ * flex-item to act on; putting `align-self` on `.chat-message` instead (the
+ * grandchild) is a no-op, which is what let outgoing messages drift toward
+ * the middle of a wide desktop pane instead of reaching the right edge.
+ */
+.chat-message-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-message-row--theirs {
+  align-items: flex-start;
+}
+
+.chat-message-row--mine {
+  align-items: flex-end;
+}
+
 .chat-day-heading {
   align-self: center;
   font-size: 0.7rem;
@@ -437,12 +463,7 @@
   margin-bottom: var(--chat-msg-gap, 2px);
 }
 
-.chat-message--theirs {
-  align-self: flex-start;
-}
-
 .chat-message--mine {
-  align-self: flex-end;
   flex-direction: row-reverse;
 }
 

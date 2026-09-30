@@ -224,7 +224,6 @@ export function CheckIn({ open, onClose }: { open: boolean; onClose: () => void 
                     name={String(member['name'])}
                     src={(member['avatarUrl'] as string) ?? null}
                     color={(member['color'] as string) ?? null}
-                    icon={(member['icon'] as string) ?? null}
                     size={52}
                     round
                     ring={selected}

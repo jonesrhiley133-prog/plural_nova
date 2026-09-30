@@ -220,7 +220,6 @@ function TimelineRow({
         <Avatar
           name={String(member['name'])}
           color={(member['color'] as string) ?? null}
-          icon={(member['icon'] as string) ?? null}
           size={32}
           round
         />

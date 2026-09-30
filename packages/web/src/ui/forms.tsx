@@ -80,6 +80,7 @@ export function TextField({
   maxLength,
   inputMode,
   autoFocus,
+  list,
 }: {
   label: string;
   value: string;
@@ -97,6 +98,8 @@ export function TextField({
   maxLength?: number;
   inputMode?: 'text' | 'email' | 'numeric' | 'decimal' | 'tel' | 'url' | 'search';
   autoFocus?: boolean;
+  /** Id of a `<datalist>` offering existing values as suggestions while typing. */
+  list?: string;
 }): JSX.Element {
   return (
     <Field
@@ -135,6 +138,7 @@ export function TextField({
             inputMode={inputMode}
             maxLength={maxLength}
             autoFocus={autoFocus}
+            list={list}
           />
         )
       }
@@ -299,13 +303,18 @@ export function DateTimeField({
   dateOnly?: boolean;
   required?: boolean;
 }): JSX.Element {
-  // `datetime-local` wants local wall-clock time; storage is always UTC ISO.
+  // A date-only value is already exactly what a `type="date"` input wants —
+  // no Date-object round trip, which is what let a bare `YYYY-MM-DD` drift
+  // back a day in negative-UTC-offset zones every time this redisplayed it.
+  // `datetime-local` still needs the local-wall-clock conversion below,
+  // since storage there really is a UTC instant, not a calendar day.
   const local = useMemo(() => {
     if (!value) return '';
+    if (dateOnly) return value;
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
     const offset = date.getTimezoneOffset() * 60_000;
-    return new Date(date.getTime() - offset).toISOString().slice(0, dateOnly ? 10 : 16);
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
   }, [value, dateOnly]);
 
   return (
@@ -392,12 +401,15 @@ export function TagField({
   onChange,
   hint,
   suggestions = [],
+  chipColor,
 }: {
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
   hint?: string;
   suggestions?: string[];
+  /** Themes each tag chip, e.g. to a member's own accent colour. */
+  chipColor?: string | null;
 }): JSX.Element {
   const [draft, setDraft] = useState('');
 
@@ -420,7 +432,11 @@ export function TagField({
           {values.length > 0 ? (
             <div className="row">
               {values.map((tag) => (
-                <Chip key={tag} onClick={() => onChange(values.filter((value) => value !== tag))}>
+                <Chip
+                  key={tag}
+                  color={chipColor}
+                  onClick={() => onChange(values.filter((value) => value !== tag))}
+                >
                   {tag} <Icon name="close" size={11} />
                 </Chip>
               ))}

@@ -247,7 +247,6 @@ export default function SystemHistory(): JSX.Element {
                           <Avatar
                             name={String(member['name'])}
                             color={(member['color'] as string) ?? null}
-                            icon={(member['icon'] as string) ?? null}
                             size={26}
                             round
                           />

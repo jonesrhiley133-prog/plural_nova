@@ -24,6 +24,27 @@ export function dayKey(value: Date | string | number): string {
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A bare `YYYY-MM-DD` means a calendar day, not an instant. Parsed the plain
+ * way (`new Date(string)`), JS reads it as UTC midnight — which lands on the
+ * *previous* local day in every timezone behind UTC. This reads it as local
+ * midnight instead, so the day is the same on every clock that opens it.
+ */
+export function parseDateOnly(value: string): Date {
+  if (!DATE_ONLY_PATTERN.test(value)) return new Date(value);
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year!, month! - 1, day!);
+}
+
+/** The inverse of `parseDateOnly` — local calendar fields, never a UTC-shifted `toISOString` slice. */
+export function toDateOnlyString(date: Date): string {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 export function addDays(value: Date | string, days: number): Date {
   const d = new Date(value);
   d.setDate(d.getDate() + days);

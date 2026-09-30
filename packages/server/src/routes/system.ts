@@ -25,7 +25,7 @@ import { historyPhrases, recordHistory } from '../services/history.js';
 import { notify } from '../services/notifications.js';
 import { publish } from '../realtime/hub.js';
 import { checkAchievements } from '../services/achievements.js';
-import { migrateLegacyCustomFields } from '../services/customFieldMigration.js';
+import { migrateLegacyCustomFields, migrateMemberFieldsToCustomFields } from '../services/customFieldMigration.js';
 
 /**
  * System-level operations: the system profile itself, internal chat, the
@@ -718,15 +718,24 @@ systemRouter.post(
 );
 
 /**
- * Safe to call every time a screen that needs shared custom fields mounts:
- * it only ever does something the first time, for an account that still has
- * the old per-member shape and nothing migrated yet.
+ * Safe to call every time a screen that needs shared custom fields mounts —
+ * and, per `App.tsx`, on every login. Each migration is independently
+ * idempotent: the legacy per-member-shape one only ever does something the
+ * first time; the member-field one only creates a definition or copies a
+ * value the first time it sees something worth moving, per field per
+ * member, never overwriting an answer given after the fact.
  */
 systemRouter.post(
   '/custom-fields/migrate',
   handler((req, res) => {
     const context = requireSystemMode(req);
-    ok(res, migrateLegacyCustomFields(context.scope));
+    const legacy = migrateLegacyCustomFields(context.scope);
+    const memberFields = migrateMemberFieldsToCustomFields(context.scope);
+    ok(res, {
+      migrated: legacy.migrated || memberFields.migrated,
+      definitions: legacy.definitions + memberFields.definitions,
+      values: legacy.values + memberFields.values,
+    });
   }),
 );
 

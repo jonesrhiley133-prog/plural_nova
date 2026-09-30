@@ -214,7 +214,11 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
               const quoted = message.replyToId ? byId.get(message.replyToId) ?? null : null;
 
               return (
-                <div key={message.id} id={`chat-message-${message.id}`}>
+                <div
+                  key={message.id}
+                  id={`chat-message-${message.id}`}
+                  className={`chat-message-row ${message.isMine ? 'chat-message-row--mine' : 'chat-message-row--theirs'}`}
+                >
                   {showDayHeading ? <div className="chat-day-heading">{dates.date(message.sentAt)}</div> : null}
                   <MessageBubble
                     message={message}

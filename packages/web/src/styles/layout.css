@@ -86,6 +86,15 @@
   max-width: var(--content-narrow);
 }
 
+/*
+ * For the screens that are tables, calendars and charts rather than reading
+ * material — the ones that feel cramped in the default column on a wide
+ * monitor precisely because there is nothing to read, only room to use.
+ */
+.app-main--wide {
+  max-width: var(--content-wide);
+}
+
 .app-main--flush {
   padding-left: 0;
   padding-right: 0;

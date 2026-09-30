@@ -12,6 +12,42 @@ different versions of PluralNova.
 
 ### Added
 
+- **The alter editor is simplified.** The standard editor now shows only
+  Name, Pronouns, Roles, Origin and Age as text fields, plus the existing
+  profile picture, banner, colours and other non-text settings — Roles is
+  now a real type-and-enter tag field using the alter's own colour, the
+  same as their role chips already do. The Symbol field is retired from the
+  UI (existing values are left in place, just no longer shown or editable).
+  Every other text field that used to live on the standard editor — species,
+  bio, notes, likes, triggers, and the rest — moves into Custom Fields
+  instead, copied over automatically the first time a system-mode account
+  loads after this update: nothing is deleted, re-answering the same field
+  twice for the same alter is impossible, and a field nobody had ever filled
+  in isn't invented out of thin air.
+
+### Changed
+
+- **Custom Field groups are more reliable.** Creating or editing a field now
+  suggests group names already in use, so "Identity" and "identity" don't
+  silently become two separate sections; grouping itself is now
+  case-insensitive and trims stray whitespace. The unused "Section header"
+  field type is no longer offered when adding a new field.
+- **Identity Flags now works like the Media library.** Flags get an actual
+  image instead of a short glyph, and the screen is an image-forward gallery
+  instead of a plain list. Category and "show on profiles" are dropped from
+  the create/edit form (existing values are untouched) — a flag is now just
+  a name, a description, an image and a colour.
+- **Quick Front is a genuine toggle.** Tapping an already-fronting alter now
+  removes just that alter instead of doing nothing, correctly handling
+  multiple people fronting together. The Dashboard's fronting card can now
+  add or remove a fronter directly, without leaving the page.
+- **Wide screens are used on the screens that benefit from it.** Members,
+  Calendar, Finances, Stats and School Life's Analytics now use a wider
+  column on a desktop or wide monitor. Profile pages, Journal, Settings and
+  other reading-width content are unaffected, and nothing changes on a
+  phone or tablet — this is a desktop-only expansion of the existing
+  mobile-first layout.
+
 - **A new School Life category: classes, assignments, and academic analytics
   with a real GPA.** Track classes with your own weighted grading categories
   and meeting days, and assignments with due dates, types and status. A
@@ -191,6 +227,34 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Outgoing and incoming chat messages both rendered in the middle of the
+  screen instead of on the right and left.** The `mine`/`theirs` alignment
+  class was being applied to a bubble nested a level too deep to affect its
+  own position — the actual flex item next to it had no class at all. Fixes
+  every message kind (text, images, video, voice, replies, forwards) in
+  both System Chat and Messages, on mobile and desktop.
+- **Role chips used the theme's accent colour for every alter instead of
+  each alter's own colour**, on both the profile page and the member list.
+- **Chat picker avatars (when starting a new conversation) squashed instead
+  of staying round**, from unconstrained flex shrink.
+- **The PIN lock could resurface after being removed, or lock unexpectedly
+  in the Android app.** Removing a PIN now updates the local cache
+  immediately instead of waiting on a status round-trip that could fail and
+  fall back to stale data; the background auto-lock now waits briefly before
+  locking, so a share sheet or permission prompt in the Android WebView no
+  longer triggers it by mistake.
+- **Chat's back button could land back on the conversation you just closed**
+  instead of wherever you came from, because closing a conversation pushed a
+  new history entry instead of replacing the one already there.
+- **Long relationship descriptions and similar list rows clipped to one
+  line with an ellipsis** instead of wrapping and growing the row.
+- **A selected date could display as the previous day, depending on your
+  timezone.** Date-only fields (birthdays, journal entries, fronting,
+  emotions, and every other plain date across the app) now parse and format
+  through one shared, timezone-safe path instead of round-tripping through a
+  `Date` object meant for full timestamps.
+- **The Dashboard's greeting used the account owner's name instead of the
+  active alter's**, in System Mode.
 - **Turning off a notification category's "in app" checkbox silently also
   stopped its push notifications, and turning off "push" silently also
   stopped it appearing in the notification centre.** Settings presents all

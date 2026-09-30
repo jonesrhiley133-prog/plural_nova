@@ -94,7 +94,6 @@ function SystemPicker({ onCreated }: { onCreated: (threadId: string) => void }):
                   name={String(member['name'])}
                   src={(member['avatarUrl'] as string) ?? null}
                   color={(member['color'] as string) ?? null}
-                  icon={(member['icon'] as string) ?? null}
                   size={38}
                   round
                   ring={fronting}

@@ -256,13 +256,17 @@ export function MemberCustomFieldsView({
   actions?: ReactNode;
 }): JSX.Element {
   const ungrouped: StoredRecord[] = [];
-  const groups = new Map<string, StoredRecord[]>();
+  // Keyed by trimmed, lower-cased group name so "Identity", "identity" and
+  // " Identity" land in the same section instead of quietly forking into
+  // three — the visible heading keeps whichever casing was typed first.
+  const groups = new Map<string, { label: string; definitions: StoredRecord[] }>();
   for (const definition of definitions) {
-    const group = definition['group'] ? String(definition['group']) : '';
-    if (group) {
-      const bucket = groups.get(group);
-      if (bucket) bucket.push(definition);
-      else groups.set(group, [definition]);
+    const raw = definition['group'] ? String(definition['group']).trim() : '';
+    if (raw) {
+      const key = raw.toLowerCase();
+      const bucket = groups.get(key);
+      if (bucket) bucket.definitions.push(definition);
+      else groups.set(key, { label: raw, definitions: [definition] });
     } else {
       ungrouped.push(definition);
     }
@@ -277,8 +281,8 @@ export function MemberCustomFieldsView({
           <p className="small faint">No custom fields set up for this system yet.</p>
         )}
       </Card>
-      {[...groups.entries()].map(([name, groupDefinitions]) => (
-        <Card key={name} title={name}>
+      {[...groups.entries()].map(([key, { label, definitions: groupDefinitions }]) => (
+        <Card key={key} title={label}>
           <FieldGroup definitions={groupDefinitions} values={values} members={members} />
         </Card>
       ))}

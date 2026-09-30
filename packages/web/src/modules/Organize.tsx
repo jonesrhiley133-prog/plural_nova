@@ -193,7 +193,6 @@ export default function Organize(): JSX.Element {
                         name={String(member['name'])}
                         src={(member['avatarUrl'] as string) ?? null}
                         color={(member['color'] as string) ?? null}
-                        icon={(member['icon'] as string) ?? null}
                         size={26}
                         round
                       />

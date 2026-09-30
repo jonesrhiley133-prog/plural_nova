@@ -57,6 +57,25 @@ describe('MemberCustomFieldsView', () => {
     expect(screen.getByText('170 cm')).toBeInTheDocument();
   });
 
+  it('folds differently-cased or padded group names into one card, keeping the first-seen casing', () => {
+    const definitions = [
+      definition({ id: 'cfd_1', label: 'Height', type: 'number', group: 'Physical' }),
+      definition({ id: 'cfd_2', label: 'Eye colour', type: 'text', group: ' physical ' }),
+      definition({ id: 'cfd_3', label: 'Shoe size', type: 'number', group: 'PHYSICAL' }),
+    ];
+    const values: CustomFieldValueEntry[] = [
+      { definitionId: 'cfd_1', value: '170' },
+      { definitionId: 'cfd_2', value: 'Brown' },
+      { definitionId: 'cfd_3', value: '9' },
+    ];
+    render(<MemberCustomFieldsView definitions={definitions} values={values} />);
+    expect(screen.getAllByText('Physical')).toHaveLength(1);
+    expect(screen.queryByText('PHYSICAL')).not.toBeInTheDocument();
+    expect(screen.getByText('Height')).toBeInTheDocument();
+    expect(screen.getByText('Eye colour')).toBeInTheDocument();
+    expect(screen.getByText('Shoe size')).toBeInTheDocument();
+  });
+
   it('renders a checkbox field as Yes or No rather than the raw stored string', () => {
     const definitions = [definition({ id: 'cfd_1', label: 'Verified', type: 'checkbox' })];
     const values: CustomFieldValueEntry[] = [{ definitionId: 'cfd_1', value: 'true' }];

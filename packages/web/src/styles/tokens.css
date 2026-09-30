@@ -137,6 +137,7 @@
   --header-height: 56px;
   --content-max: 1180px;
   --content-narrow: 720px;
+  --content-wide: 1600px;
   /* The music mini-bar, floated above the other floating controls. Zero by
      default so a page's bottom padding is unaffected until something is
      actually playing — set by MusicPlayerBar, not written here directly. */

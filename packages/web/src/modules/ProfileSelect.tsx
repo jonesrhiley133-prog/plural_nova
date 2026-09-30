@@ -108,7 +108,6 @@ export default function ProfileSelect(): JSX.Element {
               subtitle={String(member['pronouns'] ?? '')}
               avatarUrl={(member['avatarUrl'] as string) ?? null}
               color={(member['color'] as string) ?? null}
-              icon={(member['icon'] as string) ?? null}
               locked={Boolean(member['pinHash'])}
               active={activeMemberId === member.id}
               onClick={() => open(member)}

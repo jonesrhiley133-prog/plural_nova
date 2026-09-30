@@ -204,7 +204,6 @@ function ChatterPopover({
             name={String(member['name'])}
             src={(member['avatarUrl'] as string) ?? null}
             color={(member['color'] as string) ?? null}
-            icon={(member['icon'] as string) ?? null}
             size={30}
             round
           />

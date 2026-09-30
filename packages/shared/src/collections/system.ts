@@ -49,13 +49,18 @@ export const members: CollectionDef = {
       sensitive: true,
       hint: 'Never shown on public profiles.',
     }),
-    f.text('pronouns', 'Pronouns', { inList: true, searchable: true, group: 'Identity' }),
+    // Ungrouped, alongside `name` — one of the standard editor's five kept
+    // fields, so it belongs in the always-visible top section, not folded
+    // away behind the (now much shorter) Identity group's disclosure.
+    f.text('pronouns', 'Pronouns', { inList: true, searchable: true }),
     f.tags('nicknames', 'Nicknames', {
       group: 'Identity',
       searchable: true,
       hint: 'Other names they answer to.',
     }),
-    f.text('age', 'Age', { group: 'Identity', hint: 'Free text — "ageless", "teen", "27" all work.' }),
+    // Ungrouped for the same reason as pronouns above — one of the five kept
+    // standard fields.
+    f.text('age', 'Age', { hint: 'Free text — "ageless", "teen", "27" all work.' }),
     /*
      * Three ages, because for a lot of systems they are three different
      * answers and collapsing them into one loses the distinction that
@@ -117,7 +122,8 @@ export const members: CollectionDef = {
     f.tags('roles', 'Roles', { group: 'About' }),
     f.ref('subsystemId', 'Subsystem', 'subsystems', { group: 'About' }),
     f.ref('groupId', 'Group', 'memberGroups', { group: 'About' }),
-    f.text('source', 'Source / origin', { group: 'About', hint: 'Only if this concept applies to them.' }),
+    // Ungrouped for the same reason — one of the five kept standard fields.
+    f.text('source', 'Origin', { hint: 'Only if this concept applies to them.' }),
     f.tags('tags', 'Tags', { group: 'About' }),
     f.long('notes', 'Notes', { group: 'About', sensitive: true }),
     f.long('boundaries', 'Boundaries', { group: 'About' }),
@@ -505,6 +511,7 @@ export const flags: CollectionDef = {
   fields: [
     f.text('name', 'Name', { required: true, inList: true, searchable: true }),
     f.long('description', 'What it means', { searchable: true }),
+    f.image('imageUrl', 'Flag image'),
     f.color('color', 'Colour', { inList: true }),
     f.text('icon', 'Symbol', { maxLength: 8, inList: true }),
     f.enumOf('category', 'Category', [

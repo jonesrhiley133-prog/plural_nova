@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import {
   LOCALES,
+  parseDateOnly,
   resolveTerminology,
   translate,
   withCount,
@@ -86,8 +87,14 @@ export function useDateFormat(): {
 
   return useMemo(
     () => ({
+      // A bare `YYYY-MM-DD` (every `f.date` field's stored value) means a
+      // calendar day, not an instant — `parseDateOnly` reads it as local
+      // midnight instead of letting a plain `new Date(string)` read it as
+      // UTC midnight, which drifts the displayed day back one in any
+      // negative-UTC-offset zone. A real datetime string or a `Date` object
+      // falls through unchanged.
       date: (value) =>
-        new Date(value).toLocaleDateString(locale, {
+        (typeof value === 'string' ? parseDateOnly(value) : value).toLocaleDateString(locale, {
           day: 'numeric',
           month: 'short',
           year: 'numeric',

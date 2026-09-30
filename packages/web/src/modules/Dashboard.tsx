@@ -9,8 +9,8 @@ import {
   type StoredRecord,
   type WidgetSetting,
 } from '@pluralnova/shared';
-import { useAuth, useSystemMode } from '../core/auth.js';
-import { useCollection, useQuery } from '../core/data.js';
+import { useActiveMemberId, useAuth, useSystemMode } from '../core/auth.js';
+import { useCollection, useQuery, useRecord } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useOptimisticSettings } from '../core/settings.js';
 import { useBadges } from '../core/badges.js';
@@ -18,7 +18,7 @@ import { useFronting } from '../core/fronting.js';
 import { useLiveSession } from '../core/liveSession.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, ListRow, Stat } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, ListRow, Stat } from '../ui/primitives.js';
 import { EmptyState, ErrorLine, LoadingLine, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
 import { Switch } from '../ui/forms.js';
@@ -39,6 +39,13 @@ export default function Dashboard(): JSX.Element {
   const systemMode = useSystemMode();
   const customiser = useDialog();
 
+  // Whoever is the active profile right now is who the app greets — the
+  // account's own display name is only who signed in, and while a specific
+  // alter is fronting as the active profile, "welcome back" means them.
+  const activeMemberId = useActiveMemberId();
+  const activeMember = useRecord('members', activeMemberId ?? undefined);
+  const greetingName = activeMember ? String(activeMember['name']) : (user?.displayName ?? 'there');
+
   const visible = useMemo(
     () =>
       [...settings.widgets]
@@ -51,7 +58,7 @@ export default function Dashboard(): JSX.Element {
   return (
     <>
       <PageHeader
-        title={t('dashboard.greeting', { name: user?.displayName ?? 'there' })}
+        title={t('dashboard.greeting', { name: greetingName })}
         description={new Date().toLocaleDateString(undefined, {
           weekday: 'long',
           day: 'numeric',
@@ -155,7 +162,9 @@ function CurrentFrontWidget(): JSX.Element {
   const dates = useDateFormat();
   const navigate = useNavigate();
   const toast = useToast();
-  const { state, loading, end, clear } = useFronting();
+  const { state, loading, end, clear, quickFront, isFrontingAlready } = useFronting();
+  const members = useCollection('members', { filter: (member) => member['archived'] !== true });
+  const addFronter = useDialog();
 
   // Every currently fronting person, primary and co-fronters alike — a front
   // event's own `member` is only who opened it, not everyone in it.
@@ -178,13 +187,20 @@ function CurrentFrontWidget(): JSX.Element {
     return list;
   }, [state.active]);
 
+  const candidates = members.items.filter((member) => !isFrontingAlready(member.id));
+
   return (
     <Card
       title={t('front.current')}
       actions={
-        <Button variant="ghost" size="sm" onClick={() => navigate('/fronting')}>
-          {t('action.viewAll')}
-        </Button>
+        <>
+          <Button variant="ghost" size="sm" icon="plus" onClick={() => addFronter.show()}>
+            {term('Add to {{fronting}}')}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/fronting')}>
+            {t('action.viewAll')}
+          </Button>
+        </>
       }
     >
       {loading ? (
@@ -201,15 +217,30 @@ function CurrentFrontWidget(): JSX.Element {
           <div className="front-row">
             {people.map((person) => (
               <div key={person.key} className="front-person">
-                <Avatar
-                  name={String(person.member?.['name'] ?? t('front.unknown'))}
-                  src={(person.member?.['avatarUrl'] as string) ?? null}
-                  color={(person.member?.['color'] as string) ?? null}
-                  icon={(person.member?.['icon'] as string) ?? null}
-                  size={58}
-                  round
-                  ring
-                />
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <Avatar
+                    name={String(person.member?.['name'] ?? t('front.unknown'))}
+                    src={(person.member?.['avatarUrl'] as string) ?? null}
+                    color={(person.member?.['color'] as string) ?? null}
+                    icon={(person.member?.['icon'] as string) ?? null}
+                    size={58}
+                    round
+                    ring
+                  />
+                  {person.member ? (
+                    <span style={{ position: 'absolute', top: -2, right: -2 }}>
+                      <IconButton
+                        icon="close"
+                        label={`${term('Remove')} ${String(person.member['name'])} ${term('from {{fronting}}')}`}
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          void quickFront(person.member!.id).catch((cause: unknown) => toast.fromError(cause));
+                        }}
+                      />
+                    </span>
+                  ) : null}
+                </span>
                 <span className="front-person__name">
                   {String(person.member?.['name'] ?? t('front.unknown'))}
                 </span>
@@ -252,6 +283,38 @@ function CurrentFrontWidget(): JSX.Element {
           </div>
         </div>
       )}
+
+      <Dialog open={addFronter.open} onClose={addFronter.hide} title={term('Add to {{fronting}}')}>
+        {candidates.length === 0 ? (
+          <p className="small faint">{term('Everyone is already {{fronting}}.')}</p>
+        ) : (
+          <div className="list">
+            {candidates.map((member) => (
+              <ListRow
+                key={member.id}
+                leading={
+                  <Avatar
+                    name={String(member['name'])}
+                    src={(member['avatarUrl'] as string) ?? null}
+                    color={(member['color'] as string) ?? null}
+                    size={32}
+                    round
+                  />
+                }
+                title={String(member['name'])}
+                onClick={() => {
+                  void quickFront(member.id)
+                    .then(() => {
+                      toast.success(`${String(member['name'])} ${term('is {{fronting}}')}`);
+                      addFronter.hide();
+                    })
+                    .catch((cause: unknown) => toast.fromError(cause));
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </Dialog>
     </Card>
   );
 }
@@ -263,11 +326,15 @@ function QuickFrontWidget(): JSX.Element {
     sort: (a, b) => Number(b['frontCount'] ?? 0) - Number(a['frontCount'] ?? 0),
     limit: 6,
   });
-  const { start } = useFronting();
+  // `quickFront` is additive and toggling on its own — tapping someone already
+  // out removes just them — so this no longer needs its own `endOthers: true`
+  // replace, which used to silently end everyone else (and reset the tapped
+  // member's own duration even when they were the one already fronting).
+  const { quickFront, isFrontingAlready } = useFronting();
   const toast = useToast();
 
   return (
-    <Card title={term('Quick {{front}}')} subtitle={term('One tap to record who is out')}>
+    <Card title={term('Quick {{front}}')} subtitle={term('One tap to add or remove who is out')}>
       {members.loading ? (
         <LoadingLine label={term('Loading {{members}}…')} />
       ) : members.error ? (
@@ -276,27 +343,37 @@ function QuickFrontWidget(): JSX.Element {
         <p className="small faint">{term('Add a {{member}} to use this.')}</p>
       ) : (
         <div className="row">
-          {members.items.map((member) => (
-            <button
-              key={member.id}
-              type="button"
-              className="chip chip--interactive"
-              onClick={() => {
-                void start({ memberId: member.id, endOthers: true })
-                  .then(() => toast.success(`${String(member['name'])} ${term('is {{fronting}}')}`))
-                  .catch((cause: unknown) => toast.fromError(cause));
-              }}
-            >
-              <Avatar
-                name={String(member['name'])}
-                color={(member['color'] as string) ?? null}
-                icon={(member['icon'] as string) ?? null}
-                size={18}
-                round
-              />
-              {String(member['name'])}
-            </button>
-          ))}
+          {members.items.map((member) => {
+            const fronting = isFrontingAlready(member.id);
+            return (
+              <button
+                key={member.id}
+                type="button"
+                className="chip chip--interactive"
+                data-selected={fronting}
+                aria-pressed={fronting}
+                onClick={() => {
+                  void quickFront(member.id)
+                    .then(() =>
+                      toast.success(
+                        fronting
+                          ? `${String(member['name'])} ${term('is no longer {{fronting}}')}`
+                          : `${String(member['name'])} ${term('is {{fronting}}')}`,
+                      ),
+                    )
+                    .catch((cause: unknown) => toast.fromError(cause));
+                }}
+              >
+                <Avatar
+                  name={String(member['name'])}
+                  color={(member['color'] as string) ?? null}
+                  size={18}
+                  round
+                />
+                {String(member['name'])}
+              </button>
+            );
+          })}
           <Button variant="ghost" size="sm" onClick={() => navigate('/quick-front')}>
             More…
           </Button>

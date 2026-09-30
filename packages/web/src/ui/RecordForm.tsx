@@ -223,7 +223,12 @@ export function RecordForm(props: RecordFormProps): JSX.Element {
       if (bucket) bucket.push(field);
       else groups.set(key, [field]);
     }
-    return [...groups.entries()];
+    // A group whose every field is `tags` or `json` kind would otherwise show
+    // a disclosure that only ever opens onto an empty box — those kinds have
+    // their own purpose-built editor elsewhere and render no control here.
+    return [...groups.entries()].filter(([, groupFields]) =>
+      groupFields.some((field) => field.kind !== 'tags' && field.kind !== 'json'),
+    );
   }, [fields]);
 
   return (
@@ -361,7 +366,6 @@ function MemberPicker({
         id: member.id,
         label: String(member['name'] ?? 'Unnamed'),
         color: (member['color'] as string) ?? null,
-        icon: (member['icon'] as string) ?? null,
       }))}
       onChange={(next) => onChange(next as string | null)}
     />

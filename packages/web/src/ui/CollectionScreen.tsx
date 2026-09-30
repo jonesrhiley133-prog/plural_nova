@@ -44,6 +44,8 @@ export interface CollectionScreenProps {
   emptyBody?: string;
   /** Layout: rows in a card, or a responsive grid of cards. */
   layout?: 'list' | 'grid';
+  /** Narrows the grid's column width for smaller, image-forward tiles (default 180px). */
+  gridMinWidth?: number;
   headerActions?: ReactNode;
   /** Opens the create dialog on mount, for `?new=1` deep links. */
   autoCreate?: boolean;
@@ -233,7 +235,10 @@ export function CollectionScreen(props: CollectionScreenProps): JSX.Element {
       >
         {(rows) =>
           props.layout === 'grid' ? (
-            <div className="grid">
+            <div
+              className="grid"
+              style={props.gridMinWidth ? ({ ['--grid-min' as never]: `${props.gridMinWidth}px` }) : undefined}
+            >
               {rows.map((record) =>
                 props.renderRow ? (
                   <div key={record.id}>{props.renderRow(record, helpers(record))}</div>

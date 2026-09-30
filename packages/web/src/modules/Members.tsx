@@ -21,7 +21,7 @@ import { Avatar, Button, Card, Chip, IconButton, SegmentedControl, Status } from
 import { SearchField, TextField, useDebounced } from '../ui/forms.js';
 import { AsyncContent, SkeletonCards } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
-import { RecordForm } from '../ui/RecordForm.js';
+import { MemberEditorForm } from '../ui/MemberEditorForm.js';
 import { MemberCustomFieldsEditor } from '../ui/CustomFields.js';
 import { Icon } from '../ui/Icon.js';
 
@@ -258,7 +258,6 @@ export default function Members(): JSX.Element {
 
   const [multiselect, setMultiselect] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const bulkBio = useDialog();
   const bulkFields = useDialog();
   const bulkGroup = useDialog();
   const bulkDelete = useDialog();
@@ -299,16 +298,11 @@ export default function Members(): JSX.Element {
 
   // Instant: applied to the shared fronting state before the request that
   // tells the server about it resolves, so the tap never waits on anything.
+  // `fronting.quickFront` is itself the toggle — already fronting removes
+  // them, not fronting adds them — so this wrapper only needs to forward the
+  // tap, not gate it.
   const quickFrontMember = (member: StoredRecord): void => {
-    if (fronting.isFrontingAlready(member.id)) return;
     void fronting.quickFront(member.id).catch((cause: unknown) => toast.fromError(cause));
-  };
-
-  const bulkSetBio = async (bio: string): Promise<void> => {
-    const count = selectedMembers.length;
-    await Promise.all(selectedMembers.map((member) => update(member.id, { bio })));
-    toast.success(term(count === 1 ? 'Bio updated' : `Bio updated for ${count} {{members}}`));
-    exitMultiselect();
   };
 
   // Only the definitions actually filled in are applied — everything else a
@@ -525,7 +519,6 @@ export default function Members(): JSX.Element {
         <BulkActionBar
           count={selectedIds.size}
           onCancel={exitMultiselect}
-          onEditBio={() => bulkBio.show()}
           onCustomFields={() => bulkFields.show()}
           onMoveToGroup={() => bulkGroup.show()}
           onDelete={() => bulkDelete.show()}
@@ -533,9 +526,8 @@ export default function Members(): JSX.Element {
       ) : null}
 
       <Dialog open={creator.open} onClose={creator.hide} title={t('members.create')}>
-        <RecordForm
-          collection="members"
-          fields={['name', 'pronouns', 'color', 'icon', 'bio', 'roles', 'subsystemId']}
+        <MemberEditorForm
+          member={null}
           initial={{ color: nextColor }}
           onSubmit={async (values) => {
             const created = await create(values);
@@ -547,7 +539,6 @@ export default function Members(): JSX.Element {
         />
       </Dialog>
 
-      <BulkBioDialog dialog={bulkBio} members={selectedMembers} onSave={bulkSetBio} />
       <BulkCustomFieldsDialog
         dialog={bulkFields}
         definitions={definitions.items}
@@ -647,9 +638,8 @@ function MemberCard({
         ) : (
           <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
             <IconButton
-              icon="bolt"
-              label={isFronting(member) ? term('Already {{fronting}}') : term('Quick {{front}}')}
-              disabled={isFronting(member)}
+              icon={isFronting(member) ? 'close' : 'bolt'}
+              label={isFronting(member) ? term('Remove from {{fronting}}') : term('Quick {{front}}')}
               size="sm"
               onClick={(event) => {
                 event.stopPropagation();
@@ -678,7 +668,7 @@ function MemberCard({
             }}
             aria-hidden="true"
           >
-            {String(member['icon'] ?? String(member['name']).charAt(0).toUpperCase())}
+            {String(member['name']).charAt(0).toUpperCase()}
           </span>
         )}
         <span
@@ -768,9 +758,8 @@ function MemberCircleCard({
       ) : (
         <span style={{ position: 'absolute', top: 6, right: 6, zIndex: 2 }}>
           <IconButton
-            icon="bolt"
-            label={isFronting(member) ? term('Already {{fronting}}') : term('Quick {{front}}')}
-            disabled={isFronting(member)}
+            icon={isFronting(member) ? 'close' : 'bolt'}
+            label={isFronting(member) ? term('Remove from {{fronting}}') : term('Quick {{front}}')}
             size="sm"
             onClick={(event) => {
               event.stopPropagation();
@@ -783,7 +772,6 @@ function MemberCircleCard({
         name={String(member['name'])}
         src={(member['avatarUrl'] as string) ?? null}
         color={(member['color'] as string) ?? null}
-        icon={(member['icon'] as string) ?? null}
         size={64}
         round
         ring={isFronting(member)}
@@ -837,9 +825,8 @@ function MemberBannerRow({
     <SelectionMark selected={selected} />
   ) : (
     <IconButton
-      icon="bolt"
-      label={alreadyFronting ? term('Already {{fronting}}') : term('Quick {{front}}')}
-      disabled={alreadyFronting}
+      icon={alreadyFronting ? 'close' : 'bolt'}
+      label={alreadyFronting ? term('Remove from {{fronting}}') : term('Quick {{front}}')}
       size="sm"
       variant="ghost"
       onClick={(event) => {
@@ -885,7 +872,6 @@ function MemberBannerRow({
             name={String(member['name'])}
             src={(member['avatarUrl'] as string) ?? null}
             color={color}
-            icon={(member['icon'] as string) ?? null}
             size={56}
             round
             ring={alreadyFronting}
@@ -900,7 +886,7 @@ function MemberBannerRow({
           {roles.length > 0 ? (
             <span className="row" style={{ marginTop: 2, gap: 'var(--space-1)' }}>
               {roles.map((role) => (
-                <Chip key={role} accent>
+                <Chip key={role} color={color}>
                   {role}
                 </Chip>
               ))}
@@ -943,7 +929,6 @@ function MemberBannerRow({
         name={String(member['name'])}
         src={(member['avatarUrl'] as string) ?? null}
         color={(member['color'] as string) ?? null}
-        icon={(member['icon'] as string) ?? null}
         size={40}
         round
         ring={alreadyFronting}
@@ -971,14 +956,12 @@ function MemberBannerRow({
 function BulkActionBar({
   count,
   onCancel,
-  onEditBio,
   onCustomFields,
   onMoveToGroup,
   onDelete,
 }: {
   count: number;
   onCancel: () => void;
-  onEditBio: () => void;
   onCustomFields: () => void;
   onMoveToGroup: () => void;
   onDelete: () => void;
@@ -992,9 +975,6 @@ function BulkActionBar({
         <span className="small">{term(count === 1 ? '1 {{member}} selected' : `${count} {{members}} selected`)}</span>
       </div>
       <div className="bulk-bar__actions">
-        <Button variant="ghost" size="sm" icon="edit" disabled={count === 0} onClick={onEditBio}>
-          Edit bio
-        </Button>
         <Button variant="ghost" size="sm" icon="tag" disabled={count === 0} onClick={onCustomFields}>
           Custom fields
         </Button>
@@ -1006,59 +986,6 @@ function BulkActionBar({
         </Button>
       </div>
     </div>
-  );
-}
-
-function BulkBioDialog({
-  dialog,
-  members,
-  onSave,
-}: {
-  dialog: ReturnType<typeof useDialog<true>>;
-  members: StoredRecord[];
-  onSave: (bio: string) => Promise<void>;
-}): JSX.Element {
-  const [bio, setBio] = useState('');
-  const [saving, setSaving] = useState(false);
-  const toast = useToast();
-  const withExisting = members.filter((member) => Boolean(member['bio'])).length;
-
-  return (
-    <Dialog
-      open={dialog.open}
-      onClose={dialog.hide}
-      title={members.length === 1 ? 'Edit bio' : `Edit bio for ${members.length} members`}
-    >
-      <p className="small faint">
-        {members.length === 1
-          ? `This replaces ${String(members[0]?.['name'] ?? 'their')}'s current bio.`
-          : `This replaces the bio for all ${members.length} selected members${
-              withExisting > 0 ? `, including ${withExisting} who already have one` : ''
-            }.`}
-      </p>
-      <TextField label="Bio" value={bio} onChange={setBio} multiline rows={5} />
-      <div className="row" style={{ marginTop: 'var(--space-4)', justifyContent: 'flex-end' }}>
-        <Button variant="ghost" onClick={dialog.hide}>
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          loading={saving}
-          onClick={() => {
-            setSaving(true);
-            void onSave(bio)
-              .then(() => {
-                setBio('');
-                dialog.hide();
-              })
-              .catch((cause: unknown) => toast.fromError(cause))
-              .finally(() => setSaving(false));
-          }}
-        >
-          Save
-        </Button>
-      </div>
-    </Dialog>
   );
 }
 

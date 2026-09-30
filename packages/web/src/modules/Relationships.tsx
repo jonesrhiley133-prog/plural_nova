@@ -501,7 +501,7 @@ export default function Relationships(): JSX.Element {
                       round
                     />
                     <span className="list-row__body">
-                      <span className="list-row__title">
+                      <span className="list-row__title list-row__title--wrap">
                         {fromName} <span className="faint">{String(relationship['label'])}</span> {toName}
                       </span>
                       <span className="list-row__meta">

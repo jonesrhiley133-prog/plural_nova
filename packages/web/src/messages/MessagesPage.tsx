@@ -23,7 +23,11 @@ export default function MessagesPage(): JSX.Element {
   const openConversation = (nextThreadId: string): void => {
     navigate(`/social/messages/${nextThreadId}`);
   };
-  const closeConversation = (): void => navigate('/social/messages');
+  // Replace, not push — opening a conversation already pushed one entry, and
+  // stacking a second on the way back doubles the history depth "back to
+  // PluralNova" has to unwind, landing it on the conversation just left
+  // instead of wherever the account actually was before Messages opened.
+  const closeConversation = (): void => navigate('/social/messages', { replace: true });
 
   // Messages is the other screen outside the standard shell, so leaving it
   // needs its own way back. `navigate(-1)` returns to wherever the account
