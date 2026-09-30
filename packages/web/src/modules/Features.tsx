@@ -50,6 +50,13 @@ const AREAS = [
     path: '/tasks',
   },
   {
+    icon: 'school' as const,
+    title: 'School Life',
+    body: 'Classes with your own weighted grading categories, assignments with due dates and status, and academic analytics — percentages, a GPA on a scale you configure, a class-by-class comparison table, and which class is worth the most study time right now, always shown with the numbers behind it.',
+    items: ['Classes', 'Assignments', 'Grades', 'Analytics'],
+    path: '/school',
+  },
+  {
     icon: 'social' as const,
     title: 'Social, if you want it',
     body: 'A profile you control down to each {{member}}, friends, a feed you post to as the {{system}} or as one {{member}}, and private messages that are encrypted when both sides can be.',

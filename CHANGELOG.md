@@ -12,6 +12,19 @@ different versions of PluralNova.
 
 ### Added
 
+- **A new School Life category: classes, assignments, and academic analytics
+  with a real GPA.** Track classes with your own weighted grading categories
+  and meeting days, and assignments with due dates, types and status. A
+  grade can live directly on a tracked assignment or be logged entirely on
+  its own — whichever fits, and never double-counted when both point at the
+  same piece of work. Academic Analytics turns all of it into percentages, a
+  GPA computed against a grading scale you configure yourself rather than
+  one this app assumes for you, a side-by-side comparison table of every
+  class, a trend chart, and a plain, numbers-first note on which class is
+  likely worth the most study time right now. Every screen can be scoped to
+  the whole system or to one alter, the same as Fronting and Journal
+  already work. This is the first phase — extracurriculars, check-ins,
+  study timers, and deeper Journal/Calendar integration are still to come.
 - **Push notifications now work on the native Android app, not just in a
   browser.** A plain WebView has no Web Push service behind it, so the app
   talks to Firebase Cloud Messaging instead — entirely optional, and off

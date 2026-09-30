@@ -12,11 +12,14 @@ import {
   eventMinutes,
   getEmotion,
   getEmotionFamily,
+  gradeForPercent,
   longestStreak,
   memberFrontingStats,
+  percentOf,
   topEntries,
   trendOf,
   type FrontEventLike,
+  type GradeCategory,
 } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { auth, requireAuth } from '../auth/middleware.js';
@@ -551,6 +554,214 @@ statsRouter.get(
         open: tasks.filter((task) => task['completed'] !== true).length,
         completed: tasks.filter((task) => task['completed'] === true).length,
       },
+    });
+  }),
+);
+
+/**
+ * School Life: how each class is going, and what the account-wide GPA works
+ * out to. A grade can come from two places — an assignment's own
+ * `gradeReceived`, or a standalone `grades` row — and never both: a `grades`
+ * row that links back to an assignment (`assignmentId`) is the more detailed
+ * record and wins, so that assignment's own grade is skipped here rather than
+ * counted twice. Only real numbers ever produce a percentage; nothing is
+ * assumed for a class or category with no graded work in it yet.
+ */
+interface SchoolGradedItem {
+  classId: string;
+  category: string | null;
+  type: string | null;
+  percent: number;
+  at: string;
+}
+
+statsRouter.get(
+  '/school',
+  handler((req, res) => {
+    const context = auth(req);
+    const days = Math.min(400, Math.max(30, Number(req.query['days'] ?? 120)));
+    const memberId = typeof req.query['memberId'] === 'string' ? req.query['memberId'] : null;
+    const memberQuery = memberId ? { memberId } : {};
+    const from = rangeFrom(days);
+
+    const classes = listRecords('classes', context.scope, { limit: 300, ...memberQuery }).items.filter(
+      (c) => c['archived'] !== true,
+    );
+    const classById = new Map(classes.map((c) => [c.id, c]));
+    const assignments = listRecords('assignments', context.scope, {
+      limit: 2000,
+      range: { field: 'dueAt', from },
+      ...memberQuery,
+    }).items;
+    const gradeRows = listRecords('grades', context.scope, {
+      limit: 2000,
+      range: { field: 'gradedAt', from },
+      ...memberQuery,
+    }).items;
+
+    const linkedAssignmentIds = new Set(
+      gradeRows
+        .map((g) => g['assignmentId'])
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    );
+
+    const fromAssignments: SchoolGradedItem[] = assignments
+      .filter((a) => !linkedAssignmentIds.has(a.id) && classById.has(String(a['classId'])))
+      .map((a) => ({
+        classId: String(a['classId']),
+        category: (a['gradeCategory'] as string) || null,
+        type: (a['type'] as string) || null,
+        percent: percentOf(a['gradeReceived'], a['maxPoints']),
+        at: String(a['dueAt']),
+      }))
+      .filter((item): item is SchoolGradedItem => item.percent !== null);
+
+    const fromGrades: SchoolGradedItem[] = gradeRows
+      .filter((g) => classById.has(String(g['classId'])))
+      .map((g) => ({
+        classId: String(g['classId']),
+        category: (g['category'] as string) || null,
+        type: null as string | null,
+        percent: percentOf(g['pointsEarned'], g['maxPoints']),
+        at: String(g['gradedAt']),
+      }))
+      .filter((item): item is SchoolGradedItem => item.percent !== null);
+
+    const graded = [...fromAssignments, ...fromGrades];
+    const scale = context.settings.gradingScale;
+
+    // An assignment's `gradeCategory` is free text — there's nowhere on the
+    // assignment form that can offer the parent class's own category ids as
+    // options, since those live in a different record's JSON field. A person
+    // filling it in types what they see ("Tests"), not the internal id
+    // ("tests"), so a match on either the id or a case-insensitive name
+    // keeps a perfectly normal entry from silently falling out of the
+    // weighted average.
+    const matchesCategory = (item: SchoolGradedItem, cat: GradeCategory): boolean =>
+      item.category !== null &&
+      (item.category === cat.id || item.category.trim().toLowerCase() === cat.name.trim().toLowerCase());
+
+    const byClass = classes.map((cls) => {
+      const own = graded.filter((item) => item.classId === cls.id);
+      const categories: GradeCategory[] = Array.isArray(cls['gradeCategories'])
+        ? (cls['gradeCategories'] as GradeCategory[])
+        : [];
+
+      const categoryBreakdown = categories.map((cat) => {
+        const items = own.filter((item) => matchesCategory(item, cat));
+        return {
+          id: cat.id,
+          name: cat.name,
+          weight: cat.weight,
+          average: items.length > 0 ? Math.round(average(items.map((i) => i.percent)) * 10) / 10 : null,
+          count: items.length,
+        };
+      });
+
+      // Weighted across categories that actually have a graded item in them —
+      // an empty category is unknown, not a zero, the same distinction
+      // /stats/work draws around a shift with no wage set. Anything not
+      // tagged to one of this class's current categories doesn't have a
+      // weight to use, so it falls back to a plain average instead.
+      const withData = categoryBreakdown.filter((cat) => cat.count > 0);
+      const totalWeight = withData.reduce((sum, cat) => sum + cat.weight, 0);
+      const uncategorized = own.filter((item) => !categories.some((cat) => matchesCategory(item, cat)));
+
+      let currentPercentage: number | null = null;
+      if (withData.length > 0 && totalWeight > 0) {
+        currentPercentage = withData.reduce((sum, cat) => sum + (cat.average ?? 0) * (cat.weight / totalWeight), 0);
+      } else if (own.length > 0) {
+        currentPercentage = average(own.map((item) => item.percent));
+      }
+      if (currentPercentage !== null) currentPercentage = Math.round(currentPercentage * 10) / 10;
+
+      const band = currentPercentage !== null ? gradeForPercent(scale, currentPercentage) : null;
+      const chronological = [...own].sort((a, b) => a.at.localeCompare(b.at));
+
+      return {
+        classId: cls.id,
+        name: cls['name'],
+        color: cls['color'],
+        icon: cls['icon'],
+        subject: cls['subject'],
+        credits: Number(cls['credits']) || 0,
+        gradedCount: own.length,
+        uncategorizedCount: uncategorized.length,
+        currentPercentage,
+        letter: band?.letter ?? null,
+        gpaPoints: band?.gpaPoints ?? null,
+        trend: trendOf(chronological.map((item) => item.percent)),
+        categories: categoryBreakdown,
+      };
+    });
+
+    const graduatedClasses = byClass.filter((c) => c.currentPercentage !== null);
+    const accountAverage =
+      graduatedClasses.length > 0
+        ? Math.round(average(graduatedClasses.map((c) => c.currentPercentage!)) * 10) / 10
+        : null;
+
+    // GPA is credit-weighted, the conventional way — a class with no credits
+    // set still counts, just as one credit, rather than silently contributing
+    // nothing toward the average.
+    const gpaRows = graduatedClasses.filter((c) => c.gpaPoints !== null);
+    const totalCredits = gpaRows.reduce((sum, c) => sum + (c.credits > 0 ? c.credits : 1), 0);
+    const gpa =
+      gpaRows.length > 0 && totalCredits > 0
+        ? Math.round(
+            (gpaRows.reduce((sum, c) => sum + c.gpaPoints! * (c.credits > 0 ? c.credits : 1), 0) / totalCredits) * 100,
+          ) / 100
+        : null;
+
+    // "Needs the most study time" is a plain, inspectable ranking — how far a
+    // class sits below the account's own average, nudged further by a falling
+    // trend — returned with the numbers behind it rather than a bare verdict.
+    const needsAttention = accountAverage === null
+      ? []
+      : byClass
+          .filter((c) => c.gradedCount >= 2 && c.currentPercentage !== null)
+          .map((c) => ({
+            classId: c.classId,
+            name: c.name,
+            color: c.color,
+            currentPercentage: c.currentPercentage!,
+            trend: c.trend,
+            percentagePointsBelowAverage: Math.round((accountAverage - c.currentPercentage!) * 10) / 10,
+          }))
+          .filter((c) => c.percentagePointsBelowAverage > 0 || c.trend === 'falling')
+          .sort(
+            (a, b) =>
+              b.percentagePointsBelowAverage + (b.trend === 'falling' ? 10 : 0) -
+              (a.percentagePointsBelowAverage + (a.trend === 'falling' ? 10 : 0)),
+          )
+          .slice(0, 3);
+
+    const testItems = fromAssignments.filter((item) => item.type === 'test' || item.type === 'quiz');
+    const weeks = Math.max(1, Math.ceil(days / 7));
+    // bucketByWeek sums a `value` — right for minutes or money, wrong for a
+    // percentage — so each bucket's sum is turned back into a mean here.
+    const byWeek = bucketByWeek(
+      graded.map((item) => ({ at: item.at, value: item.percent })),
+      weeks,
+    ).map((bucket) => ({ ...bucket, value: bucket.count > 0 ? Math.round((bucket.value / bucket.count) * 10) / 10 : 0 }));
+
+    ok(res, {
+      rangeDays: days,
+      averagePercentage: accountAverage,
+      gpa,
+      gradingScale: scale,
+      trend: trendOf(graded.slice().sort((a, b) => a.at.localeCompare(b.at)).map((item) => item.percent)),
+      byClass: byClass.sort((a, b) => (a.currentPercentage ?? 100) - (b.currentPercentage ?? 100)),
+      needsAttention,
+      completion: {
+        total: assignments.length,
+        completed: assignments.filter((a) => ['completed', 'submitted'].includes(String(a['status']))).length,
+        late: assignments.filter((a) => a['status'] === 'late').length,
+        missing: assignments.filter((a) => a['status'] === 'missing').length,
+      },
+      testAverage:
+        testItems.length > 0 ? Math.round(average(testItems.map((item) => item.percent)) * 10) / 10 : null,
+      byWeek,
     });
   }),
 );

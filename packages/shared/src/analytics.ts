@@ -346,6 +346,14 @@ export function trendOf(values: number[]): 'rising' | 'falling' | 'steady' | 'un
   return 'steady';
 }
 
+/** A grade as a percentage: points-out-of-max when a max is given, otherwise the number as-is. */
+export function percentOf(pointsEarned: unknown, maxPoints: unknown): number | null {
+  const earned = Number(pointsEarned);
+  if (!Number.isFinite(earned)) return null;
+  const max = Number(maxPoints);
+  return max > 0 ? (earned / max) * 100 : earned;
+}
+
 export function countBy<T>(items: T[], key: (item: T) => string | null | undefined): Map<string, number> {
   const counts = new Map<string, number>();
   for (const item of items) {

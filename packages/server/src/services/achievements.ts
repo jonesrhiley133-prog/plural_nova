@@ -89,6 +89,8 @@ export function collectMetrics(scope: Scope): Partial<Record<AchievementMetric, 
     'polls.count': countRows('polls', scope),
     'headspaceObjects.count': countRows('headspaceObjects', scope),
     'stories.count': countRows('stories', scope),
+    'classes.count': countRows('classes', scope),
+    'assignments.completed': countRows('assignments', scope, '"status" IN (?, ?)', ['completed', 'submitted']),
     trackingDays: distinctTrackingDays(scope),
     'backups.count': (
       getDb().prepare('SELECT COUNT(*) AS n FROM backups WHERE userId = ?').get(scope.userId) as {

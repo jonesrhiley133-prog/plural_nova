@@ -85,6 +85,11 @@ const StoryWorkspace = load(() => import('./modules/StoryWorkspace.js'));
 const Resources = load(() => import('./modules/Resources.js'));
 const Dictionary = load(() => import('./modules/Dictionary.js'));
 const Work = load(() => import('./modules/Work.js'));
+const SchoolOverview = load(() => import('./modules/SchoolOverview.js'));
+const SchoolClasses = load(() => import('./modules/SchoolClasses.js'));
+const SchoolClassDetail = load(() => import('./modules/SchoolClassDetail.js'));
+const SchoolAssignments = load(() => import('./modules/SchoolAssignments.js'));
+const SchoolAnalytics = load(() => import('./modules/SchoolAnalytics.js'));
 const Templates = load(() => import('./modules/Templates.js'));
 const ImportCentre = load(() => import('./modules/ImportCentre.js'));
 const Backup = load(() => import('./modules/Backup.js'));
@@ -205,6 +210,11 @@ function AppRoutes(): JSX.Element {
           <Route path="emergency" element={<EmergencyContacts />} />
           <Route path="locations" element={<Locations />} />
           <Route path="work" element={<Work />} />
+          <Route path="school" element={<SchoolOverview />} />
+          <Route path="school/classes" element={<SchoolClasses />} />
+          <Route path="school/classes/:id" element={<SchoolClassDetail />} />
+          <Route path="school/assignments" element={<SchoolAssignments />} />
+          <Route path="school/analytics" element={<SchoolAnalytics />} />
           <Route path="vault" element={<Vault />} />
 
           <Route path="constellations" element={<Constellations />} />

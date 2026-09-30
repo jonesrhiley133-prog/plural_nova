@@ -109,6 +109,18 @@ export const NAVIGATION: readonly NavCategory[] = [
     ],
   },
   {
+    id: 'school',
+    label: 'School Life',
+    icon: 'school',
+    color: '#0ea5e9',
+    items: [
+      { id: 'school-overview', path: '/school', label: 'Overview', icon: 'school', primary: true, description: 'Classes today, what’s due, and how the term is going.' },
+      { id: 'school-assignments', path: '/school/assignments', label: 'Assignments', icon: 'task', quickAction: true },
+      { id: 'school-classes', path: '/school/classes', label: 'Classes', icon: 'school', quickAction: true },
+      { id: 'school-analytics', path: '/school/analytics', label: 'Analytics', icon: 'stats', keywords: ['grades', 'gpa'] },
+    ],
+  },
+  {
     id: 'create',
     label: 'Create',
     icon: 'create',
@@ -211,4 +223,7 @@ export const QUICK_ACTIONS: readonly {
   { id: 'event', label: 'New event', icon: 'calendar', path: '/calendar?new=1' },
   { id: 'member', label: 'Add a member', icon: 'member', path: '/members?new=1', systemOnly: true },
   { id: 'poll', label: 'New poll', icon: 'poll', path: '/polls?new=1', systemOnly: true },
+  { id: 'assignment', label: 'New assignment', icon: 'task', path: '/school/assignments?new=1' },
+  { id: 'schoolClass', label: 'Add a class', icon: 'school', path: '/school/classes?new=1' },
+  { id: 'grade', label: 'Log a grade', icon: 'star', path: '/school/assignments?logGrade=1' },
 ];

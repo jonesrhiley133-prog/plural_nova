@@ -20,7 +20,9 @@ export type AchievementMetric =
   | 'headspaceObjects.count'
   | 'stories.count'
   | 'trackingDays'
-  | 'backups.count';
+  | 'backups.count'
+  | 'classes.count'
+  | 'assignments.completed';
 
 export interface AchievementDef {
   key: string;
@@ -55,6 +57,8 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: 'month-of-tracking', label: 'One month in', description: 'Tracked something on thirty separate days.', icon: '◷', metric: 'trackingDays', threshold: 30, category: 'habits' },
   { key: 'quarter-of-tracking', label: 'Ninety days', description: 'Tracked something on ninety separate days.', icon: '◔', metric: 'trackingDays', threshold: 90, category: 'habits' },
   { key: 'first-backup', label: 'Safely kept', description: 'Exported a first full backup.', icon: '⤓', metric: 'backups.count', threshold: 1, category: 'care' },
+  { key: 'first-class', label: 'Enrolled', description: 'Added a first class to School Life.', icon: '🎓', metric: 'classes.count', threshold: 1, category: 'firsts' },
+  { key: 'ten-assignments', label: 'On top of it', description: 'Completed ten assignments.', icon: '✔', metric: 'assignments.completed', threshold: 10, category: 'habits' },
 ];
 
 const BY_KEY = new Map(ACHIEVEMENTS.map((a) => [a.key, a]));
