@@ -7,7 +7,7 @@ import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useCollection } from '../core/data.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, SectionHeading } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, SectionHeading } from '../ui/primitives.js';
 import {
   ColorField,
   ImageField,
@@ -261,6 +261,21 @@ function ProfileEditor({
   const set = <K extends keyof Profile>(field: K, value: Profile[K]): void =>
     setDraft((current) => ({ ...current, [field]: value }));
 
+  const customInfo = draft.customInfo ?? [];
+  const addInfoRow = (): void => set('customInfo', [...customInfo, { label: '', value: '' }]);
+  const updateInfoRow = (index: number, patch: Partial<{ label: string; value: string }>): void =>
+    set('customInfo', customInfo.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const removeInfoRow = (index: number): void =>
+    set('customInfo', customInfo.filter((_, i) => i !== index));
+  const moveInfoRow = (index: number, direction: -1 | 1): void => {
+    const target = index + direction;
+    if (target < 0 || target >= customInfo.length) return;
+    const next = [...customInfo];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved!);
+    set('customInfo', next);
+  };
+
   const save = async (): Promise<void> => {
     const handleError = validateHandle(String(draft.handle ?? ''));
     if (handleError) {
@@ -319,6 +334,7 @@ function ProfileEditor({
         onChange={(value) => set('bio', value)}
         multiline
         rows={3}
+        hint="Headers, lists, links, images and tables are all supported — see Help → Markdown for the full list."
       />
       <TextField
         label={term('How you describe the {{system}}')}
@@ -431,6 +447,46 @@ function ProfileEditor({
           </div>
         </div>
       ) : null}
+
+      <div className="field">
+        <span className="field__label">Custom information</span>
+        <p className="field__hint">Free-form labelled rows shown on the profile — a fandom, a pronoun set, anything you want named.</p>
+        <div className="stack stack--tight">
+          {customInfo.map((row, index) => (
+            <div key={index} className="row row--nowrap" style={{ alignItems: 'center' }}>
+              <input
+                className="input"
+                value={row.label}
+                placeholder="Label"
+                aria-label={`Label ${index + 1}`}
+                onChange={(event) => updateInfoRow(index, { label: event.target.value })}
+                style={{ flex: 1 }}
+              />
+              <input
+                className="input"
+                value={row.value}
+                placeholder="Value"
+                aria-label={`Value ${index + 1}`}
+                onChange={(event) => updateInfoRow(index, { value: event.target.value })}
+                style={{ flex: 1 }}
+              />
+              <IconButton icon="chevronUp" label="Move up" size="sm" variant="ghost" disabled={index === 0} onClick={() => moveInfoRow(index, -1)} />
+              <IconButton
+                icon="chevronDown"
+                label="Move down"
+                size="sm"
+                variant="ghost"
+                disabled={index === customInfo.length - 1}
+                onClick={() => moveInfoRow(index, 1)}
+              />
+              <IconButton icon="trash" label="Remove row" size="sm" variant="ghost" onClick={() => removeInfoRow(index)} />
+            </div>
+          ))}
+        </div>
+        <Button variant="ghost" size="sm" icon="plus" onClick={addInfoRow}>
+          Add a row
+        </Button>
+      </div>
     </Dialog>
   );
 }

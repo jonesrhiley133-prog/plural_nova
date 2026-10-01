@@ -398,11 +398,14 @@ authRouter.patch(
   requireAuth,
   handler((req, res) => {
     const context = auth(req);
-    const { displayName, activeSystemId, activeMemberId, onboarded } = req.body as {
+    const { displayName, activeSystemId, activeMemberId, onboarded, avatarUrl, bannerUrl, bio } = req.body as {
       displayName?: string;
       activeSystemId?: string;
       activeMemberId?: string | null;
       onboarded?: boolean;
+      avatarUrl?: string;
+      bannerUrl?: string;
+      bio?: string;
     };
 
     const patch: Partial<UserRow> = {};
@@ -414,6 +417,11 @@ authRouter.patch(
     }
     if (activeMemberId !== undefined) patch.activeMemberId = activeMemberId;
     if (onboarded) patch.onboardedAt = now();
+    // The account's own picture, banner and bio — kept separate from a
+    // Constellation profile's, which has its own fields on its own table.
+    if (avatarUrl !== undefined) patch.avatarUrl = avatarUrl;
+    if (bannerUrl !== undefined) patch.bannerUrl = bannerUrl;
+    if (bio !== undefined) patch.bio = bio.slice(0, 2000);
 
     const updated = updateUser(context.user.id, patch);
     ok(res, { user: toPublicUser(updated), settings: readSettings(updated) });

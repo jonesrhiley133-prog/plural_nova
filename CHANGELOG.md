@@ -12,6 +12,16 @@ different versions of PluralNova.
 
 ### Added
 
+- **The account itself can now have a picture, a banner and a Markdown bio.**
+  Settings → Account gets a profile card above the existing account details —
+  entirely separate from a Constellation profile (public, discoverable, has
+  its own handle) and from a member's own profile: nothing set here is
+  ever sent to another account or shown on either of those. Constellation
+  profiles also gain the editor for "custom information" rows — free-form
+  labelled fields such as a fandom or a pronoun set — which the server and
+  the public profile page already supported but which the owner's own editor
+  had no way to actually create, and the bio field there now mentions that it
+  too supports Markdown.
 - **Real Markdown formatting, almost everywhere text is written.** Bios,
   notes, boundaries, personality/likes/dislikes, journal entries, Flux posts
   and comments, constellation profile bios, and story/character text all now
