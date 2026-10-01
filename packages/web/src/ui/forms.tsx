@@ -15,7 +15,7 @@ import { useToast } from '../core/toast.js';
 import { ColorPicker } from './ColorPicker.js';
 import { Icon } from './Icon.js';
 import { Dialog, useDialog } from './overlays.js';
-import { Button, Chip } from './primitives.js';
+import { Button, Chip, IconButton } from './primitives.js';
 
 /**
  * Form controls.
@@ -881,6 +881,129 @@ export function ImageField({
                   onChange(String(item['url']));
                   library.hide();
                 }}
+              >
+                <img
+                  src={String(item['url'])}
+                  alt={String(item['title'] ?? '')}
+                  loading="lazy"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </button>
+            ))}
+          </div>
+        )}
+      </Dialog>
+    </div>
+  );
+}
+
+/**
+ * Several images rather than one, in a responsive grid that wraps to however
+ * many columns the field's own width allows. Shares `ImageField`'s upload
+ * pipeline and media-library picker rather than a second copy of either —
+ * the only real difference is that choosing a photo appends to the list
+ * instead of replacing a single value.
+ */
+export function GalleryField({
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: string[];
+  onChange: (value: string[]) => void;
+  hint?: string;
+}): JSX.Element {
+  const toast = useToast();
+  const library = useDialog();
+  const media = useCollection('mediaItems', { filter: (item) => item['mediaType'] === 'image' });
+  const [uploading, setUploading] = useState(false);
+
+  const add = (url: string): void => onChange([...value, url]);
+  const removeAt = (index: number): void => onChange(value.filter((_, i) => i !== index));
+
+  const upload = async (file: File): Promise<void> => {
+    setUploading(true);
+    try {
+      const result = await api.post<{ url: string }>(
+        '/api/media/upload',
+        undefined,
+        {
+          raw: {
+            body: file,
+            contentType: file.type || 'application/octet-stream',
+            headers: { 'x-file-name': encodeURIComponent(file.name).slice(0, 180) },
+          },
+          timeoutMs: 120_000,
+        },
+      );
+      add(result.url);
+      void media.reload();
+      toast.success('Photo added');
+    } catch (cause) {
+      toast.fromError(cause, 'That photo did not upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="field">
+      <span className="field__label">{label}</span>
+      <div className="grid grid--tight" style={{ ['--grid-min' as never]: '100px' }}>
+        {value.map((url, index) => (
+          <div key={`${url}-${index}`} style={{ position: 'relative', aspectRatio: '1' }}>
+            <img
+              src={url}
+              alt=""
+              style={{ width: '100%', height: '100%', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }}
+            />
+            <span style={{ position: 'absolute', top: 4, right: 4 }}>
+              <IconButton icon="close" label="Remove image" size="sm" variant="ghost" onClick={() => removeAt(index)} />
+            </span>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => library.show()}
+          aria-label="Add an image"
+          style={{
+            aspectRatio: '1',
+            border: 'var(--border-width) dashed var(--border-strong)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'none',
+            color: 'var(--text-faint)',
+            display: 'grid',
+            placeItems: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <Icon name="plus" size={22} />
+        </button>
+      </div>
+      {hint ? <p className="field__hint">{hint}</p> : null}
+
+      <Dialog open={library.open} onClose={library.hide} title="Add a photo">
+        <div className="row" style={{ marginBottom: 'var(--space-3)' }}>
+          <FileButton
+            label={uploading ? 'Uploading…' : 'Upload a new photo'}
+            accept="image/*"
+            onFile={(file) => void upload(file)}
+          />
+        </div>
+        {media.items.length === 0 ? (
+          <p className="small muted">Nothing in your media library yet — upload one instead.</p>
+        ) : (
+          <div className="grid grid--tight" style={{ ['--grid-min' as never]: '90px' }}>
+            {media.items.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="card card--interactive card--flush"
+                style={{ aspectRatio: '1', overflow: 'hidden', padding: 0 }}
+                disabled={value.includes(String(item['url']))}
+                onClick={() => add(String(item['url']))}
               >
                 <img
                   src={String(item['url'])}

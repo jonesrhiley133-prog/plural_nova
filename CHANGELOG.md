@@ -12,6 +12,28 @@ different versions of PluralNova.
 
 ### Added
 
+- **Two new custom field types: Image and Gallery.** Image holds one picture
+  shown as a thumbnail on the profile; Gallery holds any number, laid out as
+  a grid, for things like a reference sheet or a set of fancasts. Both pick
+  from the same upload dialog — snap or choose a new photo, or reuse
+  anything already in the system's media library — and both appear, grouped
+  and labelled, under a new "Media" category alongside the existing field
+  types. Custom field groups (the free-text "Physical", "Identity", etc.
+  grouping that already existed) are also more reliable now: reordering a
+  field within a group can no longer accidentally jump it into a different
+  group, and the management screen now visually groups fields the same way
+  a member's profile already did, so the two views can't disagree about
+  what belongs together.
+
+### Fixed
+
+- **Reordering a custom field could silently cross into a different
+  group.** The "move up"/"move down" buttons on the field-management screen
+  worked against the full flat list of fields rather than the fields in the
+  field's own group, so a reorder near a group boundary could pull a field
+  out of its group without any visible warning. Reordering is now scoped to
+  the group a field is actually displayed in.
+
 - **The account itself can now have a picture, a banner and a Markdown bio.**
   Settings → Account gets a profile card above the existing account details —
   entirely separate from a Constellation profile (public, discoverable, has

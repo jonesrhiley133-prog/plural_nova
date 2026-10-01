@@ -18,7 +18,7 @@ import { Button, Card, IconButton } from '../ui/primitives.js';
 import { TextField } from '../ui/forms.js';
 import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
-import { DefinitionConfigEditor } from '../ui/CustomFields.js';
+import { DefinitionConfigEditor, groupCustomFieldDefinitions } from '../ui/CustomFields.js';
 import { Icon, iconOr } from '../ui/Icon.js';
 
 /**
@@ -72,12 +72,18 @@ export default function CustomFieldDefinitions(): JSX.Element {
     }
   };
 
-  const move = async (definition: StoredRecord, direction: -1 | 1): Promise<void> => {
-    const items = definitions.items;
-    const index = items.findIndex((item) => item.id === definition.id);
+  /**
+   * `siblings` is the one section's own ordered list — ungrouped, or one
+   * named group — not the full flat collection. A field's up/down arrows
+   * only ever trade places with another field in the same section, so
+   * reordering can never quietly walk a field out of the group it is
+   * displayed under on a profile.
+   */
+  const move = async (siblings: StoredRecord[], definition: StoredRecord, direction: -1 | 1): Promise<void> => {
+    const index = siblings.findIndex((item) => item.id === definition.id);
     const target = index + direction;
-    if (index < 0 || target < 0 || target >= items.length) return;
-    const other = items[target]!;
+    if (index < 0 || target < 0 || target >= siblings.length) return;
+    const other = siblings[target]!;
     try {
       await Promise.all([
         definitions.update(definition.id, { sortOrder: Number(other['sortOrder'] ?? target) }),
@@ -116,21 +122,35 @@ export default function CustomFieldDefinitions(): JSX.Element {
           action: { label: 'Add a field', run: () => typePicker.show() },
         }}
       >
-        {(items) => (
-          <div className="stack stack--tight">
-            {items.map((definition, index) => (
-              <DefinitionRow
-                key={definition.id}
-                definition={definition}
-                canMoveUp={index > 0}
-                canMoveDown={index < items.length - 1}
-                onEdit={() => editor.show(definition)}
-                onMove={(direction) => void move(definition, direction)}
-                onRemove={() => confirmRemove.show(definition)}
-              />
-            ))}
-          </div>
-        )}
+        {(items) => {
+          const { ungrouped, groups } = groupCustomFieldDefinitions(items);
+          const section = (sectionItems: StoredRecord[]): JSX.Element => (
+            <div className="stack stack--tight">
+              {sectionItems.map((definition, index) => (
+                <DefinitionRow
+                  key={definition.id}
+                  definition={definition}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < sectionItems.length - 1}
+                  onEdit={() => editor.show(definition)}
+                  onMove={(direction) => void move(sectionItems, definition, direction)}
+                  onRemove={() => confirmRemove.show(definition)}
+                />
+              ))}
+            </div>
+          );
+          return (
+            <div className="stack">
+              {ungrouped.length > 0 ? section(ungrouped) : null}
+              {groups.map(({ key, label, definitions: groupDefinitions }) => (
+                <div key={key}>
+                  <p className="section-heading__label">{label}</p>
+                  {section(groupDefinitions)}
+                </div>
+              ))}
+            </div>
+          );
+        }}
       </AsyncContent>
 
       <Dialog open={typePicker.open} onClose={typePicker.hide} title="Add a field" wide>
