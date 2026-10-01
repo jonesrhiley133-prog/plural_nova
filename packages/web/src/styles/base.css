@@ -236,14 +236,6 @@ pre {
   transform: translateY(0);
 }
 
-/*
- * Large-text mode bumps the scale rather than overriding individual sizes,
- * so every size in the ramp grows in proportion.
- */
-:root[data-large-text='true'] {
-  --text-scale: 1.15;
-}
-
 /* Touch targets never fall below 44px on a coarse pointer. */
 @media (pointer: coarse) {
   button,

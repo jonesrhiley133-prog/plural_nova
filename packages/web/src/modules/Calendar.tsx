@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { dayKey, type StoredRecord } from '@pluralnova/shared';
+import { dayKey, parseDateOnly, toDateOnlyString, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useAuth } from '../core/auth.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
@@ -311,7 +311,7 @@ function normaliseImportedDate(raw: unknown): string | null {
   if (slash) {
     const [, month, day, year] = slash;
     const date = new Date(Number(year), Number(month) - 1, Number(day));
-    return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+    return Number.isNaN(date.getTime()) ? null : toDateOnlyString(date);
   }
 
   // A bare year-less "03-15" has no date this field's own recurrence logic
@@ -320,8 +320,11 @@ function normaliseImportedDate(raw: unknown): string | null {
   // so a source that never gave a year is a value this cannot use rather
   // than one it guesses at.
   if (!/\d{4}/.test(value)) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+  // `parseDateOnly` reads a plain `YYYY-MM-DD` source as local midnight
+  // rather than UTC; anything else this "everyday format" parser already
+  // handles falls through to the same `new Date(value)` it always used.
+  const parsed = parseDateOnly(value);
+  return Number.isNaN(parsed.getTime()) ? null : toDateOnlyString(parsed);
 }
 
 /** The one member this name belongs to, or why it couldn't be resolved to one. */
@@ -1019,7 +1022,6 @@ function EventEditor({
           id: member.id,
           label: String(member['name'] ?? 'Unnamed'),
           color: (member['color'] as string) ?? null,
-          icon: (member['icon'] as string) ?? null,
         }))}
         onChange={(value) => setMemberIds(value as string[])}
         emptyLabel="None"
@@ -1142,7 +1144,6 @@ function BirthdaysPanel({
                   name={String(member['name'])}
                   src={(member['avatarUrl'] as string) ?? null}
                   color={(member['color'] as string) ?? null}
-                  icon={(member['icon'] as string) ?? null}
                   size={40}
                   round
                 />
@@ -1258,7 +1259,6 @@ function BirthdayDialog({
             id: member.id,
             label: String(member['name'] ?? 'Unnamed'),
             color: (member['color'] as string) ?? null,
-            icon: (member['icon'] as string) ?? null,
           }))}
           onChange={(value) => setMemberId(value as string | null)}
           emptyLabel="Choose one"
@@ -1419,7 +1419,6 @@ function BirthdayImportDialog({
               <Avatar
                 name={String(row.member['name'])}
                 color={(row.member['color'] as string) ?? null}
-                icon={(row.member['icon'] as string) ?? null}
                 size={30}
                 round
               />

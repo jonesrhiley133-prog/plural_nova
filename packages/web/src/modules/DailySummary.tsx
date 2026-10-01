@@ -224,7 +224,9 @@ export default function DailySummary(): JSX.Element {
                   </Chip>
                 ))}
                 {data!.emotions.map((entry) => (
-                  <Chip key={entry.id}>
+                  // An entry logged with more than one emotion at once appears here once per
+                  // emotion, all sharing entry.id — the pair is what is actually unique.
+                  <Chip key={`${entry.id}-${entry.emotionId}`}>
                     {entry.emotion?.emoji} {entry.emotion?.name ?? entry.emotionId}
                   </Chip>
                 ))}

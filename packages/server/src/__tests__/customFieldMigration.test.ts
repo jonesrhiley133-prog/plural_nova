@@ -150,3 +150,118 @@ describe('legacy custom field migration', () => {
     expect(result.body.error.message).toContain('System Mode');
   });
 });
+
+/**
+ * The alter editor's own simplification: everything beyond name, pronouns,
+ * roles, source ("origin") and age moves into the same shared custom-fields
+ * system, pre-filled from whatever was already on the member record.
+ */
+describe('member field migration (editor simplification)', () => {
+  let client: TestClient;
+  let token: string;
+  let denId: string;
+  let finchId: string;
+  let ivyId: string;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    const account = await registerUser(client, { email: 'member-fields@example.com' });
+    token = account.token;
+
+    const den = await client.request('POST', '/api/records/members', {
+      token,
+      body: {
+        name: 'Den',
+        species: 'Fictive',
+        bio: 'Keeps everyone else on schedule.',
+        hobbies: ['Chess', 'Baking'],
+      },
+    });
+    denId = den.body.data.id;
+
+    const finch = await client.request('POST', '/api/records/members', {
+      token,
+      body: { name: 'Finch', species: 'Human', notes: 'Quiet most days.' },
+    });
+    finchId = finch.body.data.id;
+
+    // No migratable fields at all — a control for "nothing invented for them".
+    const ivy = await client.request('POST', '/api/records/members', { token, body: { name: 'Ivy' } });
+    ivyId = ivy.body.data.id;
+  });
+  afterAll(() => client.close());
+
+  it('creates one definition per field actually used, and copies each member’s own value', async () => {
+    const result = await client.request('POST', '/api/system/custom-fields/migrate', { token, body: {} });
+    expect(result.status).toBe(200);
+    expect(result.body.data.migrated).toBe(true);
+    // Four distinct fields have any value across these members: species, bio,
+    // hobbies, notes. Species is answered by both Den and Finch, so that's 5
+    // member-field values total spread across those 4 definitions.
+    expect(result.body.data.definitions).toBe(4);
+    expect(result.body.data.values).toBe(5);
+
+    const definitions = (await client.request('GET', '/api/records/customFieldDefinitions', { token })).body.data
+      .items;
+    const byLabel = new Map<string, any>(definitions.map((d: any) => [d.label, d]));
+    expect(byLabel.get('Species').type).toBe('text');
+    expect(byLabel.get('Species').group).toBe('Identity');
+    expect(byLabel.get('Biography').type).toBe('longText');
+    expect(byLabel.get('Hobbies').type).toBe('tags');
+    expect(byLabel.get('Notes').type).toBe('longText');
+    // Nobody set a chat prefix — no definition invented for a field with
+    // nothing to migrate.
+    expect(byLabel.has('Chat prefix')).toBe(false);
+
+    const den = (await client.request('GET', `/api/records/members/${denId}`, { token })).body.data;
+    const valueFor = (member: any, label: string): string | undefined =>
+      (member.customFieldValues ?? []).find((v: any) => v.definitionId === byLabel.get(label).id)?.value;
+    expect(valueFor(den, 'Species')).toBe('Fictive');
+    expect(valueFor(den, 'Biography')).toBe('Keeps everyone else on schedule.');
+    expect(JSON.parse(valueFor(den, 'Hobbies')!)).toEqual(['Chess', 'Baking']);
+
+    // Den's own species column is untouched — nothing is cleared, only copied.
+    expect(den.species).toBe('Fictive');
+  });
+
+  it('reuses the same definition across members instead of creating a duplicate', async () => {
+    const definitions = (await client.request('GET', '/api/records/customFieldDefinitions', { token })).body.data
+      .items;
+    const speciesDefs = definitions.filter((d: any) => d.label === 'Species');
+    expect(speciesDefs).toHaveLength(1);
+
+    const finch = (await client.request('GET', `/api/records/members/${finchId}`, { token })).body.data;
+    const value = (finch.customFieldValues ?? []).find((v: any) => v.definitionId === speciesDefs[0].id)?.value;
+    expect(value).toBe('Human');
+  });
+
+  it('invents nothing for a member with no migratable fields', async () => {
+    const ivy = (await client.request('GET', `/api/records/members/${ivyId}`, { token })).body.data;
+    expect(Array.isArray(ivy.customFieldValues) ? ivy.customFieldValues.length : 0).toBe(0);
+  });
+
+  it('never overwrites a value already answered, on a second run', async () => {
+    const definitions = (await client.request('GET', '/api/records/customFieldDefinitions', { token })).body.data
+      .items;
+    const speciesDef = definitions.find((d: any) => d.label === 'Species');
+
+    // Answered directly through the normal custom-fields editor, not through
+    // the migration — this has to survive a second migration run untouched.
+    // Preserve Finch's other already-migrated values (Notes) instead of
+    // replacing the whole array, since a PATCH here sets the field as a
+    // whole rather than merging one entry into it.
+    const finchBefore = (await client.request('GET', `/api/records/members/${finchId}`, { token })).body.data;
+    const otherValues = (finchBefore.customFieldValues ?? []).filter((v: any) => v.definitionId !== speciesDef.id);
+    await client.request('PATCH', `/api/records/members/${finchId}`, {
+      token,
+      body: { customFieldValues: [...otherValues, { definitionId: speciesDef.id, value: 'Human (edited)' }] },
+    });
+
+    const result = await client.request('POST', '/api/system/custom-fields/migrate', { token, body: {} });
+    expect(result.body.data).toEqual({ migrated: false, definitions: 0, values: 0 });
+
+    const finch = (await client.request('GET', `/api/records/members/${finchId}`, { token })).body.data;
+    const value = (finch.customFieldValues ?? []).find((v: any) => v.definitionId === speciesDef.id)?.value;
+    expect(value).toBe('Human (edited)');
+  });
+});

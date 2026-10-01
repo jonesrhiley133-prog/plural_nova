@@ -51,17 +51,16 @@ notificationsRouter.get(
   handler((req, res) => {
     const context = auth(req);
     const db = getDb();
-    const dmMessages = (
+    const messages = (
       db
         .prepare(
           'SELECT COALESCE(SUM("unreadCount"), 0) AS n FROM "conversations" WHERE "userId" = ? AND "deletedAt" IS NULL',
         )
         .get(context.user.id) as { n: number }
     ).n;
-    // One combined "chat" badge for both dm and system chat, since they are
-    // one nav destination now — a thread counts once here, same as a dm
-    // conversation's own unreadCount already treats "unread" as per-thread.
-    const messages = dmMessages + unreadSystemChatThreads(context.scope.userId, context.scope.systemId);
+    // Its own badge, on its own nav item — never folded into Messages', now
+    // that In-Sys Chat and Messages are separate destinations.
+    const systemChat = unreadSystemChatThreads(context.scope.userId, context.scope.systemId);
     const friendRequests = (
       db
         .prepare(
@@ -74,9 +73,10 @@ notificationsRouter.get(
     ok(res, {
       notifications: unreadCount(context.user.id),
       messages,
+      systemChat,
       friendRequests,
       flux: byCategory['fluxActivity'] ?? 0,
-      total: unreadCount(context.user.id) + messages + friendRequests,
+      total: unreadCount(context.user.id) + messages + systemChat + friendRequests,
     });
   }),
 );

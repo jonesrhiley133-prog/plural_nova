@@ -129,16 +129,15 @@ export function CheckIn({ open, onClose }: { open: boolean; onClose: () => void 
     }
     setSaving(true);
     try {
-      const recordedAt = new Date().toISOString();
-      for (const emotion of emotions) {
-        await emotionEntries.create({
-          emotionId: emotion.id,
-          category: emotion.family,
-          intensity: 3,
-          recordedAt,
-          memberId: primaryId,
-        });
-      }
+      await emotionEntries.create({
+        emotionId: emotions[0]!.id,
+        emotionIds: emotions.map((emotion) => emotion.id),
+        category: emotions[0]!.family,
+        categories: emotions.map((emotion) => emotion.family),
+        intensity: 3,
+        recordedAt: new Date().toISOString(),
+        memberId: primaryId,
+      });
       advance();
     } catch (cause) {
       toast.fromError(cause, 'Could not save that');
@@ -224,7 +223,6 @@ export function CheckIn({ open, onClose }: { open: boolean; onClose: () => void 
                     name={String(member['name'])}
                     src={(member['avatarUrl'] as string) ?? null}
                     color={(member['color'] as string) ?? null}
-                    icon={(member['icon'] as string) ?? null}
                     size={52}
                     round
                     ring={selected}

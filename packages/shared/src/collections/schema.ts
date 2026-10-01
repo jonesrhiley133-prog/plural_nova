@@ -86,7 +86,7 @@ export interface CollectionDef {
   singular: string;
   icon: string;
   /** Which navigation category owns the collection. */
-  area: 'system' | 'life' | 'social' | 'creative' | 'work' | 'data';
+  area: 'system' | 'life' | 'social' | 'creative' | 'work' | 'data' | 'school';
   /** `system` rows belong to a system; `user` rows belong to the account. */
   scope: 'system' | 'user';
   fields: readonly FieldDef[];

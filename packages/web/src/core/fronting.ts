@@ -392,14 +392,25 @@ class FrontingStore {
   /**
    * One tap, from wherever a member's own card or profile shows it: front them
    * alongside whoever is already out, without a form and without waiting for
-   * the server. Fronting is primarily a local fact — the tap applies it to
-   * this store immediately, using a client-chosen id the server is told to
-   * reuse, so the request that follows reconciles the same record instead of
+   * the server. A second tap on someone already out is the other half of the
+   * same toggle — it removes just them, not whoever else is fronting, using
+   * whichever of `end`/`removeCoFronter` actually fits how they are fronting
+   * right now (the event's own primary fronter, or a co-fronter on someone
+   * else's). Fronting is primarily a local fact — the tap applies it to this
+   * store immediately, using a client-chosen id the server is told to reuse,
+   * so the request that follows reconciles the same record instead of
    * creating a second one. Offline, the request cannot be sent yet, so it is
    * kept and replayed the next time this store reloads with a connection.
    */
   async quickFront(memberId: string): Promise<void> {
-    if (this.isFrontingAlready(memberId)) return;
+    const activeEvent = this.state.active.find(
+      (event) => event.memberId === memberId || event.coFronters.some((co) => co.id === memberId),
+    );
+    if (activeEvent) {
+      if (activeEvent.memberId === memberId) await this.end(activeEvent.id);
+      else await this.removeCoFronter(activeEvent.id, memberId);
+      return;
+    }
 
     const previousState = this.state;
     const previousMember =

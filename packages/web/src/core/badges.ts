@@ -15,12 +15,13 @@ import { getToken } from './api.js';
 export interface Badges {
   notifications: number;
   messages: number;
+  systemChat: number;
   friendRequests: number;
   flux: number;
   total: number;
 }
 
-const EMPTY: Badges = { notifications: 0, messages: 0, friendRequests: 0, flux: 0, total: 0 };
+const EMPTY: Badges = { notifications: 0, messages: 0, systemChat: 0, friendRequests: 0, flux: 0, total: 0 };
 
 let current: Badges = EMPTY;
 const listeners = new Set<(badges: Badges) => void>();

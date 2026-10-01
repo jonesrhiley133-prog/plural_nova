@@ -76,9 +76,14 @@ export interface ThemeSettings {
   surfaceOpacity: number;
   highContrast: boolean;
   reducedMotion: boolean;
-  largeText: boolean;
-  /** Scales every font size. 100 = default. */
+  /** Scales every font size and touch target. 100 = default. */
   textScale: number;
+  /**
+   * Zooms the whole interface via CSS `zoom`, the same way a browser's own
+   * zoom does. Deliberately separate from `textScale`: this scales layout,
+   * spacing and images too, not just type. 100 = default.
+   */
+  uiZoom: number;
   /** Fully custom token overrides, applied last. */
   custom: Partial<ThemeTokens> | null;
   presetId: string | null;
@@ -107,8 +112,8 @@ export const DEFAULT_THEME: ThemeSettings = {
   surfaceOpacity: 100,
   highContrast: false,
   reducedMotion: false,
-  largeText: false,
   textScale: 100,
+  uiZoom: 100,
   custom: null,
   presetId: 'nebula',
   showStarfield: false,
@@ -592,9 +597,26 @@ export function buildTheme(settings: ThemeSettings): ThemeTokens {
   return tokens;
 }
 
+/** Labeled stops for the Text Size control — a raw percentage field invites fiddling; a handful of named sizes does not. */
+export const TEXT_SCALE_PRESETS: { value: number; label: string }[] = [
+  { value: 90, label: 'Small' },
+  { value: 100, label: 'Default' },
+  { value: 115, label: 'Large' },
+  { value: 130, label: 'Extra large' },
+];
+
+/** Labeled stops for the UI Zoom control, same idiom as Text Size but scaling layout, not just type. */
+export const UI_ZOOM_PRESETS: { value: number; label: string }[] = [
+  { value: 90, label: '90%' },
+  { value: 100, label: 'Default' },
+  { value: 110, label: '110%' },
+  { value: 125, label: '125%' },
+];
+
 export function normaliseThemeSettings(input: Partial<ThemeSettings> | null | undefined): ThemeSettings {
   const merged: ThemeSettings = { ...DEFAULT_THEME, ...(input ?? {}) };
   merged.textScale = Math.min(160, Math.max(80, Math.round(merged.textScale || 100)));
+  merged.uiZoom = Math.min(150, Math.max(80, Math.round(merged.uiZoom || 100)));
   merged.surfaceOpacity = Math.min(100, Math.max(20, Math.round(merged.surfaceOpacity ?? 82)));
   if (!parseHex(merged.accent)) merged.accent = DEFAULT_ACCENT;
   if (!['dark', 'amoled', 'light'].includes(merged.base)) merged.base = 'dark';

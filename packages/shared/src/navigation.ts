@@ -22,7 +22,7 @@ export interface NavItem {
   quickAction?: boolean;
   description?: string;
   /** Badge source, if this item can show an unread count. */
-  badge?: 'notifications' | 'messages' | 'friendRequests' | 'flux';
+  badge?: 'notifications' | 'messages' | 'friendRequests' | 'flux' | 'systemChat';
   keywords?: readonly string[];
 }
 
@@ -61,6 +61,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'organize', path: '/organize', label: 'Organise', icon: 'organize', systemOnly: true, keywords: ['groups', 'folders', 'sort'] },
       { id: 'subsystems', path: '/subsystems', label: 'Subsystems', icon: 'subsystem', systemOnly: true },
       { id: 'fronting', path: '/fronting', label: 'Fronting', icon: 'front', systemOnly: true, keywords: ['front tracker', 'timeline'] },
+      { id: 'system-chat', path: '/system/chat', label: 'In-Sys Chat', icon: 'chat', primary: true, systemOnly: true, badge: 'systemChat', keywords: ['internal chat', 'alter chat', 'system chat'] },
       { id: 'stats', path: '/stats', label: 'Stats', icon: 'stats', systemOnly: true, keywords: ['analytics', 'charts'] },
       { id: 'journal', path: '/journal', label: 'Journal', icon: 'journal', primary: true, quickAction: true },
       { id: 'bulletin', path: '/bulletin', label: 'Bulletin board', icon: 'bulletin', systemOnly: true },
@@ -104,7 +105,19 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'constellations', path: '/constellations', label: 'Constellations', icon: 'constellation' },
       { id: 'friends', path: '/friends', label: 'Friends', icon: 'friend', badge: 'friendRequests' },
       { id: 'flux', path: '/flux', label: 'Flux', icon: 'flux', primary: true, badge: 'flux' },
-      { id: 'chat', path: '/chat', label: 'Chat', icon: 'message', primary: true, badge: 'messages', keywords: ['messages', 'system chat', 'dm'] },
+      { id: 'messages', path: '/social/messages', label: 'Messages', icon: 'message', primary: true, badge: 'messages', keywords: ['dm', 'direct message'] },
+    ],
+  },
+  {
+    id: 'school',
+    label: 'School Life',
+    icon: 'school',
+    color: '#0ea5e9',
+    items: [
+      { id: 'school-overview', path: '/school', label: 'Overview', icon: 'school', primary: true, description: 'Classes today, what’s due, and how the term is going.' },
+      { id: 'school-assignments', path: '/school/assignments', label: 'Assignments', icon: 'task', quickAction: true },
+      { id: 'school-classes', path: '/school/classes', label: 'Classes', icon: 'school', quickAction: true },
+      { id: 'school-analytics', path: '/school/analytics', label: 'Analytics', icon: 'stats', keywords: ['grades', 'gpa'] },
     ],
   },
   {
@@ -210,4 +223,7 @@ export const QUICK_ACTIONS: readonly {
   { id: 'event', label: 'New event', icon: 'calendar', path: '/calendar?new=1' },
   { id: 'member', label: 'Add a member', icon: 'member', path: '/members?new=1', systemOnly: true },
   { id: 'poll', label: 'New poll', icon: 'poll', path: '/polls?new=1', systemOnly: true },
+  { id: 'assignment', label: 'New assignment', icon: 'task', path: '/school/assignments?new=1' },
+  { id: 'schoolClass', label: 'Add a class', icon: 'school', path: '/school/classes?new=1' },
+  { id: 'grade', label: 'Log a grade', icon: 'star', path: '/school/assignments?logGrade=1' },
 ];

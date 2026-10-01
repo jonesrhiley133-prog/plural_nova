@@ -16,6 +16,7 @@
  */
 
 import { api } from './api.js';
+import { deviceLabel } from './push.js';
 
 const KEY_STORAGE = 'pluralnova.messageKey';
 const ALGORITHM = { name: 'ECDH', namedCurve: 'P-256' } as const;
@@ -24,10 +25,29 @@ export interface KeyPairRecord {
   publicKeyJwk: JsonWebKey;
   privateKeyJwk: JsonWebKey;
   createdAt: string;
+  /**
+   * This browser's own row in the `devices` collection — the same identity
+   * push notifications register under — reused as a stable `deviceLabel`
+   * rather than inventing a second notion of "this device". Absent until the
+   * first successful check-in.
+   */
+  deviceId?: string;
+  /** This device's own current active key id, once published. Lets a received message's sealed copies be told apart: the one variant addressed to this id is this device's; any other is addressed to a different device entirely. */
+  activeKeyId?: string;
 }
 
 export function cryptoAvailable(): boolean {
   return typeof crypto !== 'undefined' && typeof crypto.subtle?.generateKey === 'function';
+}
+
+function persist(record: KeyPairRecord): void {
+  try {
+    localStorage.setItem(KEY_STORAGE, JSON.stringify(record));
+  } catch {
+    // Without storage the key lasts for this session only; messages sent with
+    // it stay readable for as long as the tab is open, and the next launch
+    // publishes a new one.
+  }
 }
 
 export async function loadOrCreateKeyPair(): Promise<KeyPairRecord | null> {
@@ -47,13 +67,7 @@ export async function loadOrCreateKeyPair(): Promise<KeyPairRecord | null> {
       privateKeyJwk: await crypto.subtle.exportKey('jwk', pair.privateKey),
       createdAt: new Date().toISOString(),
     };
-    try {
-      localStorage.setItem(KEY_STORAGE, JSON.stringify(record));
-    } catch {
-      // Without storage the key lasts for this session only; messages sent with
-      // it stay readable for as long as the tab is open, and the next launch
-      // publishes a new one.
-    }
+    persist(record);
     return record;
   } catch {
     return null;
@@ -153,21 +167,57 @@ export async function openMessage(
 }
 
 /**
- * Publishes this device's public key so other systems can encrypt to it.
- *
- * Called once per session, from the point the account is known. It is safe to
- * repeat — the server keys the registry on the device, not the call.
+ * This browser's row in the `devices` collection: created on first use and
+ * matched by id after, so every call from the same browser confirms the same
+ * device rather than registering a new one. Carries no push credentials of
+ * its own, and (per the server's own handling of such a check-in) never
+ * touches a push subscription this device may separately have registered.
  */
-export async function publishMessageKey(): Promise<void> {
-  const pair = await loadOrCreateKeyPair();
-  if (!pair) return;
+async function ensureDeviceId(pair: KeyPairRecord): Promise<string | null> {
   try {
-    await api.post('/api/messages/keys', {
-      publicKey: JSON.stringify(pair.publicKeyJwk),
-      deviceLabel: 'browser',
+    const result = await api.post<{ id: string }>('/api/devices', {
+      id: pair.deviceId,
+      label: deviceLabel(),
+      platform: navigator.platform || navigator.userAgent.slice(0, 80),
     });
+    if (result.id !== pair.deviceId) {
+      pair.deviceId = result.id;
+      persist(pair);
+    }
+    return result.id;
+  } catch {
+    return pair.deviceId ?? null;
+  }
+}
+
+/**
+ * Publishes this device's public key so other systems can encrypt to it, and
+ * returns the key pair with its current server-assigned key id attached —
+ * the id a received message's sealed copies are matched against to find the
+ * one addressed to this device.
+ *
+ * Called once per session, from the point the account is known, and again
+ * whenever a conversation needs the result. Safe to repeat: the server keys
+ * the registry on this device's own stable id, not on the call, so publishing
+ * again confirms the same key stays active rather than rotating it.
+ */
+export async function publishMessageKey(): Promise<KeyPairRecord | null> {
+  const pair = await loadOrCreateKeyPair();
+  if (!pair) return null;
+  const deviceId = await ensureDeviceId(pair);
+  if (!deviceId) return pair;
+  try {
+    const result = await api.post<{ keyId: string }>('/api/messages/keys', {
+      publicKey: JSON.stringify(pair.publicKeyJwk),
+      deviceLabel: deviceId,
+    });
+    if (result.keyId !== pair.activeKeyId) {
+      pair.activeKeyId = result.keyId;
+      persist(pair);
+    }
   } catch {
     // Without this, messages to this device are sent in the clear and labelled
     // as such. That is a worse conversation, not a broken one.
   }
+  return pair;
 }

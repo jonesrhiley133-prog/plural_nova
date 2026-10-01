@@ -1,4 +1,13 @@
-import { newId, parseListValue, upgradeLegacyCustomFields, type CustomFieldDef } from '@pluralnova/shared';
+import {
+  customFieldValues,
+  newId,
+  parseListValue,
+  upgradeLegacyCustomFields,
+  valueForDefinition,
+  withDefinitionValue,
+  type CustomFieldDef,
+  type CustomFieldType,
+} from '@pluralnova/shared';
 import { createRecord, listRecords, updateRecord, type Scope } from '../db/repository.js';
 
 /**
@@ -122,4 +131,117 @@ export function migrateLegacyCustomFields(scope: Scope): MigrationResult {
   }
 
   return { migrated: true, definitions: definitionCount, values: valueCount };
+}
+
+interface FieldMigrationSpec {
+  memberField: string;
+  label: string;
+  type: CustomFieldType;
+  group: string;
+}
+
+/**
+ * Everything the alter editor used to render as its own field, beyond the
+ * five kept as dedicated fields (name, pronouns, roles, source/"origin",
+ * age) plus birthday (kept for the Calendar/Birthdays integration it already
+ * powers). Grouped the same way the schema itself already grouped them —
+ * this reuses that curation rather than re-deciding it.
+ */
+const MEMBER_FIELD_MIGRATIONS: FieldMigrationSpec[] = [
+  { memberField: 'privateName', label: 'Private name', type: 'text', group: 'Identity' },
+  { memberField: 'nicknames', label: 'Nicknames', type: 'tags', group: 'Identity' },
+  { memberField: 'mentalAge', label: 'Mental age', type: 'text', group: 'Identity' },
+  { memberField: 'physicalAge', label: 'Physical age', type: 'text', group: 'Identity' },
+  { memberField: 'species', label: 'Species', type: 'text', group: 'Identity' },
+  { memberField: 'gender', label: 'Gender', type: 'text', group: 'Identity' },
+  { memberField: 'sexuality', label: 'Sexuality', type: 'text', group: 'Identity' },
+  { memberField: 'nationality', label: 'Nationality', type: 'text', group: 'Identity' },
+  { memberField: 'ethnicity', label: 'Ethnicity', type: 'text', group: 'Identity' },
+  { memberField: 'race', label: 'Race', type: 'text', group: 'Identity' },
+  { memberField: 'identityLabels', label: 'Identity labels', type: 'tags', group: 'Identity' },
+  { memberField: 'chatPrefix', label: 'Chat prefix', type: 'text', group: 'Chat' },
+  { memberField: 'bio', label: 'Biography', type: 'longText', group: 'About' },
+  { memberField: 'tags', label: 'Tags', type: 'tags', group: 'About' },
+  { memberField: 'notes', label: 'Notes', type: 'longText', group: 'About' },
+  { memberField: 'boundaries', label: 'Boundaries', type: 'longText', group: 'About' },
+  { memberField: 'comforts', label: 'Comforts', type: 'longText', group: 'About' },
+  { memberField: 'triggers', label: 'Triggers', type: 'longText', group: 'About' },
+  { memberField: 'lore', label: 'Lore', type: 'longText', group: 'About' },
+  { memberField: 'likes', label: 'Likes', type: 'longText', group: 'Interests' },
+  { memberField: 'dislikes', label: 'Dislikes', type: 'longText', group: 'Interests' },
+  { memberField: 'interests', label: 'Interests', type: 'tags', group: 'Interests' },
+  { memberField: 'hobbies', label: 'Hobbies', type: 'tags', group: 'Interests' },
+  { memberField: 'personality', label: 'Personality', type: 'longText', group: 'Interests' },
+];
+
+function hasMigratableValue(raw: unknown): boolean {
+  if (Array.isArray(raw)) return raw.length > 0;
+  return typeof raw === 'string' && raw.trim() !== '';
+}
+
+/**
+ * Idempotent per field and per member, not behind one flag: a definition
+ * already carrying one of these labels is reused rather than duplicated, and
+ * a member who already has a value for that definition — whether from this
+ * migration running before, or from answering it directly afterward through
+ * the normal custom-fields editor — is never overwritten. A field nobody on
+ * the account ever filled in gets no definition at all, rather than an empty
+ * one cluttering every profile. The old columns on `members` are left
+ * exactly as they are; once the editor stops rendering them there is
+ * nothing left to read them, so there is nothing to keep in sync — the same
+ * place `cardStyle` already sits in this schema.
+ */
+export function migrateMemberFieldsToCustomFields(scope: Scope): MigrationResult {
+  const existingDefinitions = listRecords('customFieldDefinitions', scope, { limit: 500 }).items;
+  const definitionIdByLabel = new Map(
+    existingDefinitions.map((def) => [String(def['label']).trim().toLowerCase(), def.id]),
+  );
+  let sortOrder = existingDefinitions.length;
+  let definitionCount = 0;
+  let valueCount = 0;
+
+  const members = listRecords('members', scope, { limit: 500 }).items;
+  const valuesByMember = new Map(members.map((member) => [member.id, customFieldValues(member['customFieldValues'])]));
+
+  for (const spec of MEMBER_FIELD_MIGRATIONS) {
+    const key = spec.label.trim().toLowerCase();
+    let definitionId = definitionIdByLabel.get(key);
+
+    if (!definitionId) {
+      const hasAnyValue = members.some((member) => hasMigratableValue(member[spec.memberField]));
+      if (!hasAnyValue) continue;
+      const created = createRecord('customFieldDefinitions', scope, {
+        label: spec.label,
+        type: spec.type,
+        group: spec.group,
+        sortOrder: sortOrder++,
+      });
+      definitionId = created.id;
+      definitionIdByLabel.set(key, definitionId);
+      definitionCount += 1;
+    }
+
+    for (const member of members) {
+      const raw = member[spec.memberField];
+      if (!hasMigratableValue(raw)) continue;
+
+      const current = valuesByMember.get(member.id) ?? [];
+      if (valueForDefinition(definitionId, current) !== '') continue;
+
+      const value = spec.type === 'tags' ? JSON.stringify(raw) : String(raw);
+      valuesByMember.set(member.id, withDefinitionValue(current, definitionId, value));
+      valueCount += 1;
+    }
+  }
+
+  // One write per member who actually changed, not one per field copied.
+  for (const member of members) {
+    const next = valuesByMember.get(member.id);
+    const original = customFieldValues(member['customFieldValues']);
+    if (next && next.length !== original.length) {
+      updateRecord('members', scope, member.id, { customFieldValues: next }, { trusted: true });
+    }
+  }
+
+  return { migrated: definitionCount > 0 || valueCount > 0, definitions: definitionCount, values: valueCount };
 }

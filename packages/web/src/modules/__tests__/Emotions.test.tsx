@@ -155,7 +155,7 @@ describe('logging an emotion', () => {
     expect(String(created[0]?.['recordedAt'])).not.toBe('');
   });
 
-  it('logs one entry per emotion when more than one is picked', async () => {
+  it('logs one entry holding every emotion when more than one is picked', async () => {
     created.length = 0;
     const user = userEvent.setup();
     render(<Emotions />);
@@ -169,11 +169,10 @@ describe('logging an emotion', () => {
     await user.click(within(sheet).getByRole('button', { name: /next/i }));
     await user.click(within(sheet).getByRole('button', { name: /save/i }));
 
-    expect(created).toHaveLength(2);
-    expect(created.map((entry) => entry['emotionId'])).toEqual(
-      expect.arrayContaining(['sadness.grieving', 'sadness.heartbroken']),
-    );
-    // Both share the one intensity and note chosen for the whole batch.
-    expect(created[0]?.['intensity']).toBe(created[1]?.['intensity']);
+    expect(created).toHaveLength(1);
+    // The first emotion stays the row's own `emotionId`, for anything that only ever reads one.
+    expect(created[0]?.['emotionId']).toBe('sadness.grieving');
+    expect(created[0]?.['emotionIds']).toEqual(['sadness.grieving', 'sadness.heartbroken']);
+    expect(created[0]?.['categories']).toEqual(['sadness', 'sadness']);
   });
 });

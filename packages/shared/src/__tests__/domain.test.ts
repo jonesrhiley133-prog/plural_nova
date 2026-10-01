@@ -213,6 +213,13 @@ describe('theming', () => {
     expect(settings.accent).toBe('#7aa2f7');
   });
 
+  it('clamps UI zoom to a sane range, independent of text scale', () => {
+    expect(normaliseThemeSettings({ uiZoom: 500 }).uiZoom).toBe(150);
+    expect(normaliseThemeSettings({ uiZoom: 10 }).uiZoom).toBe(80);
+    expect(normaliseThemeSettings({ uiZoom: 0 }).uiZoom).toBe(100);
+    expect(normaliseThemeSettings({}).uiZoom).toBe(100);
+  });
+
   it('has a unique, buildable id for every built-in preset', () => {
     const ids = THEME_PRESETS.map((preset) => preset.id);
     expect(new Set(ids).size).toBe(ids.length);

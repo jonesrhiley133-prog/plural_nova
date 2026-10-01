@@ -7,7 +7,7 @@ import { rateLimit } from '../http/rateLimit.js';
 import { getDb, transaction } from '../db/index.js';
 import { deserialize, getRecord } from '../db/repository.js';
 import { notify } from '../services/notifications.js';
-import { publish } from '../realtime/hub.js';
+import { publish, publishToMany } from '../realtime/hub.js';
 import {
   areFriends,
   counterpartSummary,
@@ -43,6 +43,9 @@ const sendLimiter = rateLimit({
   message: 'Sending too many messages. Slow down for a moment.',
 });
 const newConversationLimiter = rateLimit({ max: 20, windowMs: 60_000 });
+// Fires on keystrokes, so generous — the client already throttles how often
+// it actually calls this, this just bounds a misbehaving client.
+const typingLimiter = rateLimit({ max: 90, windowMs: 60_000 });
 
 interface ThreadRow {
   id: string;
@@ -115,13 +118,35 @@ messagesRouter.post(
       algorithm?: string;
     };
     if (!publicKey) throw badRequest('A public key is required.');
+    const label = deviceLabel ?? 'default';
 
-    // Publishing a new key for a device retires the old one rather than
-    // deleting it, so messages encrypted to the previous key can still be
-    // identified by `encryptionKeyId` instead of silently failing to decrypt.
-    db()
-      .prepare('UPDATE "messageKeys" SET "retiredAt" = ? WHERE "userId" = ? AND "deviceLabel" = ? AND "retiredAt" IS NULL')
-      .run(now(), context.user.id, deviceLabel ?? 'default');
+    // `deviceLabel` is now a stable per-device id (the device's own `devices`
+    // row id), not a hardcoded value every browser shared — so a key is kept
+    // active per device rather than one "latest wins" key per account, and a
+    // second device signing in no longer retires the first device's key.
+    // Publishing is called on every sign-in, so this has to be a no-op when
+    // the device's key has not actually changed, rather than growing a new
+    // row (and retiring the one just created) on every single launch.
+    const existing = db()
+      .prepare(
+        `SELECT "id","publicKey" FROM "messageKeys"
+         WHERE "userId" = ? AND "deviceLabel" = ? AND "retiredAt" IS NULL`,
+      )
+      .get(context.user.id, label) as { id: string; publicKey: string } | undefined;
+    if (existing && existing.publicKey === publicKey) {
+      ok(res, { keyId: existing.id }, 200);
+      return;
+    }
+
+    // A real rotation for this same device (its local key changed) still
+    // retires that device's own previous key — it can no longer decrypt
+    // with the one it just lost anyway — without touching any other
+    // device's row.
+    if (existing) {
+      db()
+        .prepare('UPDATE "messageKeys" SET "retiredAt" = ? WHERE "id" = ?')
+        .run(now(), existing.id);
+    }
 
     const id = newId('mky');
     db()
@@ -129,7 +154,21 @@ messagesRouter.post(
         `INSERT INTO "messageKeys" (id, userId, deviceLabel, publicKey, algorithm, createdAt, retiredAt)
          VALUES (?, ?, ?, ?, ?, ?, NULL)`,
       )
-      .run(id, context.user.id, deviceLabel ?? 'default', publicKey, algorithm ?? 'ECDH-P256', now());
+      .run(id, context.user.id, label, publicKey, algorithm ?? 'ECDH-P256', now());
+
+    // Tells this account's own other already-open devices a new key exists
+    // (so a conversation left open there picks it up as a fan-out target
+    // without a reload), and anyone who already has a conversation with
+    // this account for the same reason — otherwise a message sent from
+    // their side while this device was already open would never be sealed
+    // for it, since their own key list would still be missing it.
+    const counterparts = db()
+      .prepare('SELECT DISTINCT "userId" FROM "conversations" WHERE "otherUserId" = ?')
+      .all(context.user.id) as { userId: string }[];
+    publishToMany(
+      [context.user.id, ...counterparts.map((row) => row.userId)],
+      { type: 'messageKey.new', userId: context.user.id },
+    );
     ok(res, { keyId: id }, 201);
   }),
 );
@@ -447,7 +486,7 @@ messagesRouter.post(
         kind: 'message.new',
         title: `${counterpartSummary(context.user.id)['displayName']} sent a message`,
         body: body.encrypted ? 'Encrypted message' : text.slice(0, 120),
-        link: `/chat/dm/${threadId}`,
+        link: `/social/messages/${threadId}`,
         actorUserId: context.user.id,
         private: Boolean(body.encrypted),
       });
@@ -484,6 +523,37 @@ messagesRouter.post(
     }
 
     ok(res, { read: true });
+  }),
+);
+
+/**
+ * Purely ephemeral — never written to any collection, never replayed to a
+ * client that was not already connected the moment it was sent. A missed
+ * "stopped typing" is expected and harmless: the receiving side expires its
+ * own indicator after a few seconds of silence rather than trusting this to
+ * always arrive.
+ */
+messagesRouter.post(
+  '/threads/:threadId/typing',
+  typingLimiter,
+  handler((req, res) => {
+    const context = auth(req);
+    const threadId = String(req.params['threadId']);
+    const conversation = requireParticipant(context.user.id, threadId);
+    const settings = (conversation['settings'] ?? {}) as Record<string, unknown>;
+
+    // The same opt-out as read receipts: both are "let the other side see
+    // what I'm doing right now", so one switch covers both.
+    if (settings['readReceipts'] !== false) {
+      const { isTyping } = req.body as { isTyping?: boolean };
+      publish(conversation['otherUserId'] as string, {
+        type: 'typing',
+        threadId,
+        fromUserId: context.user.id,
+        isTyping: isTyping !== false,
+      });
+    }
+    ok(res, { sent: true });
   }),
 );
 

@@ -116,3 +116,78 @@ describe('system chat thread backfill', () => {
     expect(row.threadId).toBe('sct_manual');
   });
 });
+
+/**
+ * Direct/group threads used to store only the participants a member picked,
+ * not the member who picked them — see routes/system.ts's active-chatter
+ * filter for why that has to change. This proves the boot-time backfill adds
+ * back every sender its own messages already prove belonged in the thread.
+ */
+describe('thread participant backfill', () => {
+  let client: TestClient;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+  });
+  afterAll(() => client.close());
+
+  it('adds a message sender missing from participantMemberIds', async () => {
+    const account = await registerUser(client, { email: 'participant-backfill@example.com' });
+    const db = getDb();
+    const timestamp = new Date().toISOString();
+
+    // Simulates a direct thread created before the creator was included in
+    // participantMemberIds: only the other member ("mem_corvid") is listed,
+    // even though "mem_ash" started it and has sent a message.
+    db.prepare(
+      `INSERT INTO systemChatThreads
+         (id, userId, systemId, memberId, visibility, createdAt, updatedAt, deletedAt, version,
+          kind, name, participantMemberIds, lastMessageAt, lastMessagePreview, lastReadAt,
+          pinned, muted, archived, settings)
+       VALUES ('sct_pre_fix', @userId, @systemId, NULL, 'private', @timestamp, @timestamp, NULL, 1,
+          'direct', 'Corvid', '["mem_corvid"]', @timestamp, 'hi', NULL, 0, 0, 0, NULL)`,
+    ).run({ userId: account.userId, systemId: account.systemId, timestamp });
+
+    db.prepare(
+      `INSERT INTO systemChatMessages
+         (id, userId, systemId, memberId, visibility, createdAt, updatedAt, deletedAt, version,
+          body, sentAt, replyToId, channel, reactions, attachmentIds, edited, threadId, forwardedFrom)
+       VALUES ('msg_pre_fix', @userId, @systemId, 'mem_ash', 'system', @timestamp, @timestamp, NULL, 1,
+          'hi', @timestamp, NULL, NULL, NULL, '[]', 0, 'sct_pre_fix', NULL)`,
+    ).run({ userId: account.userId, systemId: account.systemId, timestamp });
+
+    const result = migrate(db);
+    expect(result.backfilledThreadParticipants).toBeGreaterThanOrEqual(1);
+
+    const thread = db.prepare(`SELECT participantMemberIds FROM systemChatThreads WHERE id = 'sct_pre_fix'`).get() as {
+      participantMemberIds: string;
+    };
+    expect(JSON.parse(thread.participantMemberIds).sort()).toEqual(['mem_ash', 'mem_corvid']);
+
+    // Idempotent: everyone the messages name is already listed, so nothing changes.
+    const second = migrate(db);
+    expect(second.backfilledThreadParticipants).toBe(0);
+  });
+
+  it('leaves a thread with no messages yet untouched', async () => {
+    const account = await registerUser(client, { email: 'empty-thread-backfill@example.com' });
+    const db = getDb();
+    const timestamp = new Date().toISOString();
+
+    db.prepare(
+      `INSERT INTO systemChatThreads
+         (id, userId, systemId, memberId, visibility, createdAt, updatedAt, deletedAt, version,
+          kind, name, participantMemberIds, lastMessageAt, lastMessagePreview, lastReadAt,
+          pinned, muted, archived, settings)
+       VALUES ('sct_empty', @userId, @systemId, NULL, 'private', @timestamp, @timestamp, NULL, 1,
+          'direct', 'Juniper', '["mem_juniper"]', NULL, NULL, NULL, 0, 0, 0, NULL)`,
+    ).run({ userId: account.userId, systemId: account.systemId, timestamp });
+
+    migrate(db);
+
+    const thread = db.prepare(`SELECT participantMemberIds FROM systemChatThreads WHERE id = 'sct_empty'`).get() as {
+      participantMemberIds: string;
+    };
+    expect(JSON.parse(thread.participantMemberIds)).toEqual(['mem_juniper']);
+  });
+});

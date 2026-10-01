@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { customFieldValues, formatDuration, type StoredRecord } from '@pluralnova/shared';
+import { customFieldValues, emotionIdsOf, formatDuration, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -9,7 +9,7 @@ import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, FieldList, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
-import { RecordForm } from '../ui/RecordForm.js';
+import { MemberEditorForm } from '../ui/MemberEditorForm.js';
 import { SwitchRow } from '../ui/forms.js';
 import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
 import { Icon } from '../ui/Icon.js';
@@ -108,10 +108,9 @@ export default function MemberProfile(): JSX.Element {
               name={String(member['name'])}
               src={(member['avatarUrl'] as string) ?? null}
               color={color}
-              icon={(member['icon'] as string) ?? null}
               size={88}
               round
-              ring
+              ring={alreadyFronting}
             />
           </div>
 
@@ -126,9 +125,8 @@ export default function MemberProfile(): JSX.Element {
               </div>
               <div className="row row--nowrap">
                 <IconButton
-                  icon="bolt"
-                  label={alreadyFronting ? term('Already {{fronting}}') : term('Quick {{front}}')}
-                  disabled={alreadyFronting}
+                  icon={alreadyFronting ? 'close' : 'bolt'}
+                  label={alreadyFronting ? term('Remove from {{fronting}}') : term('Quick {{front}}')}
                   onClick={quickFront}
                 />
                 <IconButton icon="edit" label="Edit profile" onClick={() => editor.show()} />
@@ -160,7 +158,7 @@ export default function MemberProfile(): JSX.Element {
             {Array.isArray(member['roles']) && member['roles'].length > 0 ? (
               <div className="row" style={{ marginTop: flagsVisible ? 'var(--space-2)' : 'var(--space-3)' }}>
                 {(member['roles'] as string[]).map((role) => (
-                  <Chip key={role} accent>
+                  <Chip key={role} color={color}>
                     {role}
                   </Chip>
                 ))}
@@ -189,10 +187,8 @@ export default function MemberProfile(): JSX.Element {
       {tab === 'privacy' ? <Privacy member={member} onChange={update} /> : null}
 
       <Dialog open={editor.open} onClose={editor.hide} title={term('Edit {{member}}')} wide>
-        <RecordForm
-          collection="members"
-          record={member}
-          omit={['frontStatus', 'customStatus', 'isDormant', 'archived', 'privacy', 'preferences']}
+        <MemberEditorForm
+          member={member}
           onSubmit={async (values) => {
             await update(member.id, values);
             toast.success('Saved');
@@ -642,7 +638,10 @@ function Statistics({ member }: { member: StoredRecord }): JSX.Element {
         value={formatDuration(Number(member['frontMinutes'] ?? 0))}
       />
       <Stat label={term('{{Journal}} entries')} value={journal.items.length} />
-      <Stat label="Emotions logged" value={emotions.items.length} />
+      <Stat
+        label="Emotions logged"
+        value={emotions.items.reduce((sum, entry) => sum + emotionIdsOf(entry).length, 0)}
+      />
     </div>
   );
 }

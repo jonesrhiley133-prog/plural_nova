@@ -1246,6 +1246,15 @@
   white-space: nowrap;
 }
 
+/* For a title that's inherently multi-part (names plus a relationship label,
+   several chips' worth of text) rather than one short field — grows the row
+   instead of clipping content nobody can then read. */
+.list-row__title--wrap {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .list-row__meta {
   font-size: var(--size-xs);
   color: var(--text-muted);

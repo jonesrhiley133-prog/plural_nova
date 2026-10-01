@@ -15,6 +15,15 @@ import { QuickActions } from './QuickActions.js';
 import { SyncIndicator } from './SyncIndicator.js';
 
 /**
+ * Screens that are tables, calendars and charts rather than reading material —
+ * the ones that feel cramped in the default column on a wide monitor, since
+ * there's nothing there to read, only room to use. Exact paths, not prefixes:
+ * `/members` (the table) gets the wide column, `/members/:id` (a profile,
+ * reading material again) does not.
+ */
+const WIDE_LAYOUT_ROUTES = new Set(['/calendar', '/members', '/finances', '/stats', '/school/analytics']);
+
+/**
  * The shell.
  *
  * A rail and a wide column on a desktop, a bar and a single column on a phone.
@@ -90,7 +99,11 @@ export function Layout(): JSX.Element {
             </div>
           </header>
 
-          <main id="main-content" className="app-main" tabIndex={-1}>
+          <main
+            id="main-content"
+            className={`app-main${WIDE_LAYOUT_ROUTES.has(location.pathname) ? ' app-main--wide' : ''}`}
+            tabIndex={-1}
+          >
             <ErrorBoundary label={title} onReset={() => navigate(0)}>
               <BarTitleContext.Provider value={current ? title : null}>
                 {/* Keyed by path, so every navigation — not just a route that

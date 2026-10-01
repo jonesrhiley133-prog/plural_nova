@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { type StoredRecord } from '@pluralnova/shared';
+import { emotionIdsOf, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useAllEmotions } from '../core/emotions.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
@@ -31,6 +31,11 @@ interface TimelineEntry {
 }
 
 const FETCH_LIMIT = 40;
+
+/** "happy", "happy and excited", "happy, excited, and nervous" — for an entry that recorded more than one of something. */
+function joinWithAnd(items: string[]): string {
+  return new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(items);
+}
 
 export default function Timeline(): JSX.Element {
   const { term } = useI18n();
@@ -106,15 +111,18 @@ export default function Timeline(): JSX.Element {
       const recordedAt = String(record['recordedAt'] ?? '');
       if (!recordedAt) continue;
       const name = memberName((record['memberId'] as string) ?? null);
-      const emotion = findEmotion(String(record['emotionId']));
-      const emotionName = emotion?.name ?? String(record['emotionId'] ?? 'an emotion');
+      const recordedEmotions = emotionIdsOf(record)
+        .map((id) => findEmotion(id))
+        .filter((item): item is NonNullable<typeof item> => item != null);
+      const emotionNames = recordedEmotions.length > 0 ? recordedEmotions.map((item) => item.name) : [String(record['emotionId'] ?? 'an emotion')];
+      const felt = joinWithAnd(emotionNames.map((value) => value.toLowerCase()));
       list.push({
         id: `emotion-${record.id}`,
         type: 'emotion',
         timestamp: recordedAt,
         memberId: (record['memberId'] as string) ?? null,
-        title: name ? `${name} felt ${emotionName.toLowerCase()}` : `Felt ${emotionName.toLowerCase()}`,
-        subtitle: emotion?.emoji ?? '',
+        title: name ? `${name} felt ${felt}` : `Felt ${felt}`,
+        subtitle: recordedEmotions.map((item) => item.emoji).join(' '),
       });
     }
 
@@ -220,7 +228,6 @@ function TimelineRow({
         <Avatar
           name={String(member['name'])}
           color={(member['color'] as string) ?? null}
-          icon={(member['icon'] as string) ?? null}
           size={32}
           round
         />

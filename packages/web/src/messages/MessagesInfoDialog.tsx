@@ -1,23 +1,23 @@
-import { useEffect, useState } from 'react';
-import type { ChatAppearance } from '@pluralnova/shared';
+import { useState } from 'react';
+import { resolveChatAppearance, type ChatAppearance } from '@pluralnova/shared';
 import { useAuth } from '../core/auth.js';
 import { useToast } from '../core/toast.js';
-import { resolveChatAppearance, updateChatThread, type ChatThreadSummary } from '../core/chat.js';
+import { updateMessageThread, type MessageThreadSummary } from '../core/messages.js';
 import { Avatar, Button, SegmentedControl } from '../ui/primitives.js';
-import { ColorField, SwitchRow, TextField } from '../ui/forms.js';
+import { ColorField, SwitchRow } from '../ui/forms.js';
 import { Dialog } from '../ui/overlays.js';
 
 /**
- * Who a conversation is with/between, the handful of settings that apply to
- * the whole thing rather than to one message (mute, pin, a name), and how it
- * looks. Appearance is stored as `settings.appearance`, one PATCH like any
- * other setting here — a thread with none of its own renders with the
- * account-wide default from `useAuth().settings.chatAppearance` instead.
+ * The handful of settings that apply to a whole Messages conversation, and
+ * how it looks. Appearance falls back to `settings.messagesAppearance` —
+ * Messages' own account-wide default, entirely separate from In-Sys Chat's
+ * `chatAppearance`. There is no rename here: every Messages conversation
+ * today is a 1:1 with a friend, so its title is just their name.
  */
-interface ChatInfoDialogProps {
+interface MessagesInfoDialogProps {
   open: boolean;
   onClose: () => void;
-  thread: ChatThreadSummary;
+  thread: MessageThreadSummary;
   onChanged: () => void;
 }
 
@@ -26,21 +26,15 @@ const SPACING_OPTIONS = [
   { value: 'compact' as const, label: 'Compact' },
 ];
 
-export function ChatInfoDialog({ open, onClose, thread, onChanged }: ChatInfoDialogProps): JSX.Element {
+export function MessagesInfoDialog({ open, onClose, thread, onChanged }: MessagesInfoDialogProps): JSX.Element {
   const toast = useToast();
   const { settings, saveSettings } = useAuth();
-  const [title, setTitle] = useState(thread.title);
   const [busy, setBusy] = useState(false);
-  const canRename = thread.subKind !== 'direct';
 
-  useEffect(() => {
-    setTitle(thread.title);
-  }, [thread.id, thread.title]);
-
-  const save = async (patch: Parameters<typeof updateChatThread>[2]): Promise<void> => {
+  const save = async (patch: Parameters<typeof updateMessageThread>[1]): Promise<void> => {
     setBusy(true);
     try {
-      await updateChatThread(thread.kind, thread.id, patch);
+      await updateMessageThread(thread.id, patch);
       onChanged();
     } catch (cause) {
       toast.fromError(cause, 'Could not update this conversation');
@@ -50,7 +44,7 @@ export function ChatInfoDialog({ open, onClose, thread, onChanged }: ChatInfoDia
   };
 
   const hasOwnAppearance = Boolean(thread.settings['appearance']);
-  const appearance = resolveChatAppearance(settings.chatAppearance, thread.settings);
+  const appearance = resolveChatAppearance(settings.messagesAppearance, thread.settings);
 
   const setAppearance = (patch: Partial<ChatAppearance>): Promise<void> =>
     save({ settings: { ...thread.settings, appearance: { ...appearance, ...patch } } });
@@ -63,11 +57,11 @@ export function ChatInfoDialog({ open, onClose, thread, onChanged }: ChatInfoDia
   const useAppearanceEverywhere = async (): Promise<void> => {
     setBusy(true);
     try {
-      await saveSettings({ chatAppearance: appearance });
+      await saveSettings({ messagesAppearance: appearance });
       const { appearance: _dropped, ...rest } = thread.settings;
-      await updateChatThread(thread.kind, thread.id, { settings: rest });
+      await updateMessageThread(thread.id, { settings: rest });
       onChanged();
-      toast.success('This look is now the default for every conversation.');
+      toast.success('This look is now the default for every Messages conversation.');
     } catch (cause) {
       toast.fromError(cause, 'Could not save that as your default');
     } finally {
@@ -78,31 +72,13 @@ export function ChatInfoDialog({ open, onClose, thread, onChanged }: ChatInfoDia
   return (
     <Dialog open={open} onClose={onClose} title="Conversation info">
       <div className="stack">
-        <div className="chat-info__people">
-          {(thread.participants.length > 0 ? thread.participants : thread.person ? [thread.person] : []).map((person) => (
-            <div key={person.id} className="chat-info__person">
-              <Avatar name={person.name} src={person.avatarUrl ?? null} color={person.color} icon={person.icon} size={40} round />
-              <span>
-                {person.prefix ? <span className="chat-message__prefix">{person.prefix}</span> : null}
-                {person.name}
-              </span>
+        {thread.person ? (
+          <div className="chat-info__people">
+            <div className="chat-info__person">
+              <Avatar name={thread.person.name} src={thread.person.avatarUrl ?? null} color={thread.person.color} icon={thread.person.icon} size={40} round />
+              <span>{thread.person.name}</span>
             </div>
-          ))}
-        </div>
-
-        {canRename ? (
-          <form
-            className="row row--nowrap"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void save({ title: title.trim() });
-            }}
-          >
-            <TextField label="Name" value={title} onChange={setTitle} />
-            <Button variant="secondary" type="submit" loading={busy} disabled={!title.trim() || title.trim() === thread.title}>
-              Save
-            </Button>
-          </form>
+          </div>
         ) : null}
 
         <SwitchRow

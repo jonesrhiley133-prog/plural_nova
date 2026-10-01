@@ -6,7 +6,9 @@ import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY_LABELS,
   TERMS,
+  TEXT_SCALE_PRESETS,
   THEME_PRESETS,
+  UI_ZOOM_PRESETS,
   ALL_NAV_ITEMS,
   ALWAYS_VISIBLE_NAV_IDS,
   categoriesForMode,
@@ -30,7 +32,7 @@ import { syncEngine } from '../core/sync.js';
 import { offlineStorageProblem, storageEstimate } from '../core/localdb.js';
 import { PageHeader } from '../app/PageHeader.js';
 import CustomFieldDefinitions from './CustomFieldDefinitions.js';
-import { Avatar, Button, Card, Chip, IconButton, ListRow, Stat } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, ListRow, SegmentedControl, Stat } from '../ui/primitives.js';
 import { NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
 import { ColorPicker, ColorSwatch } from '../ui/ColorPicker.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -1084,19 +1086,29 @@ function Accessibility(): JSX.Element {
         checked={theme.reducedMotion}
         onChange={(value) => void update({ reducedMotion: value })}
       />
-      <SwitchRow
-        label="Larger text"
-        checked={theme.largeText}
-        onChange={(value) => void update({ largeText: value })}
-      />
-      <NumberField
-        label="Text size"
-        value={theme.textScale}
-        onChange={(value) => void update({ textScale: value ?? 100 })}
-        min={80}
-        max={160}
-        suffix="%"
-      />
+      <div className="field">
+        <span className="field__label">Text size</span>
+        <SegmentedControl
+          label="Text size"
+          value={theme.textScale}
+          onChange={(value) => void update({ textScale: value })}
+          options={TEXT_SCALE_PRESETS.map((preset) => ({ value: preset.value, label: preset.label }))}
+        />
+        <p className="field__hint">Scales text and touch targets throughout the app.</p>
+      </div>
+      <div className="field">
+        <span className="field__label">UI zoom</span>
+        <SegmentedControl
+          label="UI zoom"
+          value={theme.uiZoom}
+          onChange={(value) => void update({ uiZoom: value })}
+          options={UI_ZOOM_PRESETS.map((preset) => ({ value: preset.value, label: preset.label }))}
+        />
+        <p className="field__hint">
+          Zooms the whole interface, the same way your browser's own zoom does — separate from
+          text size, and useful for fitting more on screen or less.
+        </p>
+      </div>
 
       <DescriptiveNote>
         Every status in PluralNova pairs a colour with a word or a glyph, so nothing depends on being

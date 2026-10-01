@@ -25,7 +25,7 @@ import { historyPhrases, recordHistory } from '../services/history.js';
 import { notify } from '../services/notifications.js';
 import { publish } from '../realtime/hub.js';
 import { checkAchievements } from '../services/achievements.js';
-import { migrateLegacyCustomFields } from '../services/customFieldMigration.js';
+import { migrateLegacyCustomFields, migrateMemberFieldsToCustomFields } from '../services/customFieldMigration.js';
 
 /**
  * System-level operations: the system profile itself, internal chat, the
@@ -235,11 +235,16 @@ function withAttachments(scope: Scope, message: StoredRecord): Record<string, un
 function withParticipants(
   scope: Scope,
   thread: StoredRecord,
+  viewerMemberId: string | null,
 ): Record<string, unknown> {
   const ids = (thread['participantMemberIds'] as string[]) ?? [];
+  // The stored list includes the viewer's own membership (see the active-chatter
+  // filter and the dedup key below), but "who this chat is with" should never
+  // list yourself, so it is excluded here rather than in every caller.
+  const otherIds = viewerMemberId ? ids.filter((id) => id !== viewerMemberId) : ids;
   return {
     ...thread,
-    participants: resolveMembers(scope, ids),
+    participants: resolveMembers(scope, otherIds),
     unread: Boolean(
       thread['lastMessageAt'] &&
         (!thread['lastReadAt'] || (thread['lastReadAt'] as string) < (thread['lastMessageAt'] as string)),
@@ -271,14 +276,24 @@ systemRouter.get(
   handler((req, res) => {
     const context = requireSystemMode(req);
     ensureDefaultThread(context.scope);
+    const activeMemberId = context.user.activeMemberId;
     const threads = listRecords('systemChatThreads', context.scope, { limit: 200 })
       .items.filter((thread) => thread['archived'] !== true)
+      // The whole-system channel is everyone's; a direct or group thread is
+      // only visible to the members actually in it. With no active member set
+      // at all, that correctly means none of them — the client shows a prompt
+      // to pick one rather than a mix of everyone's private conversations.
+      .filter(
+        (thread) =>
+          thread['kind'] === 'system' ||
+          ((thread['participantMemberIds'] as string[]) ?? []).includes(activeMemberId ?? ''),
+      )
       .sort((a, b) => {
         const pinnedDiff = Number(b['pinned'] === true) - Number(a['pinned'] === true);
         if (pinnedDiff !== 0) return pinnedDiff;
         return String(b['lastMessageAt'] ?? '').localeCompare(String(a['lastMessageAt'] ?? ''));
       })
-      .map((thread) => withParticipants(context.scope, thread));
+      .map((thread) => withParticipants(context.scope, thread, activeMemberId));
     ok(res, { threads });
   }),
 );
@@ -290,14 +305,26 @@ systemRouter.post(
     const context = requireSystemMode(req);
     const body = req.body as { kind?: 'group' | 'direct'; name?: string; participantMemberIds?: string[] };
     const kind = body.kind === 'direct' ? 'direct' : 'group';
-    const participantMemberIds = [...new Set(body.participantMemberIds ?? [])];
-    if (participantMemberIds.length === 0) throw badRequest('Choose at least one member.');
-    if (kind === 'direct' && participantMemberIds.length !== 1) {
+    const chosenMemberIds = [...new Set(body.participantMemberIds ?? [])];
+    if (chosenMemberIds.length === 0) throw badRequest('Choose at least one member.');
+    if (kind === 'direct' && chosenMemberIds.length !== 1) {
       throw badRequest('A direct chat is with exactly one other member.');
     }
 
-    const participants = resolveMembers(context.scope, participantMemberIds);
-    if (participants.length !== participantMemberIds.length) throw notFound('One of those members');
+    const participants = resolveMembers(context.scope, chosenMemberIds);
+    if (participants.length !== chosenMemberIds.length) throw notFound('One of those members');
+
+    // The stored participant set always includes whoever is creating the
+    // thread, not only who they chose — otherwise the active-chatter filter
+    // above would hide a thread from its own creator once someone else
+    // becomes the active member and they come back to it later, and the
+    // dedup key just below would differ depending on who started the chat
+    // (Ash starting one with Corvid vs. Corvid separately starting one with
+    // Ash would otherwise look like two different conversations).
+    const activeMemberId = context.user.activeMemberId;
+    const participantMemberIds = activeMemberId
+      ? [...new Set([...chosenMemberIds, activeMemberId])]
+      : chosenMemberIds;
 
     // Reuse an existing thread with the exact same participants rather than
     // spawning a duplicate every time the same pair or group starts a chat.
@@ -306,7 +333,7 @@ systemRouter.post(
       (thread) => ((thread['participantMemberIds'] as string[]) ?? []).slice().sort().join(',') === key,
     );
     if (existing) {
-      ok(res, { thread: withParticipants(context.scope, existing) });
+      ok(res, { thread: withParticipants(context.scope, existing, activeMemberId) });
       return;
     }
 
@@ -330,7 +357,7 @@ systemRouter.post(
       { visibility: 'system' },
     );
     publish(context.user.id, { type: 'systemChat.thread.new', threadId: thread.id });
-    ok(res, { thread: withParticipants(context.scope, thread) }, 201);
+    ok(res, { thread: withParticipants(context.scope, thread, activeMemberId) }, 201);
   }),
 );
 
@@ -356,7 +383,7 @@ systemRouter.get(
     // gets OLD → NEW and can append at the bottom.
     ok(res, {
       threadId,
-      thread: withParticipants(context.scope, thread),
+      thread: withParticipants(context.scope, thread, context.user.activeMemberId),
       messages: [...result.items].reverse().map((message) => withAttachments(context.scope, message)),
       hasMore: result.items.length === limit,
     });
@@ -414,7 +441,7 @@ systemRouter.post(
         kind: 'systemChat.new',
         title: `New message in ${String(thread['name'] ?? 'system chat')}`,
         body: preview,
-        link: `/chat/system/${threadId}`,
+        link: `/system/chat/${threadId}`,
         ...(body.memberId ? { actorMemberId: body.memberId } : {}),
       });
     }
@@ -691,15 +718,24 @@ systemRouter.post(
 );
 
 /**
- * Safe to call every time a screen that needs shared custom fields mounts:
- * it only ever does something the first time, for an account that still has
- * the old per-member shape and nothing migrated yet.
+ * Safe to call every time a screen that needs shared custom fields mounts —
+ * and, per `App.tsx`, on every login. Each migration is independently
+ * idempotent: the legacy per-member-shape one only ever does something the
+ * first time; the member-field one only creates a definition or copies a
+ * value the first time it sees something worth moving, per field per
+ * member, never overwriting an answer given after the fact.
  */
 systemRouter.post(
   '/custom-fields/migrate',
   handler((req, res) => {
     const context = requireSystemMode(req);
-    ok(res, migrateLegacyCustomFields(context.scope));
+    const legacy = migrateLegacyCustomFields(context.scope);
+    const memberFields = migrateMemberFieldsToCustomFields(context.scope);
+    ok(res, {
+      migrated: legacy.migrated || memberFields.migrated,
+      definitions: legacy.definitions + memberFields.definitions,
+      values: legacy.values + memberFields.values,
+    });
   }),
 );
 

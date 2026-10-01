@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { EMOTION_FAMILIES, getEmotionFamily, intensityLabel, type Emotion } from '@pluralnova/shared';
+import { EMOTION_FAMILIES, emotionIdsOf, getEmotionFamily, intensityLabel, type Emotion } from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useAllEmotions, useFavoriteEmotions, filterEmotions } from '../core/emotions.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
@@ -42,7 +42,7 @@ export default function Emotions(): JSX.Element {
   }
 
   const recentIds = useMemo(
-    () => [...new Set(entries.items.slice(0, 40).map((entry) => String(entry['emotionId'])))].slice(0, 8),
+    () => [...new Set(entries.items.slice(0, 40).flatMap((entry) => emotionIdsOf(entry)))].slice(0, 8),
     [entries.items],
   );
 
@@ -72,7 +72,9 @@ export default function Emotions(): JSX.Element {
                     void entries
                       .create({
                         emotionId: emotion.id,
+                        emotionIds: [emotion.id],
                         category: emotion.family,
+                        categories: [emotion.family],
                         intensity: 3,
                         recordedAt: new Date().toISOString(),
                         memberId: activeMemberId,
@@ -105,10 +107,14 @@ export default function Emotions(): JSX.Element {
           <Card flush>
             <div className="list">
               {records.slice(0, 60).map((entry) => {
-                const emotion = findEmotion(String(entry['emotionId']));
+                const emotions = emotionIdsOf(entry)
+                  .map((id) => findEmotion(id))
+                  .filter((item): item is Emotion => item != null);
+                const primary = emotions[0] ?? null;
                 const family = getEmotionFamily(String(entry['category']));
                 const member = entry['memberId'] ? members.get(String(entry['memberId'])) : null;
                 const intensity = Number(entry['intensity'] ?? 3);
+                const title = emotions.length > 0 ? emotions.map((item) => item.name).join(', ') : String(entry['emotionId']);
 
                 return (
                   <div key={entry.id} className="list-row">
@@ -121,11 +127,11 @@ export default function Emotions(): JSX.Element {
                       }}
                       aria-hidden="true"
                     >
-                      {emotion?.emoji ?? '◍'}
+                      {primary?.emoji ?? '◍'}
                     </span>
                     <span className="list-row__body">
-                      <span className="list-row__title">
-                        {emotion?.name ?? String(entry['emotionId'])}
+                      <span className={`list-row__title ${emotions.length > 1 ? 'list-row__title--wrap' : ''}`}>
+                        {title}
                         <span className="faint"> · {intensityLabel(intensity)}</span>
                       </span>
                       <span className="list-row__meta">
@@ -405,19 +411,18 @@ function EmotionSheet({
     if (draft.emotions.length === 0) return;
     setSaving(true);
     try {
-      const recordedAt = new Date().toISOString();
-      for (const emotion of draft.emotions) {
-        await onSave({
-          emotionId: emotion.id,
-          category: emotion.family,
-          intensity: draft.intensity,
-          recordedAt,
-          context: draft.context,
-          activity: draft.activity,
-          note: draft.note,
-          memberId: draft.memberId,
-        });
-      }
+      await onSave({
+        emotionId: draft.emotions[0]!.id,
+        emotionIds: draft.emotions.map((emotion) => emotion.id),
+        category: draft.emotions[0]!.family,
+        categories: draft.emotions.map((emotion) => emotion.family),
+        intensity: draft.intensity,
+        recordedAt: new Date().toISOString(),
+        context: draft.context,
+        activity: draft.activity,
+        note: draft.note,
+        memberId: draft.memberId,
+      });
       onSaved(draft.emotions.length);
       reset();
       onClose();
@@ -685,7 +690,6 @@ function EmotionSheet({
                     <Avatar
                       name={String(member['name'])}
                       color={(member['color'] as string) ?? null}
-                      icon={(member['icon'] as string) ?? null}
                       size={16}
                       round
                     />

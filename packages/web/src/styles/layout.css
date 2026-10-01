@@ -86,6 +86,15 @@
   max-width: var(--content-narrow);
 }
 
+/*
+ * For the screens that are tables, calendars and charts rather than reading
+ * material — the ones that feel cramped in the default column on a wide
+ * monitor precisely because there is nothing to read, only room to use.
+ */
+.app-main--wide {
+  max-width: var(--content-wide);
+}
+
 .app-main--flush {
   padding-left: 0;
   padding-right: 0;
@@ -103,7 +112,16 @@
   align-items: stretch;
   gap: 2px;
   padding: 4px;
-  width: min(520px, calc(100vw - var(--space-6)));
+  /*
+   * A percentage, not `100vw`: `vw` measures the real, physical viewport,
+   * so under UI Zoom the resulting box is scaled again on top of a size
+   * already computed from the unscaled viewport, growing wider than the
+   * screen and — combined with the `translateX(-50%)` centering, which
+   * *does* scale with zoom — drifting off-centre. A percentage of a
+   * `position: fixed` element's own containing block (the viewport) stays
+   * correctly sized and centred at every zoom level.
+   */
+  width: min(520px, calc(100% - var(--space-6)));
   height: var(--bottom-nav-height);
   /*
    * Nearly opaque, unlike a card. A panel is translucent over a background
@@ -742,8 +760,15 @@
 }
 
 .music-stage__art {
-  width: min(70vw, 300px);
-  height: min(70vw, 300px);
+  /*
+   * A percentage of `.music-stage` plus `aspect-ratio`, not `vw` for both
+   * axes — see `.app-bottom-nav` above for why `vw` drifts under UI Zoom.
+   * A percentage `height` would need `.music-stage` to have a definite
+   * height, which it does not; `aspect-ratio` keeps the box square from
+   * the width alone.
+   */
+  width: min(70%, 300px);
+  aspect-ratio: 1;
   border-radius: var(--radius-lg);
   overflow: hidden;
   display: grid;

@@ -90,6 +90,46 @@
   font-weight: 700;
 }
 
+.chatter-switch {
+  background: none;
+  border: none;
+  padding: 2px;
+  border-radius: 50%;
+  cursor: pointer;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.chatter-switch:hover,
+.chatter-switch:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.chat-home__notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 var(--space-4) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.chat-home__notice-action {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .chat-home__search {
   padding: var(--space-2) var(--space-4);
   flex-shrink: 0;
@@ -242,6 +282,11 @@
   background: var(--accent-soft);
 }
 
+.chat-picker-row__avatar {
+  width: 38px;
+  flex-shrink: 0;
+}
+
 .chat-picker-row__body {
   flex: 1;
   min-width: 0;
@@ -375,6 +420,27 @@
   background: var(--chat-wallpaper, transparent);
 }
 
+/*
+ * Each message's actual flex-child in `.chat-conversation__messages` is this
+ * row, not `.chat-message` itself — the day heading is that row's sibling,
+ * one level up from the bubble. `align-items` lives here so it has a direct
+ * flex-item to act on; putting `align-self` on `.chat-message` instead (the
+ * grandchild) is a no-op, which is what let outgoing messages drift toward
+ * the middle of a wide desktop pane instead of reaching the right edge.
+ */
+.chat-message-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-message-row--theirs {
+  align-items: flex-start;
+}
+
+.chat-message-row--mine {
+  align-items: flex-end;
+}
+
 .chat-day-heading {
   align-self: center;
   font-size: 0.7rem;
@@ -397,12 +463,7 @@
   margin-bottom: var(--chat-msg-gap, 2px);
 }
 
-.chat-message--theirs {
-  align-self: flex-start;
-}
-
 .chat-message--mine {
-  align-self: flex-end;
   flex-direction: row-reverse;
 }
 
@@ -524,6 +585,11 @@
   gap: 4px;
   font-size: 0.65rem;
   opacity: 0.75;
+}
+
+/* Full opacity, unlike the rest of the meta row — "read" is the one state here worth it standing out. */
+.chat-bubble__read--read {
+  opacity: 1;
 }
 
 .chat-message__reactions {
@@ -720,6 +786,57 @@
   color: var(--text-faint);
   padding: 6px;
   display: flex;
+}
+
+.chatter-popover {
+  z-index: var(--z-modal);
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.chatter-popover__title {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+.chatter-popover__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.chatter-popover__option span:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+
+.chatter-popover__option:hover,
+.chatter-popover__option:focus-visible {
+  background: var(--surface-sunken);
+}
+
+.chatter-popover__option[aria-current='true'] {
+  color: var(--accent);
 }
 
 /* ── Attachments ─────────────────────────────────────────────────────────── */

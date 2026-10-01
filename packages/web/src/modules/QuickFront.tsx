@@ -214,7 +214,6 @@ export default function QuickFront(): JSX.Element {
                   name={String(member['name'])}
                   src={(member['avatarUrl'] as string) ?? null}
                   color={(member['color'] as string) ?? null}
-                  icon={(member['icon'] as string) ?? null}
                   size={48}
                   round
                   ring={isSelected || alreadyFrontingIds.has(member.id)}

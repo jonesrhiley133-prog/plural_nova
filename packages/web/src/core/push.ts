@@ -223,7 +223,8 @@ export async function sendTestNotification(): Promise<void> {
   await api.post('/api/devices/test');
 }
 
-function deviceLabel(): string {
+/** A human-readable name for this browser/OS — also reused to label this device when it registers for anything else that needs a stable device identity, such as message encryption keys. */
+export function deviceLabel(): string {
   if (androidBridge()) return 'PluralNova (Android app)';
   const agent = navigator.userAgent;
   if (/iPhone|iPad|iPod/.test(agent)) return 'iPhone or iPad';

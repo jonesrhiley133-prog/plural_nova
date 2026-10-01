@@ -32,6 +32,26 @@ import { Icon, iconOr } from '../ui/Icon.js';
 
 const CATEGORY_ORDER: CustomFieldCategory[] = ['Text', 'Numbers', 'Selection', 'Date & time', 'Visual', 'Links', 'Structure'];
 
+/**
+ * `group` ("Section header") is a leftover type from before a definition's
+ * own `group` text field could do the same job — it never renders a value
+ * (`hasValue()` in CustomFields.tsx always calls it empty), so it is left out
+ * of the type picker rather than offered as if it still did something. Kept
+ * in the shared type union itself: a definition already using it from before
+ * this still needs a valid label and icon wherever one is read.
+ */
+const CREATABLE_FIELD_TYPES = CUSTOM_FIELD_TYPES.filter((type) => type !== 'group');
+
+/** Distinct group names already in use, trimmed and de-duplicated by case, keeping whichever casing was typed first — offered as autocomplete so a new field joins an existing section instead of quietly forking it. */
+function existingGroupNames(definitions: StoredRecord[]): string[] {
+  const seen = new Map<string, string>();
+  for (const definition of definitions) {
+    const raw = definition['group'] ? String(definition['group']).trim() : '';
+    if (raw && !seen.has(raw.toLowerCase())) seen.set(raw.toLowerCase(), raw);
+  }
+  return [...seen.values()];
+}
+
 export default function CustomFieldDefinitions(): JSX.Element {
   const { term } = useI18n();
   const toast = useToast();
@@ -115,11 +135,13 @@ export default function CustomFieldDefinitions(): JSX.Element {
 
       <Dialog open={typePicker.open} onClose={typePicker.hide} title="Add a field" wide>
         <div className="stack">
-          {CATEGORY_ORDER.map((category) => (
+          {CATEGORY_ORDER.filter((category) =>
+            CREATABLE_FIELD_TYPES.some((type) => CUSTOM_FIELD_TYPE_CATEGORIES[type] === category),
+          ).map((category) => (
             <div key={category}>
               <p className="section-heading__label">{category}</p>
               <div className="row" style={{ flexWrap: 'wrap' }}>
-                {CUSTOM_FIELD_TYPES.filter((type) => CUSTOM_FIELD_TYPE_CATEGORIES[type] === category).map((type) => (
+                {CREATABLE_FIELD_TYPES.filter((type) => CUSTOM_FIELD_TYPE_CATEGORIES[type] === category).map((type) => (
                   <button
                     key={type}
                     type="button"
@@ -150,6 +172,7 @@ export default function CustomFieldDefinitions(): JSX.Element {
         {editor.value ? (
           <DefinitionEditor
             definition={editor.value}
+            existingGroups={existingGroupNames(definitions.items.filter((item) => item.id !== editor.value!.id))}
             onCancel={editor.hide}
             onSave={async (patch) => {
               await definitions.update(editor.value!.id, patch);
@@ -223,10 +246,12 @@ function DefinitionRow({
 
 function DefinitionEditor({
   definition,
+  existingGroups,
   onSave,
   onCancel,
 }: {
   definition: StoredRecord;
+  existingGroups: string[];
   onSave: (patch: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
 }): JSX.Element {
@@ -267,7 +292,15 @@ function DefinitionEditor({
         value={group}
         onChange={setGroup}
         hint="Fields sharing a group appear together under that heading on a profile. Leave blank to keep it at the top."
+        list="custom-field-group-options"
       />
+      {existingGroups.length > 0 ? (
+        <datalist id="custom-field-group-options">
+          {existingGroups.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
+      ) : null}
       <DefinitionConfigEditor
         type={type}
         options={options}

@@ -1,79 +1,80 @@
 import { useState } from 'react';
-import { useAuth } from '../core/auth.js';
-import { useDateFormat, useI18n } from '../core/i18n.js';
+import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
-import { useChatThreads, updateChatThread, deleteChatThread, type ChatKind, type ChatThreadSummary } from '../core/chat.js';
-import { Avatar, Badge, IconButton, Tabs } from '../ui/primitives.js';
+import {
+  useSystemChatThreads,
+  updateSystemChatThread,
+  deleteSystemChatThread,
+  type SystemChatThreadSummary,
+} from '../core/systemChat.js';
+import { Avatar, Badge, IconButton } from '../ui/primitives.js';
 import { SearchField } from '../ui/forms.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { ActionMenu, ConfirmDialog, useActionMenu, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
-import { NewChatDialog } from './NewChatDialog.js';
+import { ActiveChatterSwitcher } from './ActiveChatterSwitcher.js';
+import { NewSystemChatDialog } from './NewSystemChatDialog.js';
 
 /**
- * Chat Home: the conversation list, both kinds. One "New chat" button opens
- * the picker for whichever tab is active, so starting System Chat with an
- * alter and starting a dm with a friend feel like the same gesture.
+ * In-Sys Chat's conversation list. Unlike Messages, there is no tab to
+ * switch — this is the whole screen — and the header avatar is not a static
+ * "you," it is the active chatter switcher: tapping it changes whose
+ * conversations the list below shows (`useSystemChatThreads` already asked
+ * the server to filter by that active member).
  */
-interface ChatHomeProps {
-  systemModeAvailable: boolean;
-  onOpenConversation: (kind: ChatKind, threadId: string) => void;
+interface SystemChatHomeProps {
+  activeChatterId: string | null;
+  onOpenConversation: (threadId: string) => void;
   onClose: () => void;
 }
 
-export function ChatHome({ systemModeAvailable, onOpenConversation, onClose }: ChatHomeProps): JSX.Element {
-  const { user, settings } = useAuth();
-  const { term } = useI18n();
+export function SystemChatHome({ activeChatterId, onOpenConversation, onClose }: SystemChatHomeProps): JSX.Element {
   const dates = useDateFormat();
   const toast = useToast();
 
-  const [tab, setTab] = useState<ChatKind>(systemModeAvailable ? 'system' : 'dm');
   const [query, setQuery] = useState('');
   const [newChatOpen, setNewChatOpen] = useState(false);
-  const deleteDialog = useDialog<ChatThreadSummary>();
+  const deleteDialog = useDialog<SystemChatThreadSummary>();
 
-  const system = useChatThreads('system');
-  const dm = useChatThreads('dm');
-  const active = tab === 'system' ? system : dm;
+  const { threads, loading, error, reload } = useSystemChatThreads();
 
   const needle = query.trim().toLowerCase();
-  const filtered = needle ? active.threads.filter((thread) => thread.title.toLowerCase().includes(needle)) : active.threads;
+  const filtered = needle ? threads.filter((thread) => thread.title.toLowerCase().includes(needle)) : threads;
   const pinned = filtered.filter((thread) => thread.pinned);
   const rest = filtered.filter((thread) => !thread.pinned);
 
-  const reloadFor = (thread: ChatThreadSummary): Promise<void> => (thread.kind === 'system' ? system.reload() : dm.reload());
-
-  const togglePin = (thread: ChatThreadSummary): void => {
-    void updateChatThread(thread.kind, thread.id, { pinned: !thread.pinned })
-      .then(() => reloadFor(thread))
+  const togglePin = (thread: SystemChatThreadSummary): void => {
+    void updateSystemChatThread(thread.id, { pinned: !thread.pinned })
+      .then(reload)
       .catch((cause: unknown) => toast.fromError(cause, 'Could not update that conversation'));
   };
 
-  const toggleMute = (thread: ChatThreadSummary): void => {
-    void updateChatThread(thread.kind, thread.id, { muted: !thread.muted })
-      .then(() => reloadFor(thread))
+  const toggleMute = (thread: SystemChatThreadSummary): void => {
+    void updateSystemChatThread(thread.id, { muted: !thread.muted })
+      .then(reload)
       .catch((cause: unknown) => toast.fromError(cause, 'Could not update that conversation'));
   };
 
   return (
-    <div className="chat-home" data-tab={tab}>
+    <div className="chat-home">
       <header className="chat-home__header">
         <IconButton icon="chevronLeft" label="Back to PluralNova" variant="ghost" onClick={onClose} />
-        <Avatar name={settings.mode === 'system' ? term('The {{system}}') : user?.displayName ?? 'Me'} size={36} round />
-        <h1 className="chat-home__title">Chat</h1>
+        <ActiveChatterSwitcher />
+        <h1 className="chat-home__title">In-Sys Chat</h1>
         <IconButton icon="create" label="New chat" variant="ghost" onClick={() => setNewChatOpen(true)} />
       </header>
 
-      {systemModeAvailable ? (
-        <Tabs
-          value={tab}
-          onChange={setTab}
-          label="Conversation type"
-          options={[
-            { value: 'system', label: <>{term('System')}{system.threads.some((t) => t.unread) ? ' •' : ''}</> },
-            { value: 'dm', label: <>Direct{dm.threads.some((t) => t.unread) || dm.requests.length > 0 ? ' •' : ''}</> },
-          ]}
-        />
+      {activeChatterId === null ? (
+        <div className="chat-home__notice">
+          <span>No one's set as the active profile, so personal chats are hidden.</span>
+          <ActiveChatterSwitcher
+            renderTrigger={({ onClick }) => (
+              <button type="button" className="chat-home__notice-action" onClick={onClick}>
+                Choose who's chatting
+              </button>
+            )}
+          />
+        </div>
       ) : null}
 
       <div className="chat-home__search">
@@ -82,30 +83,19 @@ export function ChatHome({ systemModeAvailable, onOpenConversation, onClose }: C
 
       <div className="chat-home__list">
         <AsyncContent
-          loading={active.loading}
-          error={active.error}
+          loading={loading}
+          error={error}
           items={filtered}
-          onRetry={active.reload}
+          onRetry={reload}
           empty={{
             icon: 'chat',
             title: 'No conversations yet',
-            body: tab === 'system' ? 'Start a chat with an alter, a group, or the whole system.' : 'Message a friend to start a conversation.',
+            body: 'Start a chat with an alter, a group, or the whole system.',
             action: { label: 'New chat', run: () => setNewChatOpen(true) },
           }}
         >
           {() => (
             <>
-              {tab === 'dm' && dm.requests.length > 0 ? (
-                <ChatSection
-                  title="Message requests"
-                  threads={dm.requests}
-                  dates={dates}
-                  onOpen={onOpenConversation}
-                  onTogglePin={togglePin}
-                  onToggleMute={toggleMute}
-                  onDelete={deleteDialog.show}
-                />
-              ) : null}
               {pinned.length > 0 ? (
                 <ChatSection
                   title="✦ Important ✦"
@@ -118,7 +108,7 @@ export function ChatHome({ systemModeAvailable, onOpenConversation, onClose }: C
                 />
               ) : null}
               <ChatSection
-                title={pinned.length > 0 || (tab === 'dm' && dm.requests.length > 0) ? 'Uncategorized' : undefined}
+                title={pinned.length > 0 ? 'Uncategorized' : undefined}
                 threads={rest}
                 dates={dates}
                 onOpen={onOpenConversation}
@@ -131,13 +121,12 @@ export function ChatHome({ systemModeAvailable, onOpenConversation, onClose }: C
         </AsyncContent>
       </div>
 
-      <NewChatDialog
+      <NewSystemChatDialog
         open={newChatOpen}
         onClose={() => setNewChatOpen(false)}
-        kind={tab}
-        onCreated={(kind, threadId) => {
+        onCreated={(threadId) => {
           setNewChatOpen(false);
-          onOpenConversation(kind, threadId);
+          onOpenConversation(threadId);
         }}
       />
 
@@ -146,15 +135,11 @@ export function ChatHome({ systemModeAvailable, onOpenConversation, onClose }: C
         onClose={deleteDialog.hide}
         onConfirm={async () => {
           if (!deleteDialog.value) return;
-          await deleteChatThread(deleteDialog.value.kind, deleteDialog.value.id);
-          await reloadFor(deleteDialog.value);
+          await deleteSystemChatThread(deleteDialog.value.id);
+          await reload();
         }}
         title="Delete this conversation?"
-        body={
-          deleteDialog.value?.kind === 'dm'
-            ? 'It leaves your list. If they message you again, it comes back.'
-            : 'It will be removed for the whole system.'
-        }
+        body="It will be removed for the whole system."
         recoverable={false}
       />
     </div>
@@ -171,12 +156,12 @@ function ChatSection({
   onDelete,
 }: {
   title?: string;
-  threads: ChatThreadSummary[];
+  threads: SystemChatThreadSummary[];
   dates: ReturnType<typeof useDateFormat>;
-  onOpen: (kind: ChatKind, threadId: string) => void;
-  onTogglePin: (thread: ChatThreadSummary) => void;
-  onToggleMute: (thread: ChatThreadSummary) => void;
-  onDelete: (thread: ChatThreadSummary) => void;
+  onOpen: (threadId: string) => void;
+  onTogglePin: (thread: SystemChatThreadSummary) => void;
+  onToggleMute: (thread: SystemChatThreadSummary) => void;
+  onDelete: (thread: SystemChatThreadSummary) => void;
 }): JSX.Element | null {
   if (threads.length === 0) return null;
   return (
@@ -205,24 +190,24 @@ function ConversationRow({
   onToggleMute,
   onDelete,
 }: {
-  thread: ChatThreadSummary;
+  thread: SystemChatThreadSummary;
   dates: ReturnType<typeof useDateFormat>;
-  onOpen: (kind: ChatKind, threadId: string) => void;
-  onTogglePin: (thread: ChatThreadSummary) => void;
-  onToggleMute: (thread: ChatThreadSummary) => void;
-  onDelete: (thread: ChatThreadSummary) => void;
+  onOpen: (threadId: string) => void;
+  onTogglePin: (thread: SystemChatThreadSummary) => void;
+  onToggleMute: (thread: SystemChatThreadSummary) => void;
+  onDelete: (thread: SystemChatThreadSummary) => void;
 }): JSX.Element {
-  const isGroupLike = thread.subKind === 'group' || thread.subKind === 'system';
+  const isGroupLike = thread.kind === 'group' || thread.kind === 'system';
   const menu = useActionMenu();
 
   return (
     <div className="chat-conversation-row">
-      <button type="button" className="chat-conversation-row__main" onClick={() => onOpen(thread.kind, thread.id)}>
+      <button type="button" className="chat-conversation-row__main" onClick={() => onOpen(thread.id)}>
         <Avatar
           name={thread.title || '?'}
           src={thread.person?.avatarUrl ?? null}
           color={thread.person?.color ?? (isGroupLike ? 'var(--accent)' : null)}
-          icon={isGroupLike ? 'group' : thread.person?.icon ?? null}
+          icon={isGroupLike ? 'group' : (thread.person?.icon ?? null)}
           size={44}
           round
         />
@@ -234,7 +219,7 @@ function ConversationRow({
           <span className="chat-conversation-row__bottom">
             <span className="chat-conversation-row__preview truncate">
               {thread.muted ? <Icon name="mute" size={12} label="Muted" /> : null}
-              {thread.lastMessagePreview || (thread.isRequest ? 'Wants to message you' : 'No messages yet')}
+              {thread.lastMessagePreview || 'No messages yet'}
             </span>
             {thread.unreadCount > 1 ? <Badge count={thread.unreadCount} /> : thread.unread ? <span className="chat-unread-dot" aria-label="Unread" /> : null}
           </span>
@@ -248,23 +233,12 @@ function ConversationRow({
         className={thread.pinned ? 'chat-conversation-row__pin chat-conversation-row__pin--active' : 'chat-conversation-row__pin'}
         onClick={() => onTogglePin(thread)}
       />
-      <IconButton
-        icon="more"
-        label="More options"
-        variant="ghost"
-        size="sm"
-        onClick={(event) => menu.openFrom(event)}
-      />
+      <IconButton icon="more" label="More options" variant="ghost" size="sm" onClick={(event) => menu.openFrom(event)} />
       <ActionMenu
         position={menu.position}
         onClose={menu.close}
         items={[
-          {
-            key: 'mute',
-            label: thread.muted ? 'Unmute' : 'Mute',
-            icon: 'mute',
-            onSelect: () => onToggleMute(thread),
-          },
+          { key: 'mute', label: thread.muted ? 'Unmute' : 'Mute', icon: 'mute', onSelect: () => onToggleMute(thread) },
           { key: 'delete', label: 'Delete', icon: 'trash', tone: 'danger', onSelect: () => onDelete(thread) },
         ]}
       />

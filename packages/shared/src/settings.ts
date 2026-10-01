@@ -26,6 +26,7 @@ export const NOTIFICATION_CATEGORIES = [
   'achievements',
   'memberActivity',
   'dataJobs',
+  'assignmentDue',
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -53,6 +54,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   achievements: 'Achievements',
   memberActivity: 'Member activity',
   dataJobs: 'Imports and backups',
+  assignmentDue: 'Assignment reminders',
 };
 
 export interface WidgetSetting {
@@ -131,6 +133,57 @@ export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
   spacing: 'cozy',
 };
 
+/**
+ * The look a conversation actually renders with: its own override where it
+ * has one, filled in from whichever account-wide default applies — In-Sys
+ * Chat's `chatAppearance` or Messages' own `messagesAppearance` — everywhere
+ * it doesn't. Kind-agnostic on purpose: it only ever merges two
+ * `ChatAppearance` objects, so both features call the same function with
+ * their own default rather than each carrying a copy of it.
+ */
+export function resolveChatAppearance(
+  accountDefault: ChatAppearance,
+  threadSettings: Record<string, unknown> | null | undefined,
+): ChatAppearance {
+  const override = threadSettings?.['appearance'];
+  if (!override || typeof override !== 'object') return accountDefault;
+  return { ...accountDefault, ...(override as Partial<ChatAppearance>) };
+}
+
+/**
+ * How a class's percentage reads as a letter and contributes to GPA. One
+ * scale for the whole account — configurable, not assumed, since grading
+ * conventions vary a lot (US 4.0, IB, UK bands, weighted AP/Honours) and this
+ * app is not in a position to pick one for everybody. Bands are checked from
+ * the top down; the first one a percentage meets or exceeds wins.
+ */
+export interface GradeBand {
+  id: string;
+  minPercent: number;
+  letter: string;
+  gpaPoints: number;
+}
+
+export interface GradingScale {
+  bands: GradeBand[];
+}
+
+export const DEFAULT_GRADING_SCALE: GradingScale = {
+  bands: [
+    { id: 'a', minPercent: 90, letter: 'A', gpaPoints: 4 },
+    { id: 'b', minPercent: 80, letter: 'B', gpaPoints: 3 },
+    { id: 'c', minPercent: 70, letter: 'C', gpaPoints: 2 },
+    { id: 'd', minPercent: 60, letter: 'D', gpaPoints: 1 },
+    { id: 'f', minPercent: 0, letter: 'F', gpaPoints: 0 },
+  ],
+};
+
+/** The band a percentage falls into — the highest one it meets or exceeds. Bands need not be sorted. */
+export function gradeForPercent(scale: GradingScale, percent: number): GradeBand | null {
+  const sorted = [...scale.bands].sort((a, b) => b.minPercent - a.minPercent);
+  return sorted.find((band) => percent >= band.minPercent) ?? sorted[sorted.length - 1] ?? null;
+}
+
 export interface AppSettings {
   mode: AppMode;
   theme: ThemeSettings;
@@ -148,8 +201,12 @@ export interface AppSettings {
   privacy: PrivacyDefaults;
   /** App-wide lock, separate from the vault and from per-alter profile PINs. */
   appLock: AppLockSettings;
-  /** Default conversation look, used by any thread without its own override. */
+  /** Default In-Sys Chat conversation look, used by any thread without its own override. */
   chatAppearance: ChatAppearance;
+  /** Same, for Messages — independent of chatAppearance so customizing one never touches the other. */
+  messagesAppearance: ChatAppearance;
+  /** How School Life turns a percentage into a letter grade and a GPA. */
+  gradingScale: GradingScale;
   /** Cuts animation, blur and background effects independently of the theme. */
   performanceMode: boolean;
   /** Skips the atmosphere layer on the login screen for low-end devices. */
@@ -211,6 +268,8 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
       lockOnBackground: true,
     },
     chatAppearance: { ...DEFAULT_CHAT_APPEARANCE },
+    messagesAppearance: { ...DEFAULT_CHAT_APPEARANCE },
+    gradingScale: { bands: DEFAULT_GRADING_SCALE.bands.map((band) => ({ ...band })) },
     performanceMode: false,
     lowEndLogin: false,
     achievementsEnabled: true,
@@ -272,6 +331,11 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
     privacy: { ...base.privacy, ...(stored.privacy ?? {}) },
     appLock: { ...base.appLock, ...(stored.appLock ?? {}) },
     chatAppearance: { ...base.chatAppearance, ...(stored.chatAppearance ?? {}) },
+    messagesAppearance: { ...base.messagesAppearance, ...(stored.messagesAppearance ?? {}) },
+    gradingScale:
+      Array.isArray(stored.gradingScale?.bands) && stored.gradingScale.bands.length > 0
+        ? stored.gradingScale
+        : base.gradingScale,
     widgets: widgets.sort((a, b) => a.order - b.order),
     mobileTabs:
       Array.isArray(stored.mobileTabs) && stored.mobileTabs.length >= 3

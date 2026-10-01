@@ -234,7 +234,7 @@ export default function Friends(): JSX.Element {
                           .post<{ conversation: { threadId: string } }>('/api/messages/conversations', {
                             userId: person.userId,
                           })
-                          .then((result) => navigate(`/chat/dm/${result.conversation.threadId}`))
+                          .then((result) => navigate(`/social/messages/${result.conversation.threadId}`))
                           .catch((cause: unknown) => toast.fromError(cause));
                       }}
                     >

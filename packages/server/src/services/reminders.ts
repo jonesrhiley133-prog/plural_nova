@@ -23,7 +23,7 @@ const SOURCES: {
   table: string;
   titleColumn: string;
   whenColumn: string;
-  category: 'tasks' | 'events';
+  category: 'tasks' | 'events' | 'assignmentDue';
   kind: string;
   link: string;
   label: string;
@@ -36,6 +36,15 @@ const SOURCES: {
     kind: 'task.reminder',
     link: '/tasks',
     label: 'Task',
+  },
+  {
+    table: 'assignments',
+    titleColumn: 'name',
+    whenColumn: 'dueAt',
+    category: 'assignmentDue',
+    kind: 'assignment.reminder',
+    link: '/school/assignments',
+    label: 'Assignment',
   },
   {
     table: 'calendarEvents',

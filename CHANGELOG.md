@@ -12,6 +12,62 @@ different versions of PluralNova.
 
 ### Added
 
+- **The alter editor is simplified.** The standard editor now shows only
+  Name, Pronouns, Roles, Origin and Age as text fields, plus the existing
+  profile picture, banner, colours and other non-text settings — Roles is
+  now a real type-and-enter tag field using the alter's own colour, the
+  same as their role chips already do. The Symbol field is retired from the
+  UI (existing values are left in place, just no longer shown or editable).
+  Every other text field that used to live on the standard editor — species,
+  bio, notes, likes, triggers, and the rest — moves into Custom Fields
+  instead, copied over automatically the first time a system-mode account
+  loads after this update: nothing is deleted, re-answering the same field
+  twice for the same alter is impossible, and a field nobody had ever filled
+  in isn't invented out of thin air.
+
+### Changed
+
+- **Custom Field groups are more reliable.** Creating or editing a field now
+  suggests group names already in use, so "Identity" and "identity" don't
+  silently become two separate sections; grouping itself is now
+  case-insensitive and trims stray whitespace. The unused "Section header"
+  field type is no longer offered when adding a new field.
+- **Identity Flags now works like the Media library.** Flags get an actual
+  image instead of a short glyph, and the screen is an image-forward gallery
+  instead of a plain list. Category and "show on profiles" are dropped from
+  the create/edit form (existing values are untouched) — a flag is now just
+  a name, a description, an image and a colour.
+- **Quick Front is a genuine toggle.** Tapping an already-fronting alter now
+  removes just that alter instead of doing nothing, correctly handling
+  multiple people fronting together. The Dashboard's fronting card can now
+  add or remove a fronter directly, without leaving the page.
+- **Wide screens are used on the screens that benefit from it.** Members,
+  Calendar, Finances, Stats and School Life's Analytics now use a wider
+  column on a desktop or wide monitor. Profile pages, Journal, Settings and
+  other reading-width content are unaffected, and nothing changes on a
+  phone or tablet — this is a desktop-only expansion of the existing
+  mobile-first layout.
+- **Text size and UI zoom are now two separate settings instead of one
+  disconnected switch.** "Larger text" is retired in favour of a Text Size
+  picker (Small/Default/Large/Extra large) that drives every size token app-
+  wide — nav, cards, buttons, forms, lists, chat — consistently. A new,
+  separate UI Zoom setting scales the entire interface like a browser's own
+  zoom, without the bottom nav, FABs or dialogs breaking loose from where
+  they belong the way a naive scale transform would.
+
+- **A new School Life category: classes, assignments, and academic analytics
+  with a real GPA.** Track classes with your own weighted grading categories
+  and meeting days, and assignments with due dates, types and status. A
+  grade can live directly on a tracked assignment or be logged entirely on
+  its own — whichever fits, and never double-counted when both point at the
+  same piece of work. Academic Analytics turns all of it into percentages, a
+  GPA computed against a grading scale you configure yourself rather than
+  one this app assumes for you, a side-by-side comparison table of every
+  class, a trend chart, and a plain, numbers-first note on which class is
+  likely worth the most study time right now. Every screen can be scoped to
+  the whole system or to one alter, the same as Fronting and Journal
+  already work. This is the first phase — extracurriculars, check-ins,
+  study timers, and deeper Journal/Calendar integration are still to come.
 - **Push notifications now work on the native Android app, not just in a
   browser.** A plain WebView has no Web Push service behind it, so the app
   talks to Firebase Cloud Messaging instead — entirely optional, and off
@@ -129,6 +185,26 @@ different versions of PluralNova.
 
 ### Changed
 
+- **In-Sys Chat and Messages are now genuinely separate features, not one
+  screen with a tab.** In-Sys Chat — alters talking to each other, internal
+  to the account — has moved out of Social and into System, alongside Who's
+  There and Fronting, at its own `/system/chat`; Messages — the end-to-end
+  encrypted, cross-account side — stays in Social at `/social/messages`,
+  with its own conversation list, notifications and unread count that a busy
+  In-Sys Chat can no longer affect, or vice versa. The one new piece of UI:
+  In-Sys Chat's header avatar is now the *active chatter* — tap it to
+  switch, the same active-profile picker Profile Select already uses, in a
+  small popover rather than leaving the screen — and it decides whose direct
+  and group threads even show up in the list, the way each alter's own
+  contact list would. Switching never rewrites anything: a message's sender,
+  timestamp and order stay exactly as they were, only which side of the
+  screen it renders on changes. Both still look and behave like the same
+  familiar chat — bubbles, replies, reactions, attachments, voice messages,
+  per-conversation themes — since only the underlying identity and data
+  changed, not the visual language they share. Existing conversations,
+  groups and message history are untouched, and old `/chat` and `/messages`
+  links still open to the right place.
+
 - **Thick banner rows show an actual banner.** The member directory's thick
   layout now renders each member's own banner image (or their accent colour,
   if they haven't set one) behind their name, the same way their profile
@@ -156,8 +232,70 @@ different versions of PluralNova.
   drift from the true sum. The live "Clocked in for…" and "Asleep for…"
   counters on Work and Sleep also now tick every second instead of every 30.
 
+### Added
+
+- **Messages now shows typing status and read receipts.** The other person's
+  name in a conversation's header switches to "Typing…" while they are
+  composing a reply, and your own sent messages carry a small check mark
+  that fills in once they have actually opened the conversation — both
+  respect the same "let the other side know" setting, and neither does
+  anything in System Chat, which has no concept of a separate reader to
+  begin with.
+
 ### Fixed
 
+- **Logging more than one emotion at once created a separate entry for each
+  word instead of one entry naming all of them.** Choosing "Happy" and
+  "Nervous" together, for instance, used to produce two rows in the log;
+  it's now one entry carrying the full selection, the same intensity and
+  note you entered once for the whole thing. Existing entries are
+  untouched — a row from before this change simply has one emotion, which
+  reads exactly as it always has. Everywhere this is counted or broken
+  down (the emotions stats page, the daily summary, an alter's own
+  "emotions logged" count, the "fifty emotions logged" achievement) now
+  counts each named emotion rather than each row, so logging two together
+  still counts as two.
+- **Signing into a second device could permanently lock the first one out of
+  Messages.** Each device published its encryption key under the same
+  hardcoded label, so the server kept only the most recently signed-in
+  device's key active — every device before it lost the ability to decrypt
+  anything new, with no way back short of signing out everywhere and back in
+  on just one. Each device now keeps its own key active for as long as it
+  keeps using the same one, so devices stop fighting over a single slot;
+  sending a message now seals a copy for every device that might need to
+  read it — the recipient's and this account's own other devices alike — so
+  a conversation stays readable from a phone, a tablet and a desktop all
+  signed into the same account at once, and a device already sitting on an
+  open conversation picks up a sibling device the moment it signs in rather
+  than needing a reload to notice it.
+- **Outgoing and incoming chat messages both rendered in the middle of the
+  screen instead of on the right and left.** The `mine`/`theirs` alignment
+  class was being applied to a bubble nested a level too deep to affect its
+  own position — the actual flex item next to it had no class at all. Fixes
+  every message kind (text, images, video, voice, replies, forwards) in
+  both System Chat and Messages, on mobile and desktop.
+- **Role chips used the theme's accent colour for every alter instead of
+  each alter's own colour**, on both the profile page and the member list.
+- **Chat picker avatars (when starting a new conversation) squashed instead
+  of staying round**, from unconstrained flex shrink.
+- **The PIN lock could resurface after being removed, or lock unexpectedly
+  in the Android app.** Removing a PIN now updates the local cache
+  immediately instead of waiting on a status round-trip that could fail and
+  fall back to stale data; the background auto-lock now waits briefly before
+  locking, so a share sheet or permission prompt in the Android WebView no
+  longer triggers it by mistake.
+- **Chat's back button could land back on the conversation you just closed**
+  instead of wherever you came from, because closing a conversation pushed a
+  new history entry instead of replacing the one already there.
+- **Long relationship descriptions and similar list rows clipped to one
+  line with an ellipsis** instead of wrapping and growing the row.
+- **A selected date could display as the previous day, depending on your
+  timezone.** Date-only fields (birthdays, journal entries, fronting,
+  emotions, and every other plain date across the app) now parse and format
+  through one shared, timezone-safe path instead of round-tripping through a
+  `Date` object meant for full timestamps.
+- **The Dashboard's greeting used the account owner's name instead of the
+  active alter's**, in System Mode.
 - **Turning off a notification category's "in app" checkbox silently also
   stopped its push notifications, and turning off "push" silently also
   stopped it appearing in the notification centre.** Settings presents all
