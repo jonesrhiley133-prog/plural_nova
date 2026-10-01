@@ -6,9 +6,11 @@ import {
   bucketByMonth,
   bucketByWeek,
   bucketByWeekday,
+  categoriesOf,
   countBy,
   currentStreak,
   dayKey,
+  emotionIdsOf,
   eventMinutes,
   getEmotion,
   getEmotionFamily,
@@ -184,10 +186,15 @@ statsRouter.get(
         memberName: event.memberId ? ((byId.get(event.memberId)?.['name'] as string) ?? null) : null,
       })),
       moods,
-      emotions: emotions.map((entry) => ({
-        ...entry,
-        emotion: getEmotion(String(entry['emotionId'])) ?? null,
-      })),
+      // One output row per emotion, not per log entry — an entry logged with
+      // several emotions at once still shows each of them as its own chip.
+      emotions: emotions.flatMap((entry) =>
+        emotionIdsOf(entry).map((emotionId) => ({
+          ...entry,
+          emotionId,
+          emotion: getEmotion(emotionId) ?? null,
+        })),
+      ),
       sensations,
       journal,
       notes: listRecords('notes', context.scope, { limit: 50, range: { field: 'createdAt', from, to } }).items,
@@ -322,8 +329,11 @@ statsRouter.get(
     const memberNames = new Map(members.map((m) => [m.id, m['name'] as string]));
     const intensities = entries.map((entry) => Number(entry['intensity'] ?? 0)).filter((n) => n > 0);
 
-    const byFamily = countBy(entries, (entry) => String(entry['category'] ?? ''));
-    const byEmotion = countBy(entries, (entry) => String(entry['emotionId'] ?? ''));
+    // Flattened across every emotion an entry recorded, not just its first —
+    // an entry logged with two emotions counts toward both, the same as if
+    // they had been two separate entries.
+    const byFamily = countBy(entries.flatMap((entry) => categoriesOf(entry)), (category) => category || null);
+    const byEmotion = countBy(entries.flatMap((entry) => emotionIdsOf(entry)), (id) => id || null);
     const byContext = countBy(entries, (entry) => String(entry['context'] ?? '').trim() || null);
     const byActivity = countBy(entries, (entry) => String(entry['activity'] ?? '').trim() || null);
     const byMember = countBy(entries, (entry) => (entry['memberId'] as string) ?? null);

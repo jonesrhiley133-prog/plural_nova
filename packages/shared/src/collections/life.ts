@@ -254,8 +254,18 @@ export const emotionEntries: CollectionDef = {
   sortDir: 'desc',
   indexes: [['systemId', 'recordedAt'], ['systemId', 'emotionId']],
   fields: [
+    // The first (or only) emotion of this entry — kept as a single required
+    // field for the title, old rows, and anything that only ever cared about
+    // one. `emotionIds` carries the full selection when more than one emotion
+    // was logged in the same action; a row from before this field existed has
+    // no `emotionIds`, and is read as the one-element case of `[emotionId]`.
     f.text('emotionId', 'Emotion', { required: true, inList: true, searchable: true }),
+    f.tags('emotionIds', 'Emotions'),
     f.text('category', 'Category', { inList: true }),
+    // Parallel to `emotionIds` — each selected emotion's own family, since a
+    // custom emotion's family lives in this account's own data and can't be
+    // re-derived from a static catalogue the way a built-in emotion's can.
+    f.tags('categories', 'Categories'),
     f.int('intensity', 'Intensity', { min: 1, max: 5, defaultValue: 3, inList: true }),
     f.datetime('recordedAt', 'When', { required: true, inList: true }),
     f.text('context', 'Context', { searchable: true, hint: 'What was happening.' }),

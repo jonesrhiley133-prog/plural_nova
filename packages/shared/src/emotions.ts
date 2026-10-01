@@ -164,6 +164,25 @@ export function searchEmotions(query: string): Emotion[] {
   return EMOTIONS.filter((e) => e.name.toLowerCase().includes(q) || e.family.includes(q));
 }
 
+/**
+ * Every emotion id an `emotionEntries` row recorded — the full selection for
+ * an entry logged with more than one emotion at once, or the single
+ * `emotionId` for a row from before `emotionIds` existed. Shared by client
+ * and server so neither re-derives this fallback rule on its own.
+ */
+export function emotionIdsOf(entry: Record<string, unknown>): string[] {
+  const ids = entry['emotionIds'];
+  if (Array.isArray(ids) && ids.length > 0) return ids.map(String);
+  return entry['emotionId'] ? [String(entry['emotionId'])] : [];
+}
+
+/** The family for each id in `emotionIdsOf(entry)`, same order — parallel to `categories`, falling back the same way to the single `category`. */
+export function categoriesOf(entry: Record<string, unknown>): string[] {
+  const categories = entry['categories'];
+  if (Array.isArray(categories) && categories.length > 0) return categories.map(String);
+  return entry['category'] ? [String(entry['category'])] : [];
+}
+
 /** Labels for the 1–5 intensity scale, so the number always arrives with a word. */
 export const INTENSITY_LABELS: readonly string[] = [
   'Barely there',

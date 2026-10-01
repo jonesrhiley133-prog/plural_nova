@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { customFieldValues, formatDuration, type StoredRecord } from '@pluralnova/shared';
+import { customFieldValues, emotionIdsOf, formatDuration, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
@@ -638,7 +638,10 @@ function Statistics({ member }: { member: StoredRecord }): JSX.Element {
         value={formatDuration(Number(member['frontMinutes'] ?? 0))}
       />
       <Stat label={term('{{Journal}} entries')} value={journal.items.length} />
-      <Stat label="Emotions logged" value={emotions.items.length} />
+      <Stat
+        label="Emotions logged"
+        value={emotions.items.reduce((sum, entry) => sum + emotionIdsOf(entry).length, 0)}
+      />
     </div>
   );
 }

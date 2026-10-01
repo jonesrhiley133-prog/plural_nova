@@ -244,6 +244,17 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Logging more than one emotion at once created a separate entry for each
+  word instead of one entry naming all of them.** Choosing "Happy" and
+  "Nervous" together, for instance, used to produce two rows in the log;
+  it's now one entry carrying the full selection, the same intensity and
+  note you entered once for the whole thing. Existing entries are
+  untouched — a row from before this change simply has one emotion, which
+  reads exactly as it always has. Everywhere this is counted or broken
+  down (the emotions stats page, the daily summary, an alter's own
+  "emotions logged" count, the "fifty emotions logged" achievement) now
+  counts each named emotion rather than each row, so logging two together
+  still counts as two.
 - **Signing into a second device could permanently lock the first one out of
   Messages.** Each device published its encryption key under the same
   hardcoded label, so the server kept only the most recently signed-in

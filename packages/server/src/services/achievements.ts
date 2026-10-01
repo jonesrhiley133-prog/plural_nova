@@ -30,6 +30,32 @@ function countRows(table: string, scope: Scope, extraSql = '', params: unknown[]
   return row.n;
 }
 
+/**
+ * Individual emotions logged, not rows — an entry logging two emotions at
+ * once counts as two, the same as if they had been two separate check-ins,
+ * so multi-selecting doesn't slow down "fifty emotions logged" relative to
+ * logging the same words one at a time.
+ */
+function countEmotionsLogged(scope: Scope): number {
+  const clauses = ['"userId" = ?', '"deletedAt" IS NULL'];
+  const values: unknown[] = [scope.userId];
+  if (scope.systemId) {
+    clauses.push('"systemId" = ?');
+    values.push(scope.systemId);
+  }
+  const row = getDb()
+    .prepare(
+      `SELECT COALESCE(SUM(
+         CASE WHEN "emotionIds" IS NOT NULL AND json_array_length("emotionIds") > 0
+              THEN json_array_length("emotionIds")
+              ELSE 1 END
+       ), 0) AS n
+       FROM "emotionEntries" WHERE ${clauses.join(' AND ')}`,
+    )
+    .get(...values) as { n: number };
+  return row.n;
+}
+
 function distinctTrackingDays(scope: Scope): number {
   const sources = [
     ['frontEvents', 'startedAt'],
@@ -82,7 +108,7 @@ export function collectMetrics(scope: Scope): Partial<Record<AchievementMetric, 
     'tasks.completed': countRows('tasks', scope, '"completed" = 1'),
     'tasks.streakDays': taskStreakDays(scope),
     'calendarEvents.count': countRows('calendarEvents', scope),
-    'emotionEntries.count': countRows('emotionEntries', scope),
+    'emotionEntries.count': countEmotionsLogged(scope),
     'sleepEntries.count': countRows('sleepEntries', scope),
     'subsystems.count': countRows('subsystems', scope),
     'relationships.count': countRows('relationships', scope),

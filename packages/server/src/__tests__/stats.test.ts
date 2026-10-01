@@ -319,3 +319,97 @@ describe('work: earnings from a workplace\'s hourly rate', () => {
     );
   });
 });
+
+/**
+ * An entry logged with more than one emotion at once is still one row —
+ * `emotionId`/`category` hold the first, `emotionIds`/`categories` hold the
+ * full set. Every reader that breaks emotions down (here) or displays them
+ * individually (the daily summary) has to count or show each one, not just
+ * the row's own first pick, or logging several together would silently
+ * undercount exactly the emotions a person went out of their way to name.
+ */
+describe('emotions logged together in one entry', () => {
+  let client: TestClient;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('counts every emotion in a multi-emotion entry, not only its first', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    await client.request('POST', '/api/records/emotionEntries', {
+      ...headers,
+      body: {
+        emotionId: 'joy.happy',
+        emotionIds: ['joy.happy', 'fear.nervous'],
+        category: 'joy',
+        categories: ['joy', 'fear'],
+        intensity: 3,
+        recordedAt: new Date().toISOString(),
+      },
+    });
+    // A plain, single-emotion entry for comparison.
+    await client.request('POST', '/api/records/emotionEntries', {
+      ...headers,
+      body: { emotionId: 'joy.happy', category: 'joy', intensity: 4, recordedAt: new Date().toISOString() },
+    });
+
+    const stats = await client.request('GET', '/api/stats/emotions', headers);
+
+    expect(stats.status).toBe(200);
+    // One entry, kept as one entry — this total is "how many times you logged", not "how many words".
+    expect(stats.body.data.total).toBe(2);
+    const byEmotion = new Map(stats.body.data.topEmotions.map((e: { key: string; count: number }) => [e.key, e.count]));
+    expect(byEmotion.get('joy.happy')).toBe(2);
+    expect(byEmotion.get('fear.nervous')).toBe(1);
+    const byFamily = new Map(stats.body.data.families.map((f: { key: string; count: number }) => [f.key, f.count]));
+    expect(byFamily.get('joy')).toBe(2);
+    expect(byFamily.get('fear')).toBe(1);
+  });
+
+  it('shows a multi-emotion entry as one chip per emotion in the daily summary', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    const recordedAt = new Date().toISOString();
+    const created = await client.request('POST', '/api/records/emotionEntries', {
+      ...headers,
+      body: {
+        emotionId: 'joy.happy',
+        emotionIds: ['joy.happy', 'fear.nervous'],
+        category: 'joy',
+        categories: ['joy', 'fear'],
+        intensity: 3,
+        recordedAt,
+      },
+    });
+
+    const today = recordedAt.slice(0, 10);
+    const day = await client.request('GET', `/api/stats/day/${today}`, headers);
+
+    expect(day.status).toBe(200);
+    const rowsForEntry = day.body.data.emotions.filter((e: { id: string }) => e.id === created.body.data.id);
+    expect(rowsForEntry).toHaveLength(2);
+    expect(rowsForEntry.map((e: { emotionId: string }) => e.emotionId).sort()).toEqual(['fear.nervous', 'joy.happy']);
+    expect(rowsForEntry.every((e: { emotion: { name: string } | null }) => e.emotion !== null)).toBe(true);
+  });
+
+  it('reads an entry from before emotionIds existed as its one emotionId', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    // No emotionIds/categories at all — the shape every pre-migration row has.
+    await client.request('POST', '/api/records/emotionEntries', {
+      ...headers,
+      body: { emotionId: 'joy.happy', category: 'joy', intensity: 3, recordedAt: new Date().toISOString() },
+    });
+
+    const stats = await client.request('GET', '/api/stats/emotions', headers);
+    const byEmotion = new Map(stats.body.data.topEmotions.map((e: { key: string; count: number }) => [e.key, e.count]));
+    expect(byEmotion.get('joy.happy')).toBe(1);
+  });
+});
