@@ -8,7 +8,8 @@ import { SCHOOL_TREND_LABEL, type SchoolStats } from '../core/schoolStats.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, IconButton, Stat } from '../ui/primitives.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
-import { ConfirmDialog, useDialog } from '../ui/overlays.js';
+import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { RecordForm } from '../ui/RecordForm.js';
 import { LineChart, RankedBars } from '../charts/index.js';
 import { ClassEditorDialog } from './SchoolClasses.js';
 import { LogGradeDialog } from './SchoolAssignments.js';
@@ -24,12 +25,14 @@ export default function SchoolClassDetail(): JSX.Element {
   const classes = useCollection('classes', { enabled: false });
   const assignments = useCollection('assignments', { filter: (a) => a['classId'] === id });
   const grades = useCollection('grades', { filter: (g) => g['classId'] === id });
+  const journalEntries = useCollection('journalEntries', { filter: (entry) => entry['classId'] === id });
   const stats = useQuery<SchoolStats>('/api/stats/school');
   const classStat = stats.data?.byClass.find((row) => row.classId === id) ?? null;
 
   const editor = useDialog();
   const confirmDelete = useDialog();
   const logGrade = useDialog();
+  const newJournalEntry = useDialog();
 
   const trendPoints = useMemo(() => {
     const linkedAssignmentIds = new Set(
@@ -184,6 +187,33 @@ export default function SchoolClassDetail(): JSX.Element {
             ) : null}
           </div>
         </Card>
+
+        <Card
+          title="Journal entries about this class"
+          actions={
+            <Button variant="ghost" size="sm" icon="plus" onClick={() => newJournalEntry.show()}>
+              New entry
+            </Button>
+          }
+        >
+          {journalEntries.items.length === 0 ? (
+            <p className="small faint">
+              Nothing linked yet — journal entries can point at a class, the same way an assignment does.
+            </p>
+          ) : (
+            <div className="stack stack--tight">
+              {[...journalEntries.items]
+                .sort((a, b) => String(b['entryDate']).localeCompare(String(a['entryDate'])))
+                .slice(0, 5)
+                .map((entry) => (
+                  <div key={entry.id} className="row row--between">
+                    <span className="small truncate">{String(entry['title'] || 'Untitled entry')}</span>
+                    <span className="tiny faint">{dates.date(String(entry['entryDate']))}</span>
+                  </div>
+                ))}
+            </div>
+          )}
+        </Card>
       </div>
 
       <ClassEditorDialog
@@ -219,6 +249,19 @@ export default function SchoolClassDetail(): JSX.Element {
           navigate('/school/classes');
         }}
       />
+
+      <Dialog open={newJournalEntry.open} onClose={newJournalEntry.hide} title="New journal entry">
+        <RecordForm
+          collection="journalEntries"
+          initial={{ entryDate: new Date().toISOString(), classId: cls.id }}
+          onSubmit={async (values) => {
+            await journalEntries.create(values);
+            toast.success('Saved');
+            newJournalEntry.hide();
+          }}
+          onCancel={newJournalEntry.hide}
+        />
+      </Dialog>
     </>
   );
 }

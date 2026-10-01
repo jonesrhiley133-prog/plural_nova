@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { dayKey, parseDateOnly, toDateOnlyString, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useAuth } from '../core/auth.js';
@@ -107,7 +107,7 @@ export default function Calendar(): JSX.Element {
           label="Calendar section"
           options={[
             { value: 'calendar', label: 'Calendar' },
-            { value: 'birthdays', label: 'Birthdays' },
+            { value: 'birthdays', label: 'More' },
           ]}
         />
       </div>
@@ -192,7 +192,10 @@ export default function Calendar(): JSX.Element {
         </div>
 
         <aside className={`split__aside${section === 'calendar' ? ' calendar-mobile-hidden' : ''}`}>
-          <BirthdaysPanel members={membersCollection.items} onSave={membersCollection.update} />
+          <div className="stack stack--loose">
+            <BirthdaysPanel members={membersCollection.items} onSave={membersCollection.update} />
+            <UpcomingAssignmentsPanel />
+          </div>
         </aside>
       </div>
 
@@ -1176,6 +1179,70 @@ function BirthdaysPanel({
 
       <BirthdayDialog dialog={dialog} members={members} onSave={onSave} />
       <BirthdayImportDialog dialog={importDialog} members={members} onSave={onSave} />
+    </Card>
+  );
+}
+
+/**
+ * School Life's assignment due dates, read straight from `assignments` the
+ * same way Birthdays reads straight from each member's own field — nothing
+ * is copied into `calendarEvents`, so an assignment edited or completed in
+ * School Life is immediately correct here too, with nothing to keep in sync.
+ */
+function UpcomingAssignmentsPanel(): JSX.Element {
+  const navigate = useNavigate();
+  const dates = useDateFormat();
+  const classes = useCollection('classes');
+  const assignments = useCollection('assignments');
+  const classById = new Map(classes.items.map((cls) => [cls.id, cls]));
+
+  const upcoming = useMemo(() => {
+    const now = new Date();
+    const weeksOut = new Date(now);
+    weeksOut.setDate(weeksOut.getDate() + 14);
+    return assignments.items
+      .filter((a) => {
+        const status = String(a['status'] ?? 'notStarted');
+        if (status === 'completed' || status === 'submitted') return false;
+        const due = new Date(String(a['dueAt']));
+        return due <= weeksOut;
+      })
+      .sort((a, b) => String(a['dueAt']).localeCompare(String(b['dueAt'])))
+      .slice(0, 8);
+  }, [assignments.items]);
+
+  return (
+    <Card title="Assignments due" flush>
+      {upcoming.length === 0 ? (
+        <EmptyState
+          icon="task"
+          title="Nothing due soon"
+          body="Assignments due in the next two weeks show up here."
+        />
+      ) : (
+        <div className="list">
+          {upcoming.map((assignment) => {
+            const cls = classById.get(String(assignment['classId']));
+            const overdue = new Date(String(assignment['dueAt'])) < new Date();
+            return (
+              <ListRow
+                key={assignment.id}
+                onClick={() => navigate('/school/assignments')}
+                title={String(assignment['name'])}
+                meta={
+                  <>
+                    {cls ? <Chip color={cls['color'] as string}>{String(cls['name'])}</Chip> : null}
+                    <span className={overdue ? undefined : 'faint'} style={overdue ? { color: '#e06c93' } : undefined}>
+                      {dates.relative(String(assignment['dueAt']))}
+                    </span>
+                  </>
+                }
+                trailing={<Icon name="chevronRight" size={14} />}
+              />
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }

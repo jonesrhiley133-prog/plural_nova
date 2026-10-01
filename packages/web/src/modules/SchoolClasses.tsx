@@ -313,7 +313,14 @@ const WEEKDAYS = [
   { value: 'sun', label: 'Sun' },
 ];
 
-function MeetingDaysPicker({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }): JSX.Element {
+/** Shared with SchoolExtracurriculars.tsx — the same "which days" question, same picker. */
+export function MeetingDaysPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}): JSX.Element {
   return (
     <div className="field" style={{ marginTop: 'var(--space-4)' }}>
       <span className="field__label">Meets on</span>

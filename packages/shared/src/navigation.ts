@@ -117,6 +117,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'school-overview', path: '/school', label: 'Overview', icon: 'school', primary: true, description: 'Classes today, what’s due, and how the term is going.' },
       { id: 'school-assignments', path: '/school/assignments', label: 'Assignments', icon: 'task', quickAction: true },
       { id: 'school-classes', path: '/school/classes', label: 'Classes', icon: 'school', quickAction: true },
+      { id: 'school-extracurriculars', path: '/school/extracurriculars', label: 'Extracurriculars', icon: 'star', keywords: ['clubs', 'sports', 'activities'] },
       { id: 'school-analytics', path: '/school/analytics', label: 'Analytics', icon: 'stats', keywords: ['grades', 'gpa'] },
     ],
   },
@@ -226,4 +227,7 @@ export const QUICK_ACTIONS: readonly {
   { id: 'assignment', label: 'New assignment', icon: 'task', path: '/school/assignments?new=1' },
   { id: 'schoolClass', label: 'Add a class', icon: 'school', path: '/school/classes?new=1' },
   { id: 'grade', label: 'Log a grade', icon: 'star', path: '/school/assignments?logGrade=1' },
+  { id: 'extracurricular', label: 'Add an extracurricular', icon: 'star', path: '/school/extracurriculars?new=1' },
+  { id: 'extracurricularHours', label: 'Log extracurricular hours', icon: 'star', path: '/school/extracurriculars?logHours=1' },
+  { id: 'schoolCheckIn', label: 'School check-in', icon: 'wellbeing', path: '/school?checkIn=1' },
 ];

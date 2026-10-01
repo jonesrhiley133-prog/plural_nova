@@ -172,4 +172,129 @@ export const grades: CollectionDef = {
   ],
 };
 
-export const SCHOOL_COLLECTIONS = [classes, assignments, grades] as const;
+export const EXTRACURRICULAR_TYPES = [
+  { value: 'club', label: 'Club' },
+  { value: 'sport', label: 'Sport' },
+  { value: 'music', label: 'Music / Band / Choir' },
+  { value: 'arts', label: 'Arts / Theatre' },
+  { value: 'volunteer', label: 'Volunteering' },
+  { value: 'job', label: 'Job / Work-study' },
+  { value: 'academic', label: 'Academic team' },
+  { value: 'religious', label: 'Religious / Faith group' },
+  { value: 'other', label: 'Something else' },
+] as const;
+
+export const extracurriculars: CollectionDef = {
+  name: 'extracurriculars',
+  label: 'Extracurriculars',
+  singular: 'Extracurricular',
+  icon: 'star',
+  area: 'school',
+  scope: 'system',
+  memberScoped: true,
+  audited: true,
+  titleField: 'name',
+  sortField: 'name',
+  sortDir: 'asc',
+  description: 'Clubs, sports, and anything else outside of class — with hours logged over time.',
+  fields: [
+    f.text('name', 'Name', { required: true, inList: true, searchable: true }),
+    f.enumOf('activityType', 'Type', EXTRACURRICULAR_TYPES, { defaultValue: 'club', inList: true }),
+    f.text('role', 'Role', { inList: true, hint: 'e.g. "Captain", "Section leader", "Member".' }),
+    f.text('advisorOrCoach', 'Advisor or coach', { inList: true }),
+    f.ref('advisorContactId', 'Advisor contact', 'contacts', {
+      hint: 'Optional — link a full contact for their email, phone or office hours.',
+    }),
+    f.text('season', 'Season or term', { hint: 'e.g. "Fall 2026".' }),
+    f.json('meetingDays', 'Meets on', { defaultValue: [], hint: 'Which days of the week.' }),
+    f.time('startTime', 'Starts'),
+    f.time('endTime', 'Ends'),
+    f.color('color', 'Colour'),
+    f.text('icon', 'Symbol', { maxLength: 8, hint: 'A short glyph or emoji.' }),
+    f.long('notes', 'Notes', { searchable: true }),
+    f.tags('tags', 'Tags'),
+    f.bool('archived', 'Archived'),
+  ],
+};
+
+export const extracurricularLogs: CollectionDef = {
+  name: 'extracurricularLogs',
+  label: 'Extracurricular hours',
+  singular: 'Logged session',
+  icon: 'star',
+  area: 'school',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'date',
+  sortField: 'date',
+  sortDir: 'desc',
+  description: 'Hours logged against an extracurricular — practice, a meeting, a shift, a rehearsal.',
+  fields: [
+    f.ref('extracurricularId', 'Extracurricular', 'extracurriculars', { required: true, inList: true }),
+    f.date('date', 'Date', { required: true, inList: true }),
+    f.real('hours', 'Hours', { required: true, min: 0, max: 24, inList: true }),
+    f.long('note', 'Note', { searchable: true }),
+  ],
+};
+
+export const studySessions: CollectionDef = {
+  name: 'studySessions',
+  label: 'Study sessions',
+  singular: 'Study session',
+  icon: 'task',
+  area: 'school',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'startedAt',
+  sortField: 'startedAt',
+  sortDir: 'desc',
+  indexes: [
+    ['systemId', 'classId'],
+    ['systemId', 'startedAt'],
+  ],
+  description: 'A timed study session against a class — start it, stop it, and it remembers exactly how long.',
+  fields: [
+    f.ref('classId', 'Class', 'classes', { required: true, inList: true }),
+    f.datetime('startedAt', 'Started', { required: true, inList: true }),
+    f.datetime('endedAt', 'Ended'),
+    f.int('durationSeconds', 'Duration'),
+    f.long('note', 'Note', { searchable: true }),
+  ],
+};
+
+export const schoolCheckIns: CollectionDef = {
+  name: 'schoolCheckIns',
+  label: 'School check-ins',
+  singular: 'School check-in',
+  icon: 'wellbeing',
+  area: 'school',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'recordedAt',
+  sortField: 'recordedAt',
+  sortDir: 'desc',
+  description: 'A quick pulse-check on how school is going right now — described, never diagnosed.',
+  fields: [
+    f.datetime('recordedAt', 'When', { required: true, inList: true }),
+    f.ref('classId', 'Class', 'classes', { hint: 'Optional — leave blank if this is about school in general.' }),
+    f.int('understanding', 'Understanding', {
+      min: 1,
+      max: 10,
+      inList: true,
+      hint: 'How well the material is landing right now.',
+    }),
+    f.int('stress', 'Stress', { min: 1, max: 10, inList: true }),
+    f.int('workload', 'Workload', { min: 1, max: 10, hint: 'How heavy it feels right now.' }),
+    f.long('note', 'Note', { searchable: true }),
+  ],
+};
+
+export const SCHOOL_COLLECTIONS = [
+  classes,
+  assignments,
+  grades,
+  extracurriculars,
+  extracurricularLogs,
+  studySessions,
+  schoolCheckIns,
+] as const;
