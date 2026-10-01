@@ -43,6 +43,9 @@ const sendLimiter = rateLimit({
   message: 'Sending too many messages. Slow down for a moment.',
 });
 const newConversationLimiter = rateLimit({ max: 20, windowMs: 60_000 });
+// Fires on keystrokes, so generous — the client already throttles how often
+// it actually calls this, this just bounds a misbehaving client.
+const typingLimiter = rateLimit({ max: 90, windowMs: 60_000 });
 
 interface ThreadRow {
   id: string;
@@ -520,6 +523,37 @@ messagesRouter.post(
     }
 
     ok(res, { read: true });
+  }),
+);
+
+/**
+ * Purely ephemeral — never written to any collection, never replayed to a
+ * client that was not already connected the moment it was sent. A missed
+ * "stopped typing" is expected and harmless: the receiving side expires its
+ * own indicator after a few seconds of silence rather than trusting this to
+ * always arrive.
+ */
+messagesRouter.post(
+  '/threads/:threadId/typing',
+  typingLimiter,
+  handler((req, res) => {
+    const context = auth(req);
+    const threadId = String(req.params['threadId']);
+    const conversation = requireParticipant(context.user.id, threadId);
+    const settings = (conversation['settings'] ?? {}) as Record<string, unknown>;
+
+    // The same opt-out as read receipts: both are "let the other side see
+    // what I'm doing right now", so one switch covers both.
+    if (settings['readReceipts'] !== false) {
+      const { isTyping } = req.body as { isTyping?: boolean };
+      publish(conversation['otherUserId'] as string, {
+        type: 'typing',
+        threadId,
+        fromUserId: context.user.id,
+        isTyping: isTyping !== false,
+      });
+    }
+    ok(res, { sent: true });
   }),
 );
 

@@ -41,7 +41,7 @@ function dayKey(iso: string): string {
 export function MessageConversationView({ threadId, speakingAsMemberId, onBack }: MessageConversationViewProps): JSX.Element {
   const dates = useDateFormat();
   const toast = useToast();
-  const { settings } = useAuth();
+  const { settings, user } = useAuth();
   const conversation = useMessageConversation(threadId, speakingAsMemberId);
   const { threads: allThreads } = useMessageThreads();
 
@@ -185,7 +185,13 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
         <div className="chat-conversation__title">
           <span className="chat-conversation__name">{thread?.title}</span>
           <span className="chat-conversation__status">
-            {!conversation.cryptoSupported ? '' : conversation.encryptionReady ? 'End-to-end encrypted' : 'Not encrypted yet'}
+            {conversation.theirTyping
+              ? 'Typing…'
+              : !conversation.cryptoSupported
+                ? ''
+                : conversation.encryptionReady
+                  ? 'End-to-end encrypted'
+                  : 'Not encrypted yet'}
           </span>
         </div>
         <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
@@ -221,7 +227,17 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
                 >
                   {showDayHeading ? <div className="chat-day-heading">{dates.date(message.sentAt)}</div> : null}
                   <MessageBubble
-                    message={message}
+                    message={{
+                      ...message,
+                      // `readBy` is seeded with the sender's own id when a
+                      // message is created, so "read" means someone besides
+                      // the sender shows up in it — not merely a non-empty list.
+                      readStatus: message.isMine
+                        ? message.readBy.some((id) => id !== user?.id)
+                          ? 'read'
+                          : 'sent'
+                        : undefined,
+                    }}
                     showAvatar={showAvatar}
                     showName={false}
                     quotedMessage={quoted}
@@ -305,7 +321,10 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
             <input
               className="input chat-composer__input"
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                conversation.sendTyping();
+              }}
               placeholder="Type a message…"
               aria-label="Message"
               autoComplete="off"

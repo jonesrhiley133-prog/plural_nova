@@ -679,3 +679,101 @@ describe('message encryption keys: publishing one notifies who needs to know', (
     }
   });
 });
+
+describe('DM read receipts and typing: realtime signals, not just stored state', () => {
+  let client: TestClient;
+  let alice: { token: string; userId: string };
+  let bob: { token: string; userId: string };
+  let threadId: string;
+  let aliceConversationId: string;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    alice = await registerUser(client, { email: 'presence-alice@example.com', displayName: 'Alice' });
+    bob = await registerUser(client, { email: 'presence-bob@example.com', displayName: 'Bob' });
+    const started = await client.request('POST', '/api/messages/conversations', {
+      token: alice.token,
+      body: { userId: bob.userId },
+    });
+    threadId = started.body.data.conversation.threadId;
+    aliceConversationId = started.body.data.conversation.id;
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('marks a message read and tells its sender in real time', async () => {
+    const sent = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: alice.token,
+      body: { body: 'hello', clientId: 'read-test-1' },
+    });
+    expect(sent.status).toBe(201);
+
+    const aliceSocket = await connectRealtime(client, alice.token);
+    try {
+      const read = nextMessage(aliceSocket);
+      const marked = await client.request('POST', `/api/messages/threads/${threadId}/read`, { token: bob.token });
+      expect(marked.status).toBe(200);
+      await expect(read).resolves.toMatchObject({ type: 'message.read', threadId, byUserId: bob.userId });
+
+      const history = await client.request('GET', `/api/messages/threads/${threadId}`, { token: alice.token });
+      const message = history.body.data.messages.find((m: any) => m.clientId === 'read-test-1');
+      expect(message.readBy).toContain(bob.userId);
+    } finally {
+      aliceSocket.close();
+    }
+  });
+
+  it('publishes a typing signal to the other side without storing anything', async () => {
+    const bobSocket = await connectRealtime(client, bob.token);
+    try {
+      const typing = nextMessage(bobSocket);
+      const result = await client.request('POST', `/api/messages/threads/${threadId}/typing`, {
+        token: alice.token,
+        body: { isTyping: true },
+      });
+      expect(result.status).toBe(200);
+      await expect(typing).resolves.toMatchObject({ type: 'typing', threadId, fromUserId: alice.userId, isTyping: true });
+    } finally {
+      bobSocket.close();
+    }
+  });
+
+  it('publishes "stopped typing" the same way', async () => {
+    const bobSocket = await connectRealtime(client, bob.token);
+    try {
+      const stopped = nextMessage(bobSocket);
+      await client.request('POST', `/api/messages/threads/${threadId}/typing`, {
+        token: alice.token,
+        body: { isTyping: false },
+      });
+      await expect(stopped).resolves.toMatchObject({ type: 'typing', isTyping: false });
+    } finally {
+      bobSocket.close();
+    }
+  });
+
+  it('tells nobody once the sender has turned off read receipts for this conversation — the same switch covers typing', async () => {
+    await client.request('PATCH', `/api/messages/conversations/${aliceConversationId}`, {
+      token: alice.token,
+      body: { settings: { readReceipts: false } },
+    });
+    try {
+      const bobSocket = await connectRealtime(client, bob.token);
+      try {
+        const premature = nextMessage(bobSocket, 500);
+        await client.request('POST', `/api/messages/threads/${threadId}/typing`, {
+          token: alice.token,
+          body: { isTyping: true },
+        });
+        await expect(premature).rejects.toThrow();
+      } finally {
+        bobSocket.close();
+      }
+    } finally {
+      await client.request('PATCH', `/api/messages/conversations/${aliceConversationId}`, {
+        token: alice.token,
+        body: { settings: { readReceipts: true } },
+      });
+    }
+  });
+});

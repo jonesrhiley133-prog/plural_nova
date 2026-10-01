@@ -21,6 +21,7 @@ export type RealtimeEvent =
   | { type: 'message.read'; threadId: string; byUserId: string }
   | { type: 'message.deleted'; threadId: string; messageId: string }
   | { type: 'messageKey.new'; userId: string }
+  | { type: 'typing'; threadId: string; fromUserId: string; isTyping: boolean }
   | { type: 'reaction.new'; threadId: string; messageId: string; kind: 'dm' | 'system' }
   | { type: 'front.changed'; systemId: string }
   | { type: 'notification.new'; notificationId: string; category: string }

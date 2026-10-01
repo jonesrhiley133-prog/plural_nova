@@ -232,6 +232,16 @@ different versions of PluralNova.
   drift from the true sum. The live "Clocked in for…" and "Asleep for…"
   counters on Work and Sleep also now tick every second instead of every 30.
 
+### Added
+
+- **Messages now shows typing status and read receipts.** The other person's
+  name in a conversation's header switches to "Typing…" while they are
+  composing a reply, and your own sent messages carry a small check mark
+  that fills in once they have actually opened the conversation — both
+  respect the same "let the other side know" setting, and neither does
+  anything in System Chat, which has no concept of a separate reader to
+  begin with.
+
 ### Fixed
 
 - **Signing into a second device could permanently lock the first one out of

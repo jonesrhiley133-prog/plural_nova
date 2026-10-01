@@ -78,6 +78,8 @@ export interface Message {
   forwardedFrom: MessageForwardInfo | null;
   encrypted: boolean;
   sequence: number;
+  /** Every userId who has read this message — empty until the other side opens the conversation. */
+  readBy: string[];
   clientId?: string;
   pending?: boolean;
   failed?: string;
@@ -108,6 +110,10 @@ function personFromMember(member: Record<string, unknown> | null | undefined): M
 
 function toReactions(raw: unknown): Record<string, string[]> {
   return raw && typeof raw === 'object' ? (raw as Record<string, string[]>) : {};
+}
+
+function toReadBy(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.map(String) : [];
 }
 
 const MEDIA_TYPES = new Set(['image', 'video', 'audio', 'document']);
@@ -293,6 +299,8 @@ interface MessageConversationState {
   /** True once this account's key is loaded and the other side's is known. */
   encryptionReady: boolean;
   cryptoSupported: boolean;
+  /** The other person is actively typing right now — expires on its own if a "stopped" signal never arrives. */
+  theirTyping: boolean;
 }
 
 export interface SendOptions {
@@ -320,6 +328,8 @@ export function useMessageConversation(
   remove: (messageId: string) => Promise<void>;
   markRead: () => void;
   refreshThread: () => Promise<void>;
+  /** Call on every keystroke in the composer; throttled and auto-expired internally. */
+  sendTyping: () => void;
 } {
   const [thread, setThread] = useState<MessageThreadSummary | null>(null);
   const [rawMessages, setRawMessages] = useState<Record<string, unknown>[]>([]);
@@ -337,6 +347,14 @@ export function useMessageConversation(
   const [myOtherKeys, setMyOtherKeys] = useState<RemoteKey[]>([]);
   const [decrypted, setDecrypted] = useState<Record<string, string>>({});
   const [keyAttempt, setKeyAttempt] = useState(0);
+
+  const [theirTyping, setTheirTyping] = useState(false);
+  /** Clears a stuck "typing" indicator if the other side's own "stopped" signal never arrives. */
+  const typingExpiryRef = useRef<number | null>(null);
+  /** Throttles how often this device tells the other side it is still typing. */
+  const typingSentAtRef = useRef(0);
+  /** Debounces the "stopped typing" signal to a pause after the last keystroke. */
+  const typingStopTimerRef = useRef<number | null>(null);
 
   const keyDirectory = useMemo(() => {
     const map = new Map<string, JsonWebKey>();
@@ -364,6 +382,7 @@ export function useMessageConversation(
       forwardedFrom: toForwardedFrom(raw['forwardedFrom']),
       encrypted: raw['encrypted'] === true,
       sequence: Number(raw['sequence'] ?? 0),
+      readBy: toReadBy(raw['readBy']),
       clientId: (raw['clientId'] as string) ?? undefined,
     }),
     [threadId],
@@ -408,6 +427,10 @@ export function useMessageConversation(
     setThread(null);
     setTheirKeys([]);
     setMyOtherKeys([]);
+    setTheirTyping(false);
+    if (typingExpiryRef.current) window.clearTimeout(typingExpiryRef.current);
+    if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+    typingSentAtRef.current = 0;
     setLoading(true);
     void load();
   }, [load]);
@@ -429,9 +452,27 @@ export function useMessageConversation(
         if (event.type === 'message.new' && event.threadId === threadId) {
           void load();
           if (theirKeys.length === 0) setKeyAttempt((attempt) => attempt + 1);
+          // A message landing is itself proof its sender is done typing,
+          // even if their own "stopped" signal is still in flight.
+          setTheirTyping(false);
         }
         if (event.type === 'message.deleted' && event.threadId === threadId) void load();
         if (event.type === 'reaction.new' && event.kind === 'dm' && event.threadId === threadId) void load();
+        // Reloads to pick up the server's own updated `readBy` rather than
+        // guessing which messages just became read.
+        if (event.type === 'message.read' && event.threadId === threadId) void load();
+        if (event.type === 'typing' && event.threadId === threadId) {
+          if (typingExpiryRef.current) window.clearTimeout(typingExpiryRef.current);
+          if (event.isTyping) {
+            setTheirTyping(true);
+            // A safety net for a "stopped" signal that never arrives — a
+            // closed tab, a dropped connection — rather than trusting the
+            // other side to always tell us when it is done.
+            typingExpiryRef.current = window.setTimeout(() => setTheirTyping(false), 5000);
+          } else {
+            setTheirTyping(false);
+          }
+        }
       }),
     [threadId, load, theirKeys, myUserId, otherUserId],
   );
@@ -506,6 +547,29 @@ export function useMessageConversation(
     };
   }, [rawMessages, keyPair, keyDirectory, theirKeys, decrypted]);
 
+  const stopTyping = useCallback(() => {
+    if (!threadId) return;
+    if (typingStopTimerRef.current) {
+      window.clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+    }
+    typingSentAtRef.current = 0;
+    void api.post(`/api/messages/threads/${threadId}/typing`, { isTyping: false }).catch(() => {});
+  }, [threadId]);
+
+  const sendTyping = useCallback(() => {
+    if (!threadId) return;
+    // Throttled to at most once every couple of seconds while actively
+    // typing — a signal the other side only needs roughly, not on every key.
+    const now = Date.now();
+    if (now - typingSentAtRef.current > 2000) {
+      typingSentAtRef.current = now;
+      void api.post(`/api/messages/threads/${threadId}/typing`, { isTyping: true }).catch(() => {});
+    }
+    if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+    typingStopTimerRef.current = window.setTimeout(stopTyping, 3000);
+  }, [threadId, stopTyping]);
+
   const displayMessages = normalizedMessages.map((message) =>
     message.encrypted && decrypted[message.id] !== undefined ? { ...message, body: decrypted[message.id]! } : message,
   );
@@ -514,6 +578,7 @@ export function useMessageConversation(
     async (text: string, options: SendOptions = {}) => {
       const body = text.trim();
       if ((!body && (options.attachments?.length ?? 0) === 0) || !threadId) return;
+      stopTyping();
       const clientId = newId('cli').slice(4);
       const activeKeyId = keyPair?.activeKeyId;
       // Encryption is gated on the other side having a key, not on this
@@ -534,6 +599,7 @@ export function useMessageConversation(
         forwardedFrom: options.forwardedFrom ?? null,
         encrypted: canEncrypt,
         sequence: Number.MAX_SAFE_INTEGER,
+        readBy: [],
         clientId,
         pending: true,
       };
@@ -583,7 +649,7 @@ export function useMessageConversation(
         setSending(false);
       }
     },
-    [threadId, keyPair, keyDirectory, theirKeys, speakingAsMemberId, load],
+    [threadId, keyPair, keyDirectory, theirKeys, speakingAsMemberId, load, stopTyping],
   );
 
   const retry = useCallback(
@@ -657,6 +723,7 @@ export function useMessageConversation(
     sending,
     encryptionReady: Boolean(keyPair?.activeKeyId) && theirKeys.length > 0,
     cryptoSupported: cryptoAvailable(),
+    theirTyping,
     send,
     retry,
     react,
@@ -664,6 +731,7 @@ export function useMessageConversation(
     forward,
     remove,
     markRead,
+    sendTyping,
   };
 }
 

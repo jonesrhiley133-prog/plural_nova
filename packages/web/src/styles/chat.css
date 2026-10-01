@@ -587,6 +587,11 @@
   opacity: 0.75;
 }
 
+/* Full opacity, unlike the rest of the meta row — "read" is the one state here worth it standing out. */
+.chat-bubble__read--read {
+  opacity: 1;
+}
+
 .chat-message__reactions {
   display: flex;
   flex-wrap: wrap;

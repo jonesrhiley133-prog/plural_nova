@@ -25,6 +25,8 @@ export interface ChatBubbleMessage {
   attachments: ChatAttachmentLike[];
   forwardedFrom: { senderLabel: string } | null;
   encrypted?: boolean;
+  /** Only ever set on a message this account sent — absent entirely where read receipts don't exist, such as System Chat. */
+  readStatus?: 'sent' | 'read';
   pending?: boolean;
   failed?: string;
 }
@@ -143,6 +145,14 @@ export function MessageBubble({
                 <Icon name={message.encrypted ? 'lock' : 'unlock'} size={9} label={message.encrypted ? 'Encrypted' : 'Not encrypted'} />
               ) : null}
               <span className="chat-bubble__time">{timeLabel}</span>
+              {message.readStatus !== undefined ? (
+                <Icon
+                  name={message.readStatus === 'read' ? 'checkDouble' : 'check'}
+                  size={11}
+                  label={message.readStatus === 'read' ? 'Read' : 'Sent'}
+                  className={message.readStatus === 'read' ? 'chat-bubble__read chat-bubble__read--read' : 'chat-bubble__read'}
+                />
+              ) : null}
             </span>
           </div>
           <IconButton
