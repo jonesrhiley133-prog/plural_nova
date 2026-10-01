@@ -62,91 +62,111 @@ export default function SchoolClassDetail(): JSX.Element {
 
   return (
     <>
-      <PageHeader
-        title={String(cls['name'])}
-        description={[cls['teacher'], cls['room'], cls['period']].filter(Boolean).join(' · ') || undefined}
-        actions={
-          <>
-            <Button variant="ghost" icon="star" onClick={() => logGrade.show()}>
-              Log a grade
-            </Button>
-            <IconButton icon="edit" label="Edit class" variant="ghost" onClick={() => editor.show()} />
-            <IconButton icon="trash" label="Delete class" variant="ghost" onClick={() => confirmDelete.show()} />
-          </>
-        }
-      >
-        <div className="row" style={{ marginTop: 'var(--space-2)' }}>
-          <Avatar
-            name={String(cls['name'])}
-            color={(cls['color'] as string) ?? null}
-            icon={(cls['icon'] as string) ?? null}
-            size={32}
-            round
+      <div className="stack stack--loose">
+        <PageHeader
+          title={String(cls['name'])}
+          description={[cls['teacher'], cls['room'], cls['period']].filter(Boolean).join(' · ') || undefined}
+          actions={
+            <>
+              <Button variant="ghost" icon="star" onClick={() => logGrade.show()}>
+                Log a grade
+              </Button>
+              <IconButton icon="edit" label="Edit class" variant="ghost" onClick={() => editor.show()} />
+              <IconButton icon="trash" label="Delete class" variant="ghost" onClick={() => confirmDelete.show()} />
+            </>
+          }
+        >
+          <div className="row" style={{ marginTop: 'var(--space-2)' }}>
+            <Avatar
+              name={String(cls['name'])}
+              color={(cls['color'] as string) ?? null}
+              icon={(cls['icon'] as string) ?? null}
+              size={32}
+              round
+            />
+            {cls['subject'] ? <Chip>{String(cls['subject'])}</Chip> : null}
+            {cls['schoolYear'] ? <span className="tiny faint">{String(cls['schoolYear'])}</span> : null}
+            {cls['term'] ? <span className="tiny faint">{String(cls['term'])}</span> : null}
+          </div>
+        </PageHeader>
+
+        <div className="stat-grid">
+          <Stat
+            label="Current grade"
+            value={classStat?.currentPercentage !== null && classStat?.currentPercentage !== undefined ? `${classStat.currentPercentage}%` : '—'}
+            detail={classStat?.letter ?? 'No grades yet'}
           />
-          {cls['subject'] ? <Chip>{String(cls['subject'])}</Chip> : null}
-          {cls['schoolYear'] ? <span className="tiny faint">{String(cls['schoolYear'])}</span> : null}
-          {cls['term'] ? <span className="tiny faint">{String(cls['term'])}</span> : null}
+          <Stat label="Trend" value={SCHOOL_TREND_LABEL[classStat?.trend ?? 'unknown']} />
+          <Stat label="Graded so far" value={classStat?.gradedCount ?? 0} />
+          <Stat label="Credits" value={cls['credits'] ? String(cls['credits']) : '—'} />
         </div>
-      </PageHeader>
 
-      <div className="stat-grid">
-        <Stat
-          label="Current grade"
-          value={classStat?.currentPercentage !== null && classStat?.currentPercentage !== undefined ? `${classStat.currentPercentage}%` : '—'}
-          detail={classStat?.letter ?? 'No grades yet'}
-        />
-        <Stat label="Trend" value={SCHOOL_TREND_LABEL[classStat?.trend ?? 'unknown']} />
-        <Stat label="Graded so far" value={classStat?.gradedCount ?? 0} />
-        <Stat label="Credits" value={cls['credits'] ? String(cls['credits']) : '—'} />
-      </div>
+        {classStat && classStat.categories.some((category) => category.count > 0) ? (
+          <Card title="By category">
+            <RankedBars
+              title="Category averages"
+              valueLabel="Percent"
+              format={(value) => `${Math.round(value)}%`}
+              items={classStat.categories
+                .filter((category) => category.average !== null)
+                .map((category) => ({
+                  id: category.id,
+                  label: `${category.name} (${category.weight}%)`,
+                  value: category.average!,
+                }))}
+              emptyMessage="No graded categories yet."
+            />
+          </Card>
+        ) : null}
 
-      {classStat && classStat.categories.some((category) => category.count > 0) ? (
-        <Card title="By category">
-          <RankedBars
-            title="Category averages"
+        <Card title="Grade trend">
+          <LineChart
+            title="Percentage over the term"
             valueLabel="Percent"
+            min={0}
+            max={100}
             format={(value) => `${Math.round(value)}%`}
-            items={classStat.categories
-              .filter((category) => category.average !== null)
-              .map((category) => ({
-                id: category.id,
-                label: `${category.name} (${category.weight}%)`,
-                value: category.average!,
-              }))}
-            emptyMessage="No graded categories yet."
+            points={trendPoints.map((point, index) => ({
+              label: dates.date(point.at),
+              value: point.percent,
+              detail: `Entry ${index + 1}`,
+            }))}
+            emptyMessage="Not enough graded work yet to show a trend."
           />
         </Card>
-      ) : null}
 
-      <Card title="Grade trend">
-        <LineChart
-          title="Percentage over the term"
-          valueLabel="Percent"
-          min={0}
-          max={100}
-          format={(value) => `${Math.round(value)}%`}
-          points={trendPoints.map((point, index) => ({
-            label: dates.date(point.at),
-            value: point.percent,
-            detail: `Entry ${index + 1}`,
-          }))}
-          emptyMessage="Not enough graded work yet to show a trend."
-        />
-      </Card>
-
-      <Card title="Assignments and grades" flush>
-        <div className="list">
-          {[...assignments.items]
-            .sort((a, b) => String(b['dueAt']).localeCompare(String(a['dueAt'])))
-            .map((assignment) => {
-              const percent = percentOf(assignment['gradeReceived'], assignment['maxPoints']);
+        <Card title="Assignments and grades" flush>
+          <div className="list">
+            {[...assignments.items]
+              .sort((a, b) => String(b['dueAt']).localeCompare(String(a['dueAt'])))
+              .map((assignment) => {
+                const percent = percentOf(assignment['gradeReceived'], assignment['maxPoints']);
+                return (
+                  <div key={assignment.id} className="list-row">
+                    <span className="list-row__body">
+                      <span className="list-row__title">{String(assignment['name'])}</span>
+                      <span className="list-row__meta">
+                        <span>{dates.date(String(assignment['dueAt']))}</span>
+                        <Chip>{String(assignment['status'])}</Chip>
+                      </span>
+                    </span>
+                    {percent !== null ? (
+                      <span className="list-row__trailing">
+                        <strong>{Math.round(percent * 10) / 10}%</strong>
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
+            {grades.items.map((grade) => {
+              const percent = percentOf(grade['pointsEarned'], grade['maxPoints']);
               return (
-                <div key={assignment.id} className="list-row">
+                <div key={grade.id} className="list-row">
                   <span className="list-row__body">
-                    <span className="list-row__title">{String(assignment['name'])}</span>
+                    <span className="list-row__title">{String(grade['label'])}</span>
                     <span className="list-row__meta">
-                      <span>{dates.date(String(assignment['dueAt']))}</span>
-                      <Chip>{String(assignment['status'])}</Chip>
+                      <span>{dates.date(String(grade['gradedAt']))}</span>
+                      <Chip accent>Logged grade</Chip>
                     </span>
                   </span>
                   {percent !== null ? (
@@ -157,32 +177,14 @@ export default function SchoolClassDetail(): JSX.Element {
                 </div>
               );
             })}
-          {grades.items.map((grade) => {
-            const percent = percentOf(grade['pointsEarned'], grade['maxPoints']);
-            return (
-              <div key={grade.id} className="list-row">
-                <span className="list-row__body">
-                  <span className="list-row__title">{String(grade['label'])}</span>
-                  <span className="list-row__meta">
-                    <span>{dates.date(String(grade['gradedAt']))}</span>
-                    <Chip accent>Logged grade</Chip>
-                  </span>
-                </span>
-                {percent !== null ? (
-                  <span className="list-row__trailing">
-                    <strong>{Math.round(percent * 10) / 10}%</strong>
-                  </span>
-                ) : null}
-              </div>
-            );
-          })}
-          {assignments.items.length === 0 && grades.items.length === 0 ? (
-            <p className="small faint" style={{ padding: 'var(--space-4)' }}>
-              Nothing tracked for this class yet.
-            </p>
-          ) : null}
-        </div>
-      </Card>
+            {assignments.items.length === 0 && grades.items.length === 0 ? (
+              <p className="small faint" style={{ padding: 'var(--space-4)' }}>
+                Nothing tracked for this class yet.
+              </p>
+            ) : null}
+          </div>
+        </Card>
+      </div>
 
       <ClassEditorDialog
         open={editor.open}

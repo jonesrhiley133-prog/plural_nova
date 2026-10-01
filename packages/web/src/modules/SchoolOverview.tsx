@@ -59,7 +59,7 @@ export default function SchoolOverview(): JSX.Element {
   const topAttention = stats.data?.needsAttention[0];
 
   return (
-    <>
+    <div className="stack stack--loose">
       <PageHeader
         title="School Life"
         description={now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -189,6 +189,6 @@ export default function SchoolOverview(): JSX.Element {
           ))}
         </div>
       </Card>
-    </>
+    </div>
   );
 }

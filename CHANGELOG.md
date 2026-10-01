@@ -244,6 +244,12 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **School Life's screens stacked every section flush against the next, with
+  no space between them.** The overview, Classes, a class's own page,
+  Assignments and Academic Analytics now have the same visual breathing room
+  between their cards, stat tiles and lists that a properly spaced screen
+  elsewhere in the app already has — purely a layout fix, nothing about what
+  any of these screens show or how the data behind them works has changed.
 - **Logging more than one emotion at once created a separate entry for each
   word instead of one entry naming all of them.** Choosing "Happy" and
   "Nervous" together, for instance, used to produce two rows in the log;
