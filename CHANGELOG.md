@@ -275,6 +275,33 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **A setting that failed to save — most commonly while briefly offline —
+  looked like it had taken, then reverted the next time the app loaded.**
+  Theme changes applied to the screen immediately and then saved in the
+  background with nothing checking whether that save actually succeeded;
+  a dropped connection left the on-screen change with nothing behind it.
+  Every settings save now durably records what it owes the server before
+  attempting to send it, retries automatically the moment the connection
+  returns, and a theme change that still fails tells you so the same way
+  every other setting already did — instead of just quietly not being
+  there next time.
+- **Profiles in the Members grid rendered their photo by hand instead of
+  through the same avatar component the rest of the app already uses
+  correctly.** No visible crop difference today, but it was a second,
+  separately-maintained copy of the same cropping/centering logic — exactly
+  the kind of place a future fix to one would quietly miss the other. The
+  grid now uses the shared `Avatar` component like everywhere else, which
+  also gained a `fill` mode so a component built for a fixed badge size can
+  correctly fill a responsive grid tile too.
+- **A post made as a specific alter, or a direct message sent "as" one,
+  named that alter to the other person even when the system's own "show
+  member list" setting was off.** The public profile page already hid
+  members correctly when that setting is off; Flux posts and "send as a
+  member" in Messages were a second, ungated path the same information
+  could reach someone through. Both now check the same setting — and the
+  same per-member "show on profile" opt-out — before ever attaching an
+  alter's name to anything another account can see; the post or message
+  itself is unaffected, only whose name is on it.
 - **The PIN lock could trigger in the middle of actively using the app, on
   both mobile and desktop.** The unlock window was set once when the PIN was
   entered and left to expire on a flat timer, so "lock after N minutes"

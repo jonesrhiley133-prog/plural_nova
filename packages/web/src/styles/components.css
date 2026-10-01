@@ -820,6 +820,14 @@
   border-radius: 50%;
 }
 
+/* A grid tile sizes itself (a square card, a responsive column); the fixed
+ * `--avatar-size` pixel value a badge or a list row wants would not track
+ * that, so this overrides it to fill whatever box the avatar is placed in. */
+.avatar--fill {
+  width: 100%;
+  height: 100%;
+}
+
 .avatar__image {
   position: absolute;
   inset: 0;

@@ -307,19 +307,36 @@ messagesRouter.delete(
 
 // — Messages ————————————————————————————————————————————————
 
+/** Whether `userId` shows their member list on their own public profile — the one "show head mates" switch this app has. */
+function showsMemberList(userId: string): boolean {
+  const row = getDb()
+    .prepare('SELECT "showMemberList" FROM "constellationProfiles" WHERE "userId" = ? AND "deletedAt" IS NULL')
+    .get(userId) as { showMemberList: number | null } | undefined;
+  return row?.showMemberList === 1;
+}
+
 function messageView(message: StoredRecord, viewerId: string): Record<string, unknown> {
   const senderId = message['senderUserId'] as string;
+  const isMine = senderId === viewerId;
   let asMember: Record<string, unknown> | null = null;
   const memberId = message['senderMemberId'] as string | null;
   if (memberId) {
     const member = getRecord('members', { userId: senderId, systemId: null }, memberId);
     if (member) {
-      asMember = { id: member.id, name: member['name'], color: member['color'], icon: member['icon'] };
+      const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
+      // The same gate the public profile's own member list uses: "show head
+      // mates" off, or this one alter opted out, means whoever sent this
+      // message is never attributed to a specific alter for anyone but the
+      // sender's own account — "send as a member" is not a second, ungated
+      // place that identity can reach another account from.
+      if (isMine || (showsMemberList(senderId) && privacy['showOnProfile'] !== false)) {
+        asMember = { id: member.id, name: member['name'], color: member['color'], icon: member['icon'] };
+      }
     }
   }
   return {
     ...message,
-    isMine: senderId === viewerId,
+    isMine,
     asMember,
   };
 }

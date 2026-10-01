@@ -648,29 +648,17 @@ function MemberCard({
             />
           </span>
         )}
-        {member['avatarUrl'] ? (
-          <img
-            src={String(member['avatarUrl'])}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        ) : (
-          <span
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'grid',
-              placeItems: 'center',
-              fontSize: '2rem',
-              color: (member['color'] as string) || 'var(--accent)',
-            }}
-            aria-hidden="true"
-          >
-            {String(member['name']).charAt(0).toUpperCase()}
-          </span>
-        )}
+        <Avatar
+          name={String(member['name'])}
+          src={(member['avatarUrl'] as string) ?? null}
+          color={(member['color'] as string) ?? null}
+          // `fill` makes the photo itself fill the tile regardless of this;
+          // it only sets how large the no-photo initial falls back to, so a
+          // size in the tile's own typical range keeps that fallback
+          // reasonably proportioned rather than defaulting to a tiny 40px one.
+          size={120}
+          fill
+        />
         <span
           style={{
             position: 'absolute',

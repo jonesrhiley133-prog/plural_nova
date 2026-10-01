@@ -367,6 +367,8 @@ export interface AvatarProps {
   ring?: boolean;
   /** Percentage focal point, so a cropped portrait keeps the face in frame. */
   focus?: { x: number; y: number } | null;
+  /** Fills its parent instead of a fixed pixel size — a responsive grid tile rather than a badge. `size` is ignored. */
+  fill?: boolean;
 }
 
 export function Avatar({
@@ -378,6 +380,7 @@ export function Avatar({
   round,
   ring,
   focus,
+  fill,
 }: AvatarProps): JSX.Element {
   const initials = name
     .split(/\s+/)
@@ -388,7 +391,7 @@ export function Avatar({
 
   return (
     <span
-      className={`avatar${round ? ' avatar--round' : ''}`}
+      className={`avatar${round ? ' avatar--round' : ''}${fill ? ' avatar--fill' : ''}`}
       style={
         {
           '--avatar-size': `${size}px`,

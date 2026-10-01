@@ -314,4 +314,54 @@ describe('friends, flux and messaging', () => {
     expect(viewed.body.data.profile.members).toBeUndefined();
     expect(viewed.body.data.profile.displayName).toBe('Bob');
   });
+
+  it('never attributes a post or a "sent as" message to a member unless the account shows its member list', async () => {
+    const dana = await registerUser(client, { email: 'dana@example.com', displayName: 'Dana' });
+    await client.request('POST', '/api/social/friends/requests', { token: dana.token, body: { handle: 'alice-system' } });
+    const incoming = await client.request('GET', '/api/social/friends/requests', { token: alice.token });
+    await client.request('POST', `/api/social/friends/requests/${incoming.body.data.incoming[0].id}/accept`, {
+      token: alice.token,
+    });
+
+    const member = await client.request('POST', '/api/records/members', {
+      token: dana.token,
+      body: { name: 'Dana-Alt' },
+    });
+    expect(member.status).toBe(201);
+    const memberId = member.body.data.id;
+
+    // No `showMemberList` has been set for Dana at all — the default a brand
+    // new profile starts at, same as a system that never opted in.
+    const post = await client.request('POST', '/api/social/flux', {
+      token: dana.token,
+      body: { body: 'Posted as my alter', visibility: 'friends', authorKind: 'member', memberId },
+    });
+    // The creator sees their own alter's name immediately, same as the
+    // account's own view of its own profile always shows everything.
+    expect(post.body.data.asMember).not.toBeNull();
+
+    const strangerFeed = await client.request('GET', '/api/social/flux', { token: alice.token });
+    const seenByFriend = strangerFeed.body.data.posts.find((p: any) => p.id === post.body.data.id);
+    expect(seenByFriend.asMember).toBeNull();
+
+    const ownFeed = await client.request('GET', '/api/social/flux', { token: dana.token });
+    const seenByAuthor = ownFeed.body.data.posts.find((p: any) => p.id === post.body.data.id);
+    expect(seenByAuthor.asMember).not.toBeNull();
+
+    // Turning the member list on surfaces it to others too — until the one
+    // alter opts out specifically, which still wins over the account-wide switch.
+    await client.request('PUT', '/api/social/profile', {
+      token: dana.token,
+      body: { handle: 'dana-system', displayName: 'dana-system', isPublic: true, showMemberList: true },
+    });
+    const afterOptIn = await client.request('GET', '/api/social/flux', { token: alice.token });
+    expect(afterOptIn.body.data.posts.find((p: any) => p.id === post.body.data.id).asMember).not.toBeNull();
+
+    await client.request('PATCH', `/api/records/members/${memberId}`, {
+      token: dana.token,
+      body: { privacy: { showOnProfile: false } },
+    });
+    const afterMemberOptOut = await client.request('GET', '/api/social/flux', { token: alice.token });
+    expect(afterMemberOptOut.body.data.posts.find((p: any) => p.id === post.body.data.id).asMember).toBeNull();
+  });
 });

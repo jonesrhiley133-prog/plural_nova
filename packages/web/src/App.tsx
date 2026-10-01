@@ -259,10 +259,10 @@ export function App(): JSX.Element {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <AuthProvider>
-          <I18nProvider>
-            <ThemeProvider>
-              <ToastProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <I18nProvider>
+              <ThemeProvider>
                 <DataProvider>
                   <MusicPlayerProvider>
                     <AppLockProvider>
@@ -273,10 +273,10 @@ export function App(): JSX.Element {
                     </AppLockProvider>
                   </MusicPlayerProvider>
                 </DataProvider>
-              </ToastProvider>
-            </ThemeProvider>
-          </I18nProvider>
-        </AuthProvider>
+              </ThemeProvider>
+            </I18nProvider>
+          </AuthProvider>
+        </ToastProvider>
       </BrowserRouter>
     </ErrorBoundary>
   );

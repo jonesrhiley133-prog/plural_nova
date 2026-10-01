@@ -540,11 +540,26 @@ socialRouter.post(
 function postView(viewerId: string, post: StoredRecord): Record<string, unknown> {
   const ownerId = post['userId'] as string;
   const author = counterpartSummary(ownerId);
+  const isMine = ownerId === viewerId;
   let asMember: Record<string, unknown> | null = null;
   if (post['authorKind'] === 'member' && post['memberId']) {
     const member = getRecord('members', { userId: ownerId, systemId: post['systemId'] as string }, post['memberId'] as string);
     if (member) {
-      asMember = { id: member.id, name: member['name'], color: member['color'], icon: member['icon'], avatarUrl: member['avatarUrl'] };
+      const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
+      // The same gate `publicProfileView` already applies to its own member
+      // list: "show head mates" off, or this one alter opted out, hides who
+      // posted from anyone but the account itself — a post is not a second,
+      // ungated place the same identity can leak from.
+      const memberVisible = isMine || (profileOf(ownerId)?.['showMemberList'] === true && privacy['showOnProfile'] !== false);
+      if (memberVisible) {
+        asMember = {
+          id: member.id,
+          name: member['name'],
+          color: member['color'],
+          icon: member['icon'],
+          avatarUrl: !isMine && privacy['showAvatar'] === false ? '' : member['avatarUrl'],
+        };
+      }
     }
   }
   const myReaction = db()
