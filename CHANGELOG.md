@@ -12,6 +12,23 @@ different versions of PluralNova.
 
 ### Added
 
+- **School Life's second phase: extracurriculars, study timers, school
+  check-ins, and deeper Journal and Calendar integration.** Track clubs,
+  sports and anything else outside of class on their own roster, with hours
+  logged against each one over time. Start a timed study session against a
+  class the same way clocking in for work or logging a night of sleep
+  already work — stop it and the exact duration is remembered, with recent
+  sessions shown right on School Life's overview. A quick school-specific
+  check-in captures how well today's material landed, how stressed school
+  feels, and how heavy the workload is right now — separate from the app's
+  existing Wellbeing check-in, which is about the whole system rather than
+  school specifically. A journal entry can now optionally point at a class,
+  and that class's own page shows every entry linked to it. The Calendar's
+  side panel now reads upcoming assignment due dates straight from School
+  Life, the same way it already reads birthdays straight from each alter's
+  own profile — nothing is copied into the calendar's own event list, so
+  editing or completing an assignment in School Life is immediately correct
+  here too.
 - **The alter editor is simplified.** The standard editor now shows only
   Name, Pronouns, Roles, Origin and Age as text fields, plus the existing
   profile picture, banner, colours and other non-text settings — Roles is
@@ -244,6 +261,12 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **School Life's screens stacked every section flush against the next, with
+  no space between them.** The overview, Classes, a class's own page,
+  Assignments and Academic Analytics now have the same visual breathing room
+  between their cards, stat tiles and lists that a properly spaced screen
+  elsewhere in the app already has — purely a layout fix, nothing about what
+  any of these screens show or how the data behind them works has changed.
 - **Logging more than one emotion at once created a separate entry for each
   word instead of one entry naming all of them.** Choosing "Happy" and
   "Nervous" together, for instance, used to produce two rows in the log;

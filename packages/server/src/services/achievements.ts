@@ -56,6 +56,23 @@ function countEmotionsLogged(scope: Scope): number {
   return row.n;
 }
 
+/** Hours of completed study sessions — a session still running has no `durationSeconds` yet. */
+function sumStudyHours(scope: Scope): number {
+  const clauses = ['"userId" = ?', '"deletedAt" IS NULL'];
+  const values: unknown[] = [scope.userId];
+  if (scope.systemId) {
+    clauses.push('"systemId" = ?');
+    values.push(scope.systemId);
+  }
+  const row = getDb()
+    .prepare(
+      `SELECT COALESCE(SUM("durationSeconds"), 0) AS totalSeconds
+       FROM "studySessions" WHERE ${clauses.join(' AND ')}`,
+    )
+    .get(...values) as { totalSeconds: number };
+  return row.totalSeconds / 3600;
+}
+
 function distinctTrackingDays(scope: Scope): number {
   const sources = [
     ['frontEvents', 'startedAt'],
@@ -117,6 +134,10 @@ export function collectMetrics(scope: Scope): Partial<Record<AchievementMetric, 
     'stories.count': countRows('stories', scope),
     'classes.count': countRows('classes', scope),
     'assignments.completed': countRows('assignments', scope, '"status" IN (?, ?)', ['completed', 'submitted']),
+    'extracurriculars.count': countRows('extracurriculars', scope),
+    'studySessions.count': countRows('studySessions', scope, '"durationSeconds" IS NOT NULL'),
+    'studySessions.hours': sumStudyHours(scope),
+    'schoolCheckIns.count': countRows('schoolCheckIns', scope),
     trackingDays: distinctTrackingDays(scope),
     'backups.count': (
       getDb().prepare('SELECT COUNT(*) AS n FROM backups WHERE userId = ?').get(scope.userId) as {

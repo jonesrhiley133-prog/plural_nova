@@ -95,109 +95,111 @@ export default function SchoolAssignments(): JSX.Element {
 
   return (
     <>
-      <PageHeader
-        title="Assignments"
-        description="Everything due, filtered however you're looking at it right now."
-        actions={
-          <>
-            <Button variant="ghost" icon="star" onClick={() => logGrade.show(null)}>
-              Log a grade
-            </Button>
-            <Button variant="primary" icon="plus" onClick={() => editor.show(null)}>
-              Add assignment
-            </Button>
-          </>
-        }
-      />
+      <div className="stack stack--loose">
+        <PageHeader
+          title="Assignments"
+          description="Everything due, filtered however you're looking at it right now."
+          actions={
+            <>
+              <Button variant="ghost" icon="star" onClick={() => logGrade.show(null)}>
+                Log a grade
+              </Button>
+              <Button variant="primary" icon="plus" onClick={() => editor.show(null)}>
+                Add assignment
+              </Button>
+            </>
+          }
+        />
 
-      <MemberScopeChips scope={scope} />
+        <MemberScopeChips scope={scope} />
 
-      <div className="row" style={{ marginBottom: 'var(--space-2)' }}>
-        {FILTERS.map((option) => (
-          <Chip key={option.value} selected={filter === option.value} onClick={() => setFilter(option.value)}>
-            {option.label}
-          </Chip>
-        ))}
-        <span className="spacer" />
-        {classes.items.length > 0 ? (
-          <SelectField
-            label="Class"
-            value={classFilter}
-            onChange={setClassFilter}
-            placeholder="All classes"
-            options={classes.items.map((cls) => ({ value: cls.id, label: String(cls['name']) }))}
-          />
-        ) : null}
-      </div>
+        <div className="row">
+          {FILTERS.map((option) => (
+            <Chip key={option.value} selected={filter === option.value} onClick={() => setFilter(option.value)}>
+              {option.label}
+            </Chip>
+          ))}
+          <span className="spacer" />
+          {classes.items.length > 0 ? (
+            <SelectField
+              label="Class"
+              value={classFilter}
+              onChange={setClassFilter}
+              placeholder="All classes"
+              options={classes.items.map((cls) => ({ value: cls.id, label: String(cls['name']) }))}
+            />
+          ) : null}
+        </div>
 
-      <AsyncContent
-        loading={assignments.loading}
-        error={assignments.error}
-        items={filtered}
-        onRetry={assignments.reload}
-        empty={{
-          icon: 'task',
-          title: filter === 'all' ? 'No assignments yet' : 'Nothing here',
-          body: filter === 'all' ? 'Add an assignment to start tracking it.' : 'Nothing matches this filter right now.',
-          action: { label: 'Add assignment', run: () => editor.show(null) },
-        }}
-      >
-        {(items) => (
-          <div className="list">
-            {items.map((assignment) => {
-              const cls = classById.get(String(assignment['classId']));
-              const percent = percentOf(assignment['gradeReceived'], assignment['maxPoints']);
-              const status = String(assignment['status'] ?? 'notStarted');
-              return (
-                <div key={assignment.id} className="list-row">
-                  <Avatar
-                    name={cls ? String(cls['name']) : '?'}
-                    color={(cls?.['color'] as string) ?? null}
-                    icon={(cls?.['icon'] as string) ?? null}
-                    size={36}
-                    round
-                  />
-                  <span className="list-row__body">
-                    <span className="list-row__title">{String(assignment['name'])}</span>
-                    <span className="list-row__meta">
-                      {cls ? <Chip color={cls['color'] as string}>{String(cls['name'])}</Chip> : null}
-                      <span>{dates.dateTime(String(assignment['dueAt']))}</span>
-                      <Chip
-                        color={
-                          status === 'late' || status === 'missing'
-                            ? '#e06c93'
-                            : status === 'completed' || status === 'submitted'
-                              ? '#5ec6a8'
-                              : undefined
-                        }
-                      >
-                        {status}
-                      </Chip>
+        <AsyncContent
+          loading={assignments.loading}
+          error={assignments.error}
+          items={filtered}
+          onRetry={assignments.reload}
+          empty={{
+            icon: 'task',
+            title: filter === 'all' ? 'No assignments yet' : 'Nothing here',
+            body: filter === 'all' ? 'Add an assignment to start tracking it.' : 'Nothing matches this filter right now.',
+            action: { label: 'Add assignment', run: () => editor.show(null) },
+          }}
+        >
+          {(items) => (
+            <div className="list">
+              {items.map((assignment) => {
+                const cls = classById.get(String(assignment['classId']));
+                const percent = percentOf(assignment['gradeReceived'], assignment['maxPoints']);
+                const status = String(assignment['status'] ?? 'notStarted');
+                return (
+                  <div key={assignment.id} className="list-row">
+                    <Avatar
+                      name={cls ? String(cls['name']) : '?'}
+                      color={(cls?.['color'] as string) ?? null}
+                      icon={(cls?.['icon'] as string) ?? null}
+                      size={36}
+                      round
+                    />
+                    <span className="list-row__body">
+                      <span className="list-row__title">{String(assignment['name'])}</span>
+                      <span className="list-row__meta">
+                        {cls ? <Chip color={cls['color'] as string}>{String(cls['name'])}</Chip> : null}
+                        <span>{dates.dateTime(String(assignment['dueAt']))}</span>
+                        <Chip
+                          color={
+                            status === 'late' || status === 'missing'
+                              ? '#e06c93'
+                              : status === 'completed' || status === 'submitted'
+                                ? '#5ec6a8'
+                                : undefined
+                          }
+                        >
+                          {status}
+                        </Chip>
+                      </span>
                     </span>
-                  </span>
-                  <span className="list-row__trailing">
-                    {percent !== null ? <strong>{Math.round(percent * 10) / 10}%</strong> : null}
-                    <IconButton
-                      icon="edit"
-                      label={`Edit ${String(assignment['name'])}`}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => editor.show(assignment)}
-                    />
-                    <IconButton
-                      icon="trash"
-                      label={`Delete ${String(assignment['name'])}`}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => confirm.show(assignment)}
-                    />
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </AsyncContent>
+                    <span className="list-row__trailing">
+                      {percent !== null ? <strong>{Math.round(percent * 10) / 10}%</strong> : null}
+                      <IconButton
+                        icon="edit"
+                        label={`Edit ${String(assignment['name'])}`}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => editor.show(assignment)}
+                      />
+                      <IconButton
+                        icon="trash"
+                        label={`Delete ${String(assignment['name'])}`}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => confirm.show(assignment)}
+                      />
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </AsyncContent>
+      </div>
 
       <Dialog open={editor.open} onClose={editor.hide} title={editor.value ? 'Edit assignment' : 'New assignment'}>
         <RecordForm

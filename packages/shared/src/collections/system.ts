@@ -425,6 +425,11 @@ export const journalEntries: CollectionDef = {
     /* Check-ins are journal entries with a shape: the same prompts each time. */
     f.bool('isCheckIn', 'Check-in', { group: 'Check-in' }),
     f.json('checkInAnswers', 'Check-in answers', { group: 'Check-in' }),
+
+    f.ref('classId', 'Class', 'classes', {
+      group: 'Organisation',
+      hint: 'Optional — tie this entry to a School Life class, like reflecting on today\'s lecture.',
+    }),
   ],
 };
 

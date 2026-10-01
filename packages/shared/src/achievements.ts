@@ -22,7 +22,11 @@ export type AchievementMetric =
   | 'trackingDays'
   | 'backups.count'
   | 'classes.count'
-  | 'assignments.completed';
+  | 'assignments.completed'
+  | 'extracurriculars.count'
+  | 'studySessions.count'
+  | 'studySessions.hours'
+  | 'schoolCheckIns.count';
 
 export interface AchievementDef {
   key: string;
@@ -59,6 +63,10 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: 'first-backup', label: 'Safely kept', description: 'Exported a first full backup.', icon: '⤓', metric: 'backups.count', threshold: 1, category: 'care' },
   { key: 'first-class', label: 'Enrolled', description: 'Added a first class to School Life.', icon: '🎓', metric: 'classes.count', threshold: 1, category: 'firsts' },
   { key: 'ten-assignments', label: 'On top of it', description: 'Completed ten assignments.', icon: '✔', metric: 'assignments.completed', threshold: 10, category: 'habits' },
+  { key: 'first-extracurricular', label: 'Beyond class', description: 'Added a first extracurricular.', icon: '★', metric: 'extracurriculars.count', threshold: 1, category: 'firsts' },
+  { key: 'first-study-session', label: 'Heads down', description: 'Logged a first timed study session.', icon: '⏳', metric: 'studySessions.count', threshold: 1, category: 'firsts' },
+  { key: 'five-hours-studied', label: 'Putting in the time', description: 'Five hours of study time logged.', icon: '⌛', metric: 'studySessions.hours', threshold: 5, category: 'habits' },
+  { key: 'first-school-checkin', label: 'Taking stock', description: 'Logged a first School Life check-in.', icon: '◍', metric: 'schoolCheckIns.count', threshold: 1, category: 'care' },
 ];
 
 const BY_KEY = new Map(ACHIEVEMENTS.map((a) => [a.key, a]));

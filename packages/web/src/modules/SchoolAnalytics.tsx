@@ -36,26 +36,26 @@ export default function SchoolAnalytics(): JSX.Element {
 
   if (stats.loading && !stats.data) {
     return (
-      <>
+      <div className="stack stack--loose">
         <PageHeader title="Academic analytics" />
         <SkeletonCards count={4} />
-      </>
+      </div>
     );
   }
 
   if (stats.error && !stats.data) {
     return (
-      <>
+      <div className="stack stack--loose">
         <PageHeader title="Academic analytics" />
         <ErrorPanel message={stats.error} onRetry={stats.reload} />
-      </>
+      </div>
     );
   }
 
   const data = stats.data;
 
   return (
-    <>
+    <div className="stack stack--loose">
       <PageHeader
         title="Academic analytics"
         description="Percentages and a GPA computed from your own grading scale — numbers, not a verdict."
@@ -63,7 +63,7 @@ export default function SchoolAnalytics(): JSX.Element {
 
       <MemberScopeChips scope={scope} />
 
-      <div className="stat-grid" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="stat-grid">
         <Stat
           label="Average grade"
           value={data?.averagePercentage !== null && data?.averagePercentage !== undefined ? `${data.averagePercentage}%` : '—'}
@@ -124,13 +124,11 @@ export default function SchoolAnalytics(): JSX.Element {
         <GradingScaleEditor />
       </Card>
 
-      <div style={{ marginTop: 'var(--space-5)' }}>
-        <DescriptiveNote>
-          These numbers come only from what's tracked. A class with nothing graded yet doesn't pull the
-          average down — it's unrecorded, not a zero.
-        </DescriptiveNote>
-      </div>
-    </>
+      <DescriptiveNote>
+        These numbers come only from what's tracked. A class with nothing graded yet doesn't pull the
+        average down — it's unrecorded, not a zero.
+      </DescriptiveNote>
+    </div>
   );
 }
 

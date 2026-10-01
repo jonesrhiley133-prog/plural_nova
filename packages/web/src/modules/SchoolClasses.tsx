@@ -36,77 +36,79 @@ export default function SchoolClasses(): JSX.Element {
 
   return (
     <>
-      <PageHeader
-        title="Classes"
-        description="Every class, with as much grading detail as you want to track."
-        actions={
-          <Button variant="primary" icon="plus" onClick={() => editor.show(null)}>
-            Add a class
-          </Button>
-        }
-      />
+      <div className="stack stack--loose">
+        <PageHeader
+          title="Classes"
+          description="Every class, with as much grading detail as you want to track."
+          actions={
+            <Button variant="primary" icon="plus" onClick={() => editor.show(null)}>
+              Add a class
+            </Button>
+          }
+        />
 
-      <MemberScopeChips scope={scope} />
+        <MemberScopeChips scope={scope} />
 
-      <AsyncContent
-        loading={classes.loading}
-        error={classes.error}
-        items={classes.items}
-        onRetry={classes.reload}
-        empty={{
-          icon: 'school',
-          title: 'No classes yet',
-          body: 'Add a class to start tracking assignments and grades for it.',
-          action: { label: 'Add a class', run: () => editor.show(null) },
-        }}
-      >
-        {(items) => (
-          <div className="grid" style={{ ['--grid-min' as never]: '240px' }}>
-            {items.map((cls) => {
-              const row = statsByClass.get(cls.id);
-              return (
-                <Card
-                  key={cls.id}
-                  interactive
-                  onClick={() => navigate(`/school/classes/${cls.id}`)}
-                  title={String(cls['name'])}
-                  subtitle={[cls['teacher'], cls['period']].filter(Boolean).join(' · ') || String(cls['subject'] ?? '')}
-                  actions={
-                    <IconButton
-                      icon="edit"
-                      label={`Edit ${String(cls['name'])}`}
-                      variant="ghost"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        editor.show(cls);
-                      }}
-                    />
-                  }
-                >
-                  <div className="row row--between">
-                    <Avatar
-                      name={String(cls['name'])}
-                      color={(cls['color'] as string) ?? null}
-                      icon={(cls['icon'] as string) ?? null}
-                      size={36}
-                      round
-                    />
-                    {row?.currentPercentage !== null && row?.currentPercentage !== undefined ? (
-                      <span className="row" style={{ gap: 6 }}>
-                        <strong>{row.currentPercentage}%</strong>
-                        {row.letter ? <Chip color={cls['color'] as string}>{row.letter}</Chip> : null}
-                      </span>
-                    ) : (
-                      <span className="tiny faint">No grades yet</span>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </AsyncContent>
+        <AsyncContent
+          loading={classes.loading}
+          error={classes.error}
+          items={classes.items}
+          onRetry={classes.reload}
+          empty={{
+            icon: 'school',
+            title: 'No classes yet',
+            body: 'Add a class to start tracking assignments and grades for it.',
+            action: { label: 'Add a class', run: () => editor.show(null) },
+          }}
+        >
+          {(items) => (
+            <div className="grid" style={{ ['--grid-min' as never]: '240px' }}>
+              {items.map((cls) => {
+                const row = statsByClass.get(cls.id);
+                return (
+                  <Card
+                    key={cls.id}
+                    interactive
+                    onClick={() => navigate(`/school/classes/${cls.id}`)}
+                    title={String(cls['name'])}
+                    subtitle={[cls['teacher'], cls['period']].filter(Boolean).join(' · ') || String(cls['subject'] ?? '')}
+                    actions={
+                      <IconButton
+                        icon="edit"
+                        label={`Edit ${String(cls['name'])}`}
+                        variant="ghost"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          editor.show(cls);
+                        }}
+                      />
+                    }
+                  >
+                    <div className="row row--between">
+                      <Avatar
+                        name={String(cls['name'])}
+                        color={(cls['color'] as string) ?? null}
+                        icon={(cls['icon'] as string) ?? null}
+                        size={36}
+                        round
+                      />
+                      {row?.currentPercentage !== null && row?.currentPercentage !== undefined ? (
+                        <span className="row" style={{ gap: 6 }}>
+                          <strong>{row.currentPercentage}%</strong>
+                          {row.letter ? <Chip color={cls['color'] as string}>{row.letter}</Chip> : null}
+                        </span>
+                      ) : (
+                        <span className="tiny faint">No grades yet</span>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </AsyncContent>
+      </div>
 
       <ClassEditorDialog
         open={editor.open}
@@ -311,7 +313,14 @@ const WEEKDAYS = [
   { value: 'sun', label: 'Sun' },
 ];
 
-function MeetingDaysPicker({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }): JSX.Element {
+/** Shared with SchoolExtracurriculars.tsx — the same "which days" question, same picker. */
+export function MeetingDaysPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}): JSX.Element {
   return (
     <div className="field" style={{ marginTop: 'var(--space-4)' }}>
       <span className="field__label">Meets on</span>
