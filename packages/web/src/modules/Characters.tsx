@@ -1,6 +1,7 @@
 import { CollectionScreen } from '../ui/CollectionScreen.js';
 import { Avatar, Card, Chip } from '../ui/primitives.js';
 import { useI18n } from '../core/i18n.js';
+import { Markdown } from '../ui/Markdown.js';
 
 /** A character database, separate from members and linkable to stories. */
 export default function Characters(): JSX.Element {
@@ -31,9 +32,7 @@ export default function Characters(): JSX.Element {
             </div>
           </div>
           {record['biography'] ? (
-            <p className="small muted clamp-3" style={{ marginTop: 'var(--space-3)' }}>
-              {String(record['biography'])}
-            </p>
+            <Markdown text={String(record['biography'])} className="small muted clamp-3" style={{ marginTop: 'var(--space-3)' }} />
           ) : null}
           {Array.isArray(record['traits']) && record['traits'].length > 0 ? (
             <div className="row" style={{ marginTop: 'var(--space-3)' }}>

@@ -13,6 +13,7 @@ import { MemberEditorForm } from '../ui/MemberEditorForm.js';
 import { SwitchRow } from '../ui/forms.js';
 import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
 import { Icon } from '../ui/Icon.js';
+import { Markdown } from '../ui/Markdown.js';
 
 /**
  * A member's profile.
@@ -233,7 +234,7 @@ export default function MemberProfile(): JSX.Element {
       <div className="stack">
         {member['bio'] ? (
           <Card title="Biography">
-            <p className="prose">{String(member['bio'])}</p>
+            <Markdown text={String(member['bio'])} />
           </Card>
         ) : null}
 
@@ -306,11 +307,18 @@ function About({
           rows={[
             ['Source / origin', member['source']],
             ['Tags', member['tags']],
-            ['Personality', member['personality']],
-            ['Likes', member['likes']],
-            ['Dislikes', member['dislikes']],
           ]}
         />
+        {(['personality', 'likes', 'dislikes'] as const).map((field) =>
+          member[field] ? (
+            <div key={field} style={{ marginTop: 'var(--space-4)' }}>
+              <p className="small muted" style={{ marginBottom: 'var(--space-1)' }}>
+                {field === 'personality' ? 'Personality' : field === 'likes' ? 'Likes' : 'Dislikes'}
+              </p>
+              <Markdown text={String(member[field])} />
+            </div>
+          ) : null,
+        )}
       </Card>
 
       <MemberCustomFieldsView
@@ -331,7 +339,7 @@ function About({
 
       {member['notes'] ? (
         <Card title="Notes" subtitle="Private to this account">
-          <p className="prose">{String(member['notes'])}</p>
+          <Markdown text={String(member['notes'])} />
         </Card>
       ) : null}
 
@@ -373,7 +381,7 @@ function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
     <div className="stack">
       <Card title="Boundaries">
         {member['boundaries'] ? (
-          <p className="prose">{String(member['boundaries'])}</p>
+          <Markdown text={String(member['boundaries'])} />
         ) : (
           <p className="small faint">Nothing recorded here.</p>
         )}
@@ -569,7 +577,7 @@ function MemberJournal({ member }: { member: StoredRecord }): JSX.Element {
     <div className="stack">
       {entries.items.map((entry) => (
         <Card key={entry.id} title={String(entry['title'] || 'Untitled')} subtitle={dates.dateTime(String(entry['entryDate']))}>
-          <p className="prose clamp-3">{String(entry['body'] ?? '')}</p>
+          <Markdown text={String(entry['body'] ?? '')} className="clamp-3" />
         </Card>
       ))}
     </div>

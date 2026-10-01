@@ -12,6 +12,7 @@ import { AsyncContent } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { Icon } from '../ui/Icon.js';
+import { Markdown } from '../ui/Markdown.js';
 
 /**
  * The journal.
@@ -214,12 +215,11 @@ export default function Journal(): JSX.Element {
 
                         {entry['body'] ? (
                           <>
-                            <p
-                              className={`prose${isOpen ? '' : ' clamp-3'}`}
+                            <Markdown
+                              text={String(entry['body'])}
+                              className={isOpen ? undefined : 'clamp-3'}
                               style={{ marginTop: 'var(--space-3)' }}
-                            >
-                              {String(entry['body'])}
-                            </p>
+                            />
                             {String(entry['body']).length > 220 ? (
                               <Button
                                 variant="ghost"

@@ -1,0 +1,161 @@
+/*
+ * Markdown, rendered.
+ *
+ * Scoped to `.markdown-body` so none of it leaks onto the rest of the app — a
+ * `<table>` here keeps this look even where a stats screen's own `<table>`
+ * looks completely different.
+ */
+
+.markdown-body {
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin: var(--space-5) 0 var(--space-2);
+}
+
+.markdown-body h5,
+.markdown-body h6 {
+  font-size: var(--size-base);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body pre,
+.markdown-body table {
+  margin: 0 0 var(--space-3);
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: var(--space-5);
+}
+
+.markdown-body li + li {
+  margin-top: var(--space-1);
+}
+
+.markdown-body li > ul,
+.markdown-body li > ol {
+  margin-top: var(--space-1);
+  margin-bottom: 0;
+}
+
+.markdown-body blockquote {
+  margin-inline: 0;
+  padding: var(--space-1) var(--space-4);
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-muted);
+}
+
+.markdown-body blockquote > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body code {
+  background: var(--surface-sunken);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 0.1em 0.4em;
+}
+
+.markdown-body pre {
+  background: var(--surface-sunken);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  overflow-x: auto;
+}
+
+.markdown-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.markdown-body img {
+  /* `height: auto` keeps an imsize-sized image (`=300x200`) in its original
+     ratio once `max-width: 100%` has to shrink it to fit a narrow column —
+     without it the HTML `height` attribute would hold its pinned pixel value
+     while the width shrank underneath it, stretching the image. */
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+.markdown-body hr {
+  margin: var(--space-4) 0;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--size-sm);
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--surface-raised);
+  font-weight: var(--weight-semibold);
+}
+
+/* Checklists (markdown-it-task-lists) — a record of what was checked when the
+   text was written, not a live to-do list, so the box itself renders
+   disabled rather than inviting a click that nothing would save. */
+.markdown-body ul.contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.markdown-body .task-list-item {
+  display: flex;
+  align-items: flex-start;
+}
+
+.markdown-body .task-list-item label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.markdown-body .task-list-item input[type='checkbox'] {
+  margin-top: 0.3em;
+  accent-color: var(--accent);
+}
+
+/* The `::: grid` container — each direct block becomes its own cell. */
+.markdown-body .md-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+  margin: 0 0 var(--space-3);
+}
+
+.markdown-body .md-grid > * {
+  margin: 0;
+}

@@ -7,6 +7,7 @@ import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, Stat } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
+import { Markdown } from '../ui/Markdown.js';
 
 /**
  * Someone else's profile.
@@ -189,11 +190,7 @@ export default function ConstellationProfile(): JSX.Element {
               ) : null}
             </div>
 
-            {profile.bio ? (
-              <p className="prose" style={{ marginTop: 'var(--space-3)' }}>
-                {profile.bio}
-              </p>
-            ) : null}
+            {profile.bio ? <Markdown text={profile.bio} style={{ marginTop: 'var(--space-3)' }} /> : null}
 
             {profile.systemType ? (
               <div className="row" style={{ marginTop: 'var(--space-3)' }}>

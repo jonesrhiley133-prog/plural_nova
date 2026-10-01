@@ -12,6 +12,20 @@ different versions of PluralNova.
 
 ### Added
 
+- **Real Markdown formatting, almost everywhere text is written.** Bios,
+  notes, boundaries, personality/likes/dislikes, journal entries, Flux posts
+  and comments, constellation profile bios, and story/character text all now
+  render headings, **bold**, *italic*, ~~strikethrough~~, lists, quotes,
+  links, images (including a `=300x200` sizing syntax), tables, fenced code
+  blocks, checklists, and a `::: grid` container for placing two or more
+  things side by side. It's sanitised twice before it ever reaches the
+  screen — raw HTML is disabled in the parser itself, then the rendered
+  output is filtered again against an explicit list of allowed tags — so a
+  script tag or a `javascript:` link typed into someone's bio can never run.
+  The custom-field type that already supported a small hand-rolled subset of
+  this (bold, italic, code, line breaks) now goes through the same full
+  renderer, and a new "Formatting text with Markdown" topic under Help shows
+  every supported piece of syntax next to its own live, rendered example.
 - **GIF search in both chat features.** The attach button opens a menu —
   Gallery, Camera, GIFs, Files — instead of going straight to a file picker.
   GIFs searches Tenor without Tenor ever seeing who is searching: the server

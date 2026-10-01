@@ -24,6 +24,7 @@ import {
 } from './forms.js';
 import { useDialogHeaderActions } from './overlays.js';
 import { Icon } from './Icon.js';
+import { Markdown } from './Markdown.js';
 
 /**
  * Typed custom fields, shared across the whole system.
@@ -51,20 +52,6 @@ function labelForOption(options: CustomFieldOption[], id: string): string {
 
 function colorForOption(options: CustomFieldOption[], id: string): string | undefined {
   return options.find((option) => option.id === id)?.color;
-}
-
-/** A small, deliberately incomplete subset — bold, italic, code and line breaks. Enough to be worth calling markdown, not a commitment to CommonMark. */
-function renderMarkdown(text: string): ReactNode {
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/\n/g, '<br />');
-  // eslint-disable-next-line react/no-danger -- built from four fixed, escaped patterns above, not arbitrary HTML.
-  return <span dangerouslySetInnerHTML={{ __html: escaped }} />;
 }
 
 // ── Read-only rendering ───────────────────────────────────────────────────────
@@ -187,7 +174,7 @@ function formatValue(definition: StoredRecord, value: string, members: StoredRec
       );
     }
     case 'markdown':
-      return <span style={{ whiteSpace: 'pre-wrap' }}>{renderMarkdown(value)}</span>;
+      return <Markdown text={value} />;
     case 'code':
       return (
         <code className="tiny" style={{ fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'pre-wrap' }}>
@@ -223,16 +210,24 @@ function FieldGroup({
   }
   return (
     <dl className="stack stack--tight" style={{ margin: 0 }}>
-      {filled.map((definition) => (
-        <div key={definition.id} className="row row--between" style={{ alignItems: 'flex-start' }}>
-          <dt className="small muted" style={{ minWidth: 120 }}>
-            {String(definition['label'])}
-          </dt>
-          <dd style={{ margin: 0, textAlign: 'right', flex: 1 }}>
-            {formatValue(definition, valueForDefinition(definition.id, values), members)}
-          </dd>
-        </div>
-      ))}
+      {filled.map((definition) => {
+        // Markdown can render headings, lists, tables and images — content
+        // that reads as broken squeezed right-aligned next to its label the
+        // way a one-line value does. It gets the label above and the full
+        // row's width below instead; every other type keeps the label/value
+        // line unchanged.
+        const block = typeOf(definition) === 'markdown';
+        return (
+          <div key={definition.id} className={block ? 'stack stack--tight' : 'row row--between'} style={block ? undefined : { alignItems: 'flex-start' }}>
+            <dt className="small muted" style={block ? undefined : { minWidth: 120 }}>
+              {String(definition['label'])}
+            </dt>
+            <dd style={block ? { margin: 0 } : { margin: 0, textAlign: 'right', flex: 1 }}>
+              {formatValue(definition, valueForDefinition(definition.id, values), members)}
+            </dd>
+          </div>
+        );
+      })}
     </dl>
   );
 }
@@ -323,7 +318,7 @@ function ValueInput({
           onChange={onChange}
           multiline
           rows={4}
-          {...(type === 'markdown' ? { hint: '**bold**, *italic* and `code` are supported.' } : {})}
+          {...(type === 'markdown' ? { hint: 'Headers, lists, links, images and tables are all supported — see Help → Markdown for the full list.' } : {})}
         />
       );
     case 'number':

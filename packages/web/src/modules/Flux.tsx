@@ -12,6 +12,7 @@ import { SelectField, TextField } from '../ui/forms.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
+import { Markdown } from '../ui/Markdown.js';
 
 /**
  * Flux.
@@ -253,9 +254,7 @@ function PostCard({
       ) : (
         <>
           {post.body ? (
-            <p className={`prose${expanded ? '' : ' clamp-3'}`} style={{ marginTop: 'var(--space-3)' }}>
-              {post.body}
-            </p>
+            <Markdown text={post.body} className={expanded ? undefined : 'clamp-3'} style={{ marginTop: 'var(--space-3)' }} />
           ) : null}
 
           {post.media.length > 0 ? (
@@ -390,9 +389,7 @@ function Comments({ postId }: { postId: string }): JSX.Element {
                 <div className="tiny faint">
                   {comment.author.displayName} · {dates.relative(comment.postedAt)}
                 </div>
-                <p className="small prose" style={{ margin: 0 }}>
-                  {comment.body}
-                </p>
+                <Markdown text={comment.body} className="small" />
               </div>
             </div>
           ))}

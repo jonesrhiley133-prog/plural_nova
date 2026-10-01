@@ -6,6 +6,7 @@ import { Button, Card, Chip, SectionHeading } from '../ui/primitives.js';
 import { SearchField } from '../ui/forms.js';
 import { EmptyState } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
+import { Markdown } from '../ui/Markdown.js';
 
 /**
  * Help.
@@ -21,7 +22,55 @@ interface Topic {
   category: string;
   body: string[];
   link?: { label: string; path: string };
+  /**
+   * Raw markdown, shown both as typed source and as its own live rendered
+   * output — for the one topic that needs to demonstrate syntax rather than
+   * describe it. Not run through `term()`: it is fixed example text, not
+   * copy that should change with the system's chosen terminology.
+   */
+  example?: string;
 }
+
+const MARKDOWN_EXAMPLE = [
+  '# A big heading',
+  '## A smaller one',
+  '',
+  '**bold**, *italic*, ~~struck through~~, and `inline code`.',
+  '',
+  '- a list',
+  '- with an item',
+  '  - nested one level in',
+  '',
+  '1. a numbered list',
+  '2. stays in order',
+  '',
+  '> a quote, for something someone else said',
+  '',
+  'A [link to somewhere](https://example.com), and an image held to a size:',
+  '',
+  // A data URI rather than a link out to some other site — this is a
+  // self-hosted, privacy-first app, and its own help page should not need a
+  // network request (or depend on some external host staying up) just to
+  // show what the syntax does.
+  '![a small square image](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGOoWvQdK2IYWhIAv4WEwWN3ssYAAAAASUVORK5CYII= =160x160)',
+  '',
+  '| Thing | Status |',
+  '| --- | --- |',
+  '| Example | done |',
+  '',
+  '```',
+  'a fenced block keeps its own spacing and does not get formatted',
+  '```',
+  '',
+  '- [ ] not done yet',
+  '- [x] already done',
+  '',
+  '::: grid',
+  'One block…',
+  '',
+  '…beside another, arranged in a grid.',
+  ':::',
+].join('\n');
 
 const TOPICS: Topic[] = [
   {
@@ -65,6 +114,17 @@ const TOPICS: Topic[] = [
       'It applies to menus, buttons, empty states and help — including this page — and it persists across reloads, sign-outs and devices.',
     ],
     link: { label: 'Open terminology settings', path: '/settings/terminology' },
+  },
+  {
+    id: 'markdown',
+    title: 'Formatting text with Markdown',
+    category: 'Writing',
+    body: [
+      'Anywhere there is room to write more than a line or two — a bio, a journal entry, a Flux post, a custom field set to the Markdown type — a little bit of punctuation formats the text.',
+      'Type the syntax shown below and it renders the way it looks underneath. Everything here is sanitised before it is shown to you or anyone else, so none of it can be used to run anything or hijack a link.',
+      'A plain, single line break is kept as a line break — it does not need a blank line of its own the way some other Markdown does.',
+    ],
+    example: MARKDOWN_EXAMPLE,
   },
   {
     id: 'privacy',
@@ -221,6 +281,29 @@ export default function Help(): JSX.Element {
                               {term(line)}
                             </p>
                           ))}
+                          {topic.example ? (
+                            <div className="stack stack--tight" style={{ marginBottom: 'var(--space-3)' }}>
+                              <p className="tiny faint" style={{ margin: 0 }}>
+                                Type this:
+                              </p>
+                              <pre className="tiny faint" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+                                {topic.example}
+                              </pre>
+                              <p className="tiny faint" style={{ margin: 0 }}>
+                                Shows as this:
+                              </p>
+                              <div
+                                style={{
+                                  background: 'var(--surface-sunken)',
+                                  border: 'var(--border-width) solid var(--border)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  padding: 'var(--space-4)',
+                                }}
+                              >
+                                <Markdown text={topic.example} />
+                              </div>
+                            </div>
+                          ) : null}
                           {topic.link ? (
                             <Button
                               variant="secondary"
