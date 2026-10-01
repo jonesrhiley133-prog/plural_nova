@@ -47,6 +47,13 @@ different versions of PluralNova.
   other reading-width content are unaffected, and nothing changes on a
   phone or tablet — this is a desktop-only expansion of the existing
   mobile-first layout.
+- **Text size and UI zoom are now two separate settings instead of one
+  disconnected switch.** "Larger text" is retired in favour of a Text Size
+  picker (Small/Default/Large/Extra large) that drives every size token app-
+  wide — nav, cards, buttons, forms, lists, chat — consistently. A new,
+  separate UI Zoom setting scales the entire interface like a browser's own
+  zoom, without the bottom nav, FABs or dialogs breaking loose from where
+  they belong the way a naive scale transform would.
 
 - **A new School Life category: classes, assignments, and academic analytics
   with a real GPA.** Track classes with your own weighted grading categories
@@ -227,6 +234,19 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Signing into a second device could permanently lock the first one out of
+  Messages.** Each device published its encryption key under the same
+  hardcoded label, so the server kept only the most recently signed-in
+  device's key active — every device before it lost the ability to decrypt
+  anything new, with no way back short of signing out everywhere and back in
+  on just one. Each device now keeps its own key active for as long as it
+  keeps using the same one, so devices stop fighting over a single slot;
+  sending a message now seals a copy for every device that might need to
+  read it — the recipient's and this account's own other devices alike — so
+  a conversation stays readable from a phone, a tablet and a desktop all
+  signed into the same account at once, and a device already sitting on an
+  open conversation picks up a sibling device the moment it signs in rather
+  than needing a reload to notice it.
 - **Outgoing and incoming chat messages both rendered in the middle of the
   screen instead of on the right and left.** The `mine`/`theirs` alignment
   class was being applied to a bubble nested a level too deep to affect its

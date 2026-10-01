@@ -16,6 +16,13 @@ import { publicKey, sendPush } from '../services/push.js';
  * existing row instead of creating a duplicate that would deliver everything
  * twice. A device carries exactly one of the two: a browser sends `subscription`,
  * the Android shell sends `fcmToken`.
+ *
+ * A caller that only wants a stable device identity — message encryption,
+ * which has no push credential to dedupe by — passes a client-remembered
+ * `id` instead, from a previous call's response. Matching by `id` never
+ * touches the push columns unless this same call also carries push data, so
+ * a browser that already has notifications set up does not lose them just
+ * because something else re-registered the device without providing them.
  */
 
 export const devicesRouter: Router = Router();
@@ -51,6 +58,7 @@ devicesRouter.post(
   handler((req, res) => {
     const context = auth(req);
     const body = req.body as {
+      id?: string;
       label?: string;
       platform?: string;
       subscription?: { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
@@ -60,33 +68,51 @@ devicesRouter.post(
 
     const endpoint = body.subscription?.endpoint ?? null;
     const fcmToken = body.fcmToken ?? null;
+    const hasPushData = Boolean(endpoint || fcmToken);
     const timestamp = now();
-    const existing = endpoint
+    const existing = body.id
       ? (getDb()
-          .prepare('SELECT "id" FROM "devices" WHERE "userId" = ? AND "pushEndpoint" = ?')
-          .get(context.user.id, endpoint) as { id: string } | undefined)
-      : fcmToken
+          .prepare('SELECT "id" FROM "devices" WHERE "userId" = ? AND "id" = ? AND "deletedAt" IS NULL')
+          .get(context.user.id, body.id) as { id: string } | undefined)
+      : endpoint
         ? (getDb()
-            .prepare('SELECT "id" FROM "devices" WHERE "userId" = ? AND "fcmToken" = ?')
-            .get(context.user.id, fcmToken) as { id: string } | undefined)
-        : undefined;
+            .prepare('SELECT "id" FROM "devices" WHERE "userId" = ? AND "pushEndpoint" = ?')
+            .get(context.user.id, endpoint) as { id: string } | undefined)
+        : fcmToken
+          ? (getDb()
+              .prepare('SELECT "id" FROM "devices" WHERE "userId" = ? AND "fcmToken" = ?')
+              .get(context.user.id, fcmToken) as { id: string } | undefined)
+          : undefined;
 
     if (existing) {
-      getDb()
-        .prepare(
-          `UPDATE "devices" SET "label" = ?, "platform" = ?, "pushP256dh" = ?, "pushAuth" = ?, "fcmToken" = ?,
-           "pushEnabled" = 1, "lastSeenAt" = ?, "updatedAt" = ?, "deletedAt" = NULL WHERE "id" = ?`,
-        )
-        .run(
-          body.label ?? 'This device',
-          body.platform ?? '',
-          body.subscription?.keys?.p256dh ?? null,
-          body.subscription?.keys?.auth ?? null,
-          fcmToken,
-          timestamp,
-          timestamp,
-          existing.id,
-        );
+      if (hasPushData) {
+        getDb()
+          .prepare(
+            `UPDATE "devices" SET "label" = ?, "platform" = ?, "pushP256dh" = ?, "pushAuth" = ?, "fcmToken" = ?,
+             "pushEnabled" = 1, "lastSeenAt" = ?, "updatedAt" = ?, "deletedAt" = NULL WHERE "id" = ?`,
+          )
+          .run(
+            body.label ?? 'This device',
+            body.platform ?? '',
+            body.subscription?.keys?.p256dh ?? null,
+            body.subscription?.keys?.auth ?? null,
+            fcmToken,
+            timestamp,
+            timestamp,
+            existing.id,
+          );
+      } else {
+        // A check-in with no push credentials of its own — such as
+        // publishing a message-encryption key — only confirms the device is
+        // still around. Its existing push subscription, if any, is left
+        // exactly as it was.
+        getDb()
+          .prepare(
+            `UPDATE "devices" SET "label" = COALESCE(?, "label"), "platform" = COALESCE(?, "platform"),
+             "lastSeenAt" = ?, "updatedAt" = ?, "deletedAt" = NULL WHERE "id" = ?`,
+          )
+          .run(body.label ?? null, body.platform ?? null, timestamp, timestamp, existing.id);
+      }
       ok(res, { id: existing.id, updated: true });
       return;
     }

@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { newId, type StoredRecord } from '@pluralnova/shared';
 import { api, messageFor } from './api.js';
+import { useAuth } from './auth.js';
 import { realtime } from './realtime.js';
 import {
   DecryptionFailed,
   cryptoAvailable,
-  loadOrCreateKeyPair,
   openMessage,
+  publishMessageKey,
   sealMessage,
   type KeyPairRecord,
 } from './crypto.js';
@@ -206,6 +207,83 @@ export function useMessageThreads(): {
   return { threads, requests, loading, error, reload: load };
 }
 
+interface RemoteKey {
+  id: string;
+  publicKey: string;
+}
+
+interface SealedVariant {
+  keyId: string;
+  body: string;
+}
+
+/** A fan-out body is a JSON array of sealed copies; anything else is read as the pre-fan-out single-ciphertext shape. */
+function parseVariants(body: string): SealedVariant[] | null {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const variants = parsed.filter(
+      (item): item is SealedVariant =>
+        Boolean(item) &&
+        typeof item === 'object' &&
+        typeof (item as SealedVariant).keyId === 'string' &&
+        typeof (item as SealedVariant).body === 'string',
+    );
+    return variants.length > 0 ? variants : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decrypts one stored message body.
+ *
+ * A message encrypted after the multi-device fix is a JSON array of sealed
+ * copies, one per device that might need to read it, each tagged with that
+ * device's own key id. A device holding a copy tagged with its own key id is
+ * a recipient of the message — decrypting it pairs this device's private key
+ * with the sender's public key (`senderKeyId`, resolved through
+ * `keyDirectory`, the combined map of the other party's keys and this
+ * account's own other devices). A device holding no such copy is the one
+ * that sent the message in the first place: every copy was addressed to some
+ * other key, so it falls back to any one of them, which it can always open —
+ * it holds the private key that sealed it.
+ *
+ * A plain, non-JSON body predates the fan-out and was sealed once, to
+ * whichever key the other party had active at the time; `legacyKey` is that
+ * same "first known key" fallback the original single-key code used.
+ */
+export async function decryptMessageBody(
+  body: string,
+  senderKeyId: string,
+  myPrivateKey: JsonWebKey,
+  myActiveKeyId: string | undefined,
+  keyDirectory: Map<string, JsonWebKey>,
+  legacyKey: JsonWebKey | null,
+): Promise<string> {
+  const variants = parseVariants(body);
+  if (!variants) {
+    if (!legacyKey) {
+      throw new DecryptionFailed('This message was encrypted to a key this device does not have. It cannot be read here.');
+    }
+    return openMessage(body, myPrivateKey, legacyKey);
+  }
+
+  const mine = myActiveKeyId ? variants.find((variant) => variant.keyId === myActiveKeyId) : undefined;
+  const chosen = mine ?? variants[0];
+  if (!chosen) throw new DecryptionFailed('This message is not in a format PluralNova can read.');
+
+  // Mine: pair with the sender's key. Not mine (I sent it myself, from a
+  // device none of these copies are addressed to): pair with whichever key
+  // this particular copy was sealed to — I hold the private half either way.
+  const counterpartKeyId = mine ? senderKeyId : chosen.keyId;
+  const counterpartKey = keyDirectory.get(counterpartKeyId);
+  if (!counterpartKey) {
+    throw new DecryptionFailed('This message was encrypted to a key this device does not have. It cannot be read here.');
+  }
+  return openMessage(chosen.body, myPrivateKey, counterpartKey);
+}
+
 interface MessageConversationState {
   thread: MessageThreadSummary | null;
   messages: Message[];
@@ -251,10 +329,26 @@ export function useMessageConversation(
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
+  const myUserId = useAuth().user?.id ?? null;
   const [keyPair, setKeyPair] = useState<KeyPairRecord | null>(null);
-  const [theirKey, setTheirKey] = useState<JsonWebKey | null>(null);
+  /** The other party's own active keys — gates whether this conversation can encrypt at all. */
+  const [theirKeys, setTheirKeys] = useState<RemoteKey[]>([]);
+  /** This account's other active devices, so a message sent from one of this account's devices can be read from another. */
+  const [myOtherKeys, setMyOtherKeys] = useState<RemoteKey[]>([]);
   const [decrypted, setDecrypted] = useState<Record<string, string>>({});
   const [keyAttempt, setKeyAttempt] = useState(0);
+
+  const keyDirectory = useMemo(() => {
+    const map = new Map<string, JsonWebKey>();
+    for (const key of [...theirKeys, ...myOtherKeys]) {
+      try {
+        map.set(key.id, JSON.parse(key.publicKey) as JsonWebKey);
+      } catch {
+        // An unparsable key is the same as no key.
+      }
+    }
+    return map;
+  }, [theirKeys, myOtherKeys]);
 
   const normalize = useCallback(
     (raw: Record<string, unknown>): Message => ({
@@ -312,51 +406,77 @@ export function useMessageConversation(
     setPending([]);
     setDecrypted({});
     setThread(null);
+    setTheirKeys([]);
+    setMyOtherKeys([]);
     setLoading(true);
     void load();
   }, [load]);
 
+  const otherUserId = thread?.person?.id ?? null;
+
   useEffect(
     () =>
       realtime.on((event) => {
+        // Either side of this conversation can publish a new device's key at
+        // any time, not just while the thread is open — this account's own
+        // other devices, or the other party's. Either way, a conversation
+        // already sitting open picks up the new key as a fan-out target
+        // without needing a reload to notice it.
+        if (event.type === 'messageKey.new' && (event.userId === myUserId || event.userId === otherUserId)) {
+          setKeyAttempt((attempt) => attempt + 1);
+        }
         if (!threadId) return;
         if (event.type === 'message.new' && event.threadId === threadId) {
           void load();
-          if (!theirKey) setKeyAttempt((attempt) => attempt + 1);
+          if (theirKeys.length === 0) setKeyAttempt((attempt) => attempt + 1);
         }
         if (event.type === 'message.deleted' && event.threadId === threadId) void load();
         if (event.type === 'reaction.new' && event.kind === 'dm' && event.threadId === threadId) void load();
       }),
-    [threadId, load, theirKey],
+    [threadId, load, theirKeys, myUserId, otherUserId],
   );
 
-  // Key exchange: this account's key was published at sign-in; only the
-  // other side's is looked up here, and re-tried whenever a message arrives
-  // while it is still unknown (they may have just signed in and published one).
-  const otherUserId = thread?.person?.id ?? null;
+  // Key exchange: publishing is idempotent, so re-confirming this device's
+  // own key here (rather than trusting the one published at sign-in to have
+  // already landed) costs nothing and closes a race on a very fast first
+  // open. Both the other side's keys and this account's own other devices
+  // are fetched, since either can hold a copy of a message addressed here —
+  // and re-tried whenever a message arrives while the other side still has
+  // none on record (they may have just signed in and published one), or
+  // whenever either side publishes a key for an additional device while
+  // this conversation is already open.
   useEffect(() => {
     if (!cryptoAvailable() || !otherUserId) return;
     let cancelled = false;
     void (async () => {
-      const pair = await loadOrCreateKeyPair();
+      const pair = await publishMessageKey();
       if (!pair || cancelled) return;
       setKeyPair(pair);
-      const result = await api.get<{ keys: { publicKey: string }[] }>(`/api/messages/keys/${otherUserId}`).catch(() => null);
-      const raw = result?.keys[0]?.publicKey;
-      if (!raw || cancelled) return;
-      try {
-        setTheirKey(JSON.parse(raw) as JsonWebKey);
-      } catch {
-        // An unparsable key is the same as no key.
-      }
+      const [theirs, mine] = await Promise.all([
+        api.get<{ keys: RemoteKey[] }>(`/api/messages/keys/${otherUserId}`).catch(() => null),
+        myUserId ? api.get<{ keys: RemoteKey[] }>(`/api/messages/keys/${myUserId}`).catch(() => null) : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+      setTheirKeys(theirs?.keys ?? []);
+      setMyOtherKeys((mine?.keys ?? []).filter((key) => key.id !== pair.activeKeyId));
     })();
     return () => {
       cancelled = true;
     };
-  }, [otherUserId, keyAttempt]);
+  }, [otherUserId, myUserId, keyAttempt]);
 
   useEffect(() => {
-    if (!keyPair || !theirKey) return;
+    if (!keyPair) return;
+    const legacyKey = (() => {
+      const first = theirKeys[0];
+      if (!first) return null;
+      try {
+        return JSON.parse(first.publicKey) as JsonWebKey;
+      } catch {
+        return null;
+      }
+    })();
+    if (keyDirectory.size === 0 && !legacyKey) return;
     let cancelled = false;
     void (async () => {
       const next: Record<string, string> = {};
@@ -366,7 +486,14 @@ export function useMessageConversation(
         const id = String(message['id']);
         if (message['encrypted'] !== true || decrypted[id]) continue;
         try {
-          next[id] = await openMessage(String(message['body']), keyPair.privateKeyJwk, theirKey);
+          next[id] = await decryptMessageBody(
+            String(message['body']),
+            String(message['encryptionKeyId'] ?? ''),
+            keyPair.privateKeyJwk,
+            keyPair.activeKeyId,
+            keyDirectory,
+            legacyKey,
+          );
         } catch (cause) {
           next[id] =
             cause instanceof DecryptionFailed ? `[${cause.message}]` : '[This message could not be decrypted on this device.]';
@@ -377,7 +504,7 @@ export function useMessageConversation(
     return () => {
       cancelled = true;
     };
-  }, [rawMessages, keyPair, theirKey, decrypted]);
+  }, [rawMessages, keyPair, keyDirectory, theirKeys, decrypted]);
 
   const displayMessages = normalizedMessages.map((message) =>
     message.encrypted && decrypted[message.id] !== undefined ? { ...message, body: decrypted[message.id]! } : message,
@@ -388,6 +515,12 @@ export function useMessageConversation(
       const body = text.trim();
       if ((!body && (options.attachments?.length ?? 0) === 0) || !threadId) return;
       const clientId = newId('cli').slice(4);
+      const activeKeyId = keyPair?.activeKeyId;
+      // Encryption is gated on the other side having a key, not on this
+      // device's own other devices — a message this account's other devices
+      // could read but the actual recipient could not would defeat the point
+      // of sending it.
+      const canEncrypt = Boolean(keyPair && activeKeyId) && theirKeys.length > 0;
       const optimistic: Message = {
         id: `pending-${clientId}`,
         threadId,
@@ -399,7 +532,7 @@ export function useMessageConversation(
         reactions: {},
         attachments: options.attachments ?? [],
         forwardedFrom: options.forwardedFrom ?? null,
-        encrypted: Boolean(keyPair && theirKey),
+        encrypted: canEncrypt,
         sequence: Number.MAX_SAFE_INTEGER,
         clientId,
         pending: true,
@@ -410,16 +543,28 @@ export function useMessageConversation(
       try {
         let payloadBody = body;
         let encrypted = false;
-        if (keyPair && theirKey) {
-          const sealed = await sealMessage(body, keyPair.privateKeyJwk, theirKey);
-          payloadBody = sealed.body;
-          encrypted = true;
+        let encryptionKeyId = '';
+        if (canEncrypt && keyPair && activeKeyId) {
+          // One sealed copy per device that might need to read this — the
+          // other side's devices and this account's own other devices alike
+          // — so the conversation stays readable from any of them, not just
+          // whichever one last happened to publish a key.
+          const variants: SealedVariant[] = [];
+          for (const [keyId, publicKey] of keyDirectory) {
+            const sealed = await sealMessage(body, keyPair.privateKeyJwk, publicKey);
+            variants.push({ keyId, body: sealed.body });
+          }
+          if (variants.length > 0) {
+            payloadBody = JSON.stringify(variants);
+            encryptionKeyId = activeKeyId;
+            encrypted = true;
+          }
         }
         await api.post(`/api/messages/threads/${threadId}`, {
           body: payloadBody,
           clientId,
           encrypted,
-          encryptionKeyId: encrypted ? 'browser' : '',
+          encryptionKeyId,
           replyToId: options.replyToId ?? null,
           // Attachments ride along in the clear even on an encrypted
           // message: the files themselves are plain uploads on this
@@ -438,7 +583,7 @@ export function useMessageConversation(
         setSending(false);
       }
     },
-    [threadId, keyPair, theirKey, speakingAsMemberId, load],
+    [threadId, keyPair, keyDirectory, theirKeys, speakingAsMemberId, load],
   );
 
   const retry = useCallback(
@@ -510,7 +655,7 @@ export function useMessageConversation(
     loading,
     error,
     sending,
-    encryptionReady: Boolean(keyPair && theirKey),
+    encryptionReady: Boolean(keyPair?.activeKeyId) && theirKeys.length > 0,
     cryptoSupported: cryptoAvailable(),
     send,
     retry,

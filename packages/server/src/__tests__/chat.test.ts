@@ -1,5 +1,30 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { WebSocket } from 'ws';
 import { createTestApp, registerUser, type TestClient } from './harness.js';
+
+/** Opens a realtime connection as the given account and resolves once the server's own `ready` frame confirms it is live. */
+function connectRealtime(client: TestClient, token: string): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${client.port}/realtime?token=${encodeURIComponent(token)}`);
+    socket.once('error', reject);
+    socket.once('message', (raw) => {
+      const parsed = JSON.parse(String(raw)) as { type?: string };
+      if (parsed.type === 'ready') resolve(socket);
+      else reject(new Error(`Expected a ready frame, got ${String(raw)}`));
+    });
+  });
+}
+
+/** Resolves with the next parsed JSON frame this socket receives, within a short deadline. */
+function nextMessage(socket: WebSocket, timeoutMs = 2000): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Timed out waiting for a realtime message.')), timeoutMs);
+    socket.once('message', (raw) => {
+      clearTimeout(timer);
+      resolve(JSON.parse(String(raw)) as Record<string, unknown>);
+    });
+  });
+}
 
 describe('direct messages: replies, reactions, forwarding', () => {
   let client: TestClient;
@@ -448,5 +473,209 @@ describe('active-chatter thread visibility', () => {
       { token },
     );
     expect(asCorvid.body.data.thread.participants.map((p: any) => p.name)).toEqual(['Ash']);
+  });
+});
+
+/**
+ * The bug this replaces: every browser published its key under the same
+ * hardcoded label, so the server retired whichever key was already active —
+ * meaning a second device signing in permanently locked the first device out
+ * of anything encrypted afterwards. `deviceLabel` is now expected to be a
+ * stable per-device id, and a key is kept active per device instead.
+ */
+describe('message encryption keys: one active key per device, not per account', () => {
+  let client: TestClient;
+  let token: string;
+  let userId: string;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    const account = await registerUser(client, { email: 'multi-device@example.com' });
+    token = account.token;
+    userId = account.userId;
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('keeps a second device’s key active alongside the first, rather than retiring it', async () => {
+    const laptop = await client.request('POST', '/api/messages/keys', {
+      token,
+      body: { publicKey: 'laptop-key-v1', deviceLabel: 'dev_laptop' },
+    });
+    expect(laptop.status).toBe(201);
+
+    const phone = await client.request('POST', '/api/messages/keys', {
+      token,
+      body: { publicKey: 'phone-key-v1', deviceLabel: 'dev_phone' },
+    });
+    expect(phone.status).toBe(201);
+
+    const keys = await client.request('GET', `/api/messages/keys/${userId}`, { token });
+    const byKey = new Set(keys.body.data.keys.map((k: any) => k.publicKey));
+    expect(byKey).toEqual(new Set(['laptop-key-v1', 'phone-key-v1']));
+  });
+
+  it('republishing the same key for the same device is a no-op, not a new row', async () => {
+    const first = await client.request('POST', '/api/messages/keys', {
+      token,
+      body: { publicKey: 'tablet-key-v1', deviceLabel: 'dev_tablet' },
+    });
+    const second = await client.request('POST', '/api/messages/keys', {
+      token,
+      body: { publicKey: 'tablet-key-v1', deviceLabel: 'dev_tablet' },
+    });
+    expect(second.status).toBe(200);
+    expect(second.body.data.keyId).toBe(first.body.data.keyId);
+  });
+
+  it('a real key rotation on one device retires only that device’s own previous key', async () => {
+    const before = await client.request('POST', '/api/messages/keys', {
+      token,
+      body: { publicKey: 'watch-key-v1', deviceLabel: 'dev_watch' },
+    });
+    const rotated = await client.request('POST', '/api/messages/keys', {
+      token,
+      body: { publicKey: 'watch-key-v2', deviceLabel: 'dev_watch' },
+    });
+    expect(rotated.status).toBe(201);
+    expect(rotated.body.data.keyId).not.toBe(before.body.data.keyId);
+
+    const keys = await client.request('GET', `/api/messages/keys/${userId}`, { token });
+    const watchKeys = keys.body.data.keys.filter((k: any) => k.publicKey.startsWith('watch-key'));
+    expect(watchKeys.map((k: any) => k.publicKey)).toEqual(['watch-key-v2']);
+    // The other devices from the earlier tests are untouched by this rotation.
+    const byKey = new Set(keys.body.data.keys.map((k: any) => k.publicKey));
+    expect(byKey.has('laptop-key-v1')).toBe(true);
+    expect(byKey.has('phone-key-v1')).toBe(true);
+  });
+});
+
+describe('device registration: a stable id for a caller with no push credentials', () => {
+  let client: TestClient;
+  let token: string;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    const account = await registerUser(client, { email: 'device-identity@example.com' });
+    token = account.token;
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('reuses the same device row when a client-remembered id is sent back', async () => {
+    const first = await client.request('POST', '/api/devices', { token, body: { label: 'Browser' } });
+    expect(first.status).toBe(201);
+
+    const second = await client.request('POST', '/api/devices', {
+      token,
+      body: { id: first.body.data.id, label: 'Browser' },
+    });
+    expect(second.status).toBe(200);
+    expect(second.body.data.id).toBe(first.body.data.id);
+
+    const list = await client.request('GET', '/api/devices', { token });
+    expect(list.body.data.devices.filter((d: any) => d.id === first.body.data.id)).toHaveLength(1);
+  });
+
+  it('does not clear an existing push subscription when later checked in without one', async () => {
+    const created = await client.request('POST', '/api/devices', {
+      token,
+      body: { label: 'Phone', subscription: { endpoint: 'https://push.example/abc', keys: { p256dh: 'p', auth: 'a' } } },
+    });
+
+    await client.request('POST', '/api/devices', {
+      token,
+      body: { id: created.body.data.id, label: 'Phone' },
+    });
+
+    const list = await client.request('GET', '/api/devices', { token });
+    const device = list.body.data.devices.find((d: any) => d.id === created.body.data.id);
+    expect(device.hasPush).toBe(true);
+  });
+});
+
+describe('message encryption keys: publishing one notifies who needs to know', () => {
+  let client: TestClient;
+  let alice: { token: string; userId: string };
+  let bob: { token: string; userId: string };
+  let stranger: { token: string; userId: string };
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    alice = await registerUser(client, { email: 'keynotify-alice@example.com', displayName: 'Alice' });
+    bob = await registerUser(client, { email: 'keynotify-bob@example.com', displayName: 'Bob' });
+    stranger = await registerUser(client, { email: 'keynotify-stranger@example.com', displayName: 'Stranger' });
+
+    // A conversation row for both sides, same as any real DM — this is what
+    // tells the server whom to notify. The stranger is never part of one.
+    const started = await client.request('POST', '/api/messages/conversations', {
+      token: alice.token,
+      body: { userId: bob.userId },
+    });
+    expect(started.status).toBe(201);
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it("tells an existing conversation partner so a tab left open there picks up the new key", async () => {
+    const bobSocket = await connectRealtime(client, bob.token);
+    try {
+      const published = nextMessage(bobSocket);
+      await client.request('POST', '/api/messages/keys', {
+        token: alice.token,
+        body: { publicKey: 'alice-laptop-key', deviceLabel: 'dev_alice_laptop' },
+      });
+      await expect(published).resolves.toMatchObject({ type: 'messageKey.new', userId: alice.userId });
+    } finally {
+      bobSocket.close();
+    }
+  });
+
+  it("does not tell an account with no conversation with the publisher", async () => {
+    const strangerSocket = await connectRealtime(client, stranger.token);
+    try {
+      const premature = nextMessage(strangerSocket, 500);
+      await client.request('POST', '/api/messages/keys', {
+        token: alice.token,
+        body: { publicKey: 'alice-phone-key', deviceLabel: 'dev_alice_phone' },
+      });
+      await expect(premature).rejects.toThrow();
+    } finally {
+      strangerSocket.close();
+    }
+  });
+
+  it("tells this same account's own other open connections too", async () => {
+    const aliceOtherTab = await connectRealtime(client, alice.token);
+    try {
+      const published = nextMessage(aliceOtherTab);
+      await client.request('POST', '/api/messages/keys', {
+        token: alice.token,
+        body: { publicKey: 'alice-tablet-key', deviceLabel: 'dev_alice_tablet' },
+      });
+      await expect(published).resolves.toMatchObject({ type: 'messageKey.new', userId: alice.userId });
+    } finally {
+      aliceOtherTab.close();
+    }
+  });
+
+  it('says nothing when republishing an unchanged key', async () => {
+    await client.request('POST', '/api/messages/keys', {
+      token: alice.token,
+      body: { publicKey: 'alice-unchanged-key', deviceLabel: 'dev_alice_unchanged' },
+    });
+
+    const bobSocket = await connectRealtime(client, bob.token);
+    try {
+      const premature = nextMessage(bobSocket, 500);
+      const repeat = await client.request('POST', '/api/messages/keys', {
+        token: alice.token,
+        body: { publicKey: 'alice-unchanged-key', deviceLabel: 'dev_alice_unchanged' },
+      });
+      expect(repeat.status).toBe(200);
+      await expect(premature).rejects.toThrow();
+    } finally {
+      bobSocket.close();
+    }
   });
 });

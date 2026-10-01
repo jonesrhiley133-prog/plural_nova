@@ -1,10 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DecryptionFailed,
   loadOrCreateKeyPair,
   openMessage,
+  publishMessageKey,
   sealMessage,
 } from '../crypto.js';
+
+const post = vi.fn((_path: string, _body?: unknown) => Promise.resolve({}));
+vi.mock('../api.js', () => ({
+  api: { post: (path: string, body?: unknown) => post(path, body) },
+}));
 
 /**
  * These run against the platform's real WebCrypto, not a stub. If the key
@@ -76,5 +82,62 @@ describe('message encryption', () => {
     await expect(
       openMessage('not-sealed', second.privateKeyJwk, first.publicKeyJwk),
     ).rejects.toBeInstanceOf(DecryptionFailed);
+  });
+});
+
+/**
+ * Publishing used to retire a device's key under a hardcoded label shared by
+ * every browser, so a second device signing in locked the first one out —
+ * the bug this device-scoped identity exists to fix. These pin down the
+ * replacement: a stable per-device id reused across calls, and a published
+ * key id a viewer can tell its own fan-out copy apart by.
+ */
+describe('publishing a message key', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    post.mockReset();
+  });
+
+  it('registers this device once and checks in under the same id after', async () => {
+    post.mockImplementation((path: string) =>
+      path === '/api/devices' ? Promise.resolve({ id: 'dev_1' }) : Promise.resolve({ keyId: 'mky_1' }),
+    );
+
+    const first = await publishMessageKey();
+    expect(first?.deviceId).toBe('dev_1');
+    expect(first?.activeKeyId).toBe('mky_1');
+
+    await publishMessageKey();
+    const deviceCalls = post.mock.calls.filter(([path]) => path === '/api/devices');
+    expect(deviceCalls).toHaveLength(2);
+    // The id this device was given the first time comes back on the second
+    // check-in, so the server recognises it as the same device rather than
+    // registering a new one.
+    expect(deviceCalls[1]?.[1]).toMatchObject({ id: 'dev_1' });
+  });
+
+  it('keeps the key id already on record when a later check-in fails', async () => {
+    let deviceCalls = 0;
+    post.mockImplementation((path: string) => {
+      if (path === '/api/devices') {
+        deviceCalls += 1;
+        return deviceCalls > 1 ? Promise.reject(new Error('offline')) : Promise.resolve({ id: 'dev_1' });
+      }
+      return Promise.resolve({ keyId: 'mky_1' });
+    });
+
+    const first = await publishMessageKey();
+    expect(first?.activeKeyId).toBe('mky_1');
+
+    const second = await publishMessageKey();
+    expect(second?.deviceId).toBe('dev_1');
+    expect(second?.activeKeyId).toBe('mky_1');
+  });
+
+  it('returns the key pair without publishing when WebCrypto has nothing stored and the network is unreachable', async () => {
+    post.mockImplementation(() => Promise.reject(new Error('offline')));
+    const result = await publishMessageKey();
+    expect(result?.deviceId).toBeUndefined();
+    expect(result?.activeKeyId).toBeUndefined();
   });
 });

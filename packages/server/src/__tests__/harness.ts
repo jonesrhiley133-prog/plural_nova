@@ -15,6 +15,8 @@ export interface TestClient {
   app: Express;
   /** The temporary data directory, for tests that put files where the server looks. */
   dataDir: string;
+  /** The real port the server is listening on, for a test that opens its own realtime WebSocket connection. */
+  port: number;
   /** Clears the rate-limit windows so a suite can register many accounts. */
   resetLimits: () => void;
   request: (
@@ -42,7 +44,9 @@ export async function createTestApp(): Promise<TestClient> {
 
   const app = createApp();
   const { createServer } = await import('node:http');
+  const { attachRealtime, closeAll } = await import('../realtime/hub.js');
   const server = createServer(app);
+  attachRealtime(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : 0;
@@ -74,7 +78,9 @@ export async function createTestApp(): Promise<TestClient> {
     request,
     resetLimits: resetRateLimits,
     dataDir: dir,
+    port,
     close: () => {
+      closeAll();
       server.close();
       closeDatabase();
       rmSync(dir, { recursive: true, force: true });
