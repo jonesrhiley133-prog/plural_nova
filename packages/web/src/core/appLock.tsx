@@ -40,14 +40,16 @@ export type AppLockState = 'checking' | 'locked' | 'unlocked';
 const CACHE_KEY = 'pluralnova.appLockCache';
 
 /**
- * In the Android shell, opening a file picker, a permission prompt, or a
- * share sheet backgrounds the host Activity — and with it the WebView's own
- * page visibility — exactly the way actually leaving the app does, then
- * returns within a second or two. This grace period is what tells that
- * round trip apart from a real backgrounding, without weakening the setting
- * for anyone who genuinely switches away and stays away.
+ * A brief backgrounding — switching tabs to paste a code, checking a
+ * notification, the Android shell's own file picker/share sheet/permission
+ * prompt backgrounding the host Activity along with the WebView's page
+ * visibility — returns within moments, and none of it is "left the app" the
+ * way this setting means it. Longer than this and it is: this still locks
+ * well within the time it'd take to notice the app was left open somewhere,
+ * without a routine few-second glance away triggering the exact lock screen
+ * this setting exists to avoid surprising anyone with.
  */
-const BACKGROUND_LOCK_GRACE_MS = 2000;
+const BACKGROUND_LOCK_GRACE_MS = 30_000;
 
 interface CachedAppLock {
   configured: boolean;

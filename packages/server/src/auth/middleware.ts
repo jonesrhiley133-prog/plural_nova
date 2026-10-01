@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { forbidden, unauthorized } from '../http/errors.js';
 import type { Scope } from '../db/repository.js';
-import { findSession, isAppUnlocked, isVaultUnlocked, touchSession, type SessionRow } from './sessions.js';
+import { findSession, isAppUnlocked, isVaultUnlocked, touchSession, unlockApp, type SessionRow } from './sessions.js';
 import { findUserById, readSettings, type UserRow } from './users.js';
 import type { AppSettings } from '@pluralnova/shared';
 
@@ -65,10 +65,21 @@ export function requireVault(req: Request, _res: Response, next: NextFunction): 
 }
 
 export function buildContext(user: UserRow, session: SessionRow): AuthContext {
+  const settings = readSettings(user);
+  // Sliding, not flat: without this, the unlock window set by the last
+  // `/api/app-lock/unlock` call expires on its own after `autoLockMinutes`
+  // regardless of how actively the app is being used in the meantime, so a
+  // long but continuous session gets interrupted by a lock screen mid-use —
+  // indistinguishable from random to whoever hits it. Any authenticated
+  // request while already unlocked pushes the window forward instead, so
+  // "N minutes" means N minutes of actual inactivity.
+  if (isAppUnlocked(session)) {
+    unlockApp(session.id, settings.appLock.autoLockMinutes);
+  }
   return {
     user,
     session,
-    settings: readSettings(user),
+    settings,
     scope: { userId: user.id, systemId: user.activeSystemId },
     vaultUnlocked: isVaultUnlocked(session),
     appLockUnlocked: isAppUnlocked(session),

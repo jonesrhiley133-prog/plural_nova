@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { getDb } from '../db/index.js';
 import { createTestApp, registerUser, type TestClient } from './harness.js';
 
 describe('app lock', () => {
@@ -64,6 +65,42 @@ describe('app lock', () => {
     });
     expect(right.status).toBe(200);
     expect(right.body.data.unlocked).toBe(true);
+  });
+
+  it('slides the unlock window forward on activity instead of a flat timer from the last unlock', async () => {
+    const account = await registerUser(client, { email: 'sliding-window@example.com' });
+    await client.request('POST', '/api/app-lock/setup', { token: account.token, body: { pin: '4242' } });
+
+    const db = getDb();
+    const readUntil = (): string =>
+      (
+        db
+          .prepare('SELECT appLockUnlockedUntil FROM sessions WHERE userId = ?')
+          .get(account.userId) as { appLockUnlockedUntil: string }
+      ).appLockUnlockedUntil;
+
+    // Backdate the window to almost expired, the way it genuinely would be
+    // after several minutes of real, continuous use — not because of any
+    // backgrounding or inactivity.
+    const aboutToExpire = new Date(Date.now() + 2000).toISOString();
+    db.prepare('UPDATE sessions SET appLockUnlockedUntil = ? WHERE userId = ?').run(aboutToExpire, account.userId);
+
+    const status = await client.request('GET', '/api/app-lock/status', { token: account.token });
+    expect(status.body.data.unlocked).toBe(true);
+    // One authenticated request while still unlocked pushes the window back
+    // out, rather than leaving it sitting at the near-expiry value a flat
+    // timer from the moment of unlocking would never have moved — this is
+    // what makes "N minutes" mean inactivity instead of a session length cap.
+    expect(readUntil() > aboutToExpire).toBe(true);
+
+    // An already-expired window is a real lock, not activity to extend: a
+    // request arriving after it has actually run out stays locked rather
+    // than reviving it.
+    const alreadyExpired = new Date(Date.now() - 1000).toISOString();
+    db.prepare('UPDATE sessions SET appLockUnlockedUntil = ? WHERE userId = ?').run(alreadyExpired, account.userId);
+    const afterExpiry = await client.request('GET', '/api/app-lock/status', { token: account.token });
+    expect(afterExpiry.body.data.unlocked).toBe(false);
+    expect(readUntil()).toBe(alreadyExpired);
   });
 
   it('rate-limits unlock attempts separately from the vault', async () => {
