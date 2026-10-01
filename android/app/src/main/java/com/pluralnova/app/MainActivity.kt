@@ -11,11 +11,13 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.View
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -286,6 +288,23 @@ class MainActivity : AppCompatActivity() {
                 if (!request.isForMainFrame) return
                 showError("it answered ${errorResponse.statusCode}")
             }
+
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                // The renderer is a separate OS process from this one and can be
+                // killed by the system under memory pressure — the Files app,
+                // Camera or Photo Picker briefly in the foreground is a common
+                // trigger — without PluralNova itself crashing. Left unhandled,
+                // Android crashes the host app anyway; this is reported to have
+                // looked like the chat layout and back button breaking, since
+                // whatever was on screen when the renderer died stops responding.
+                // `recreate()` rebuilds the WebView through the same
+                // saveState/restoreState path a configuration change already
+                // uses (see onSaveInstanceState/onCreate below), so the page and
+                // its back/forward history come back exactly as they were.
+                if (view !== binding.webView) return false
+                recreate()
+                return true
+            }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -297,7 +316,7 @@ class MainActivity : AppCompatActivity() {
                 pendingFileChooser?.onReceiveValue(emptyArray())
                 pendingFileChooser = callback
                 return try {
-                    chooseFiles.launch(params.createIntent())
+                    chooseFiles.launch(galleryPickerIntent(params) ?: params.createIntent())
                     true
                 } catch (error: Exception) {
                     // No app can handle the picker. Answer the page so its file
@@ -323,6 +342,33 @@ class MainActivity : AppCompatActivity() {
                 (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
             }
         })
+    }
+
+    /**
+     * The page's "Gallery" attach option asks for images/video with no camera
+     * capture — `GALLERY_ACCEPT` in MessageConversationView.tsx and its System
+     * Chat equivalent. `params.createIntent()`'s default for that shape is
+     * typically a generic document chooser rather than an actual photo
+     * browser, which is the reported "Gallery opens the Files app" bug. The
+     * system Photo Picker (API 33+) is a real gallery — swipeable, its own
+     * back-swipe-to-dismiss UI, no files-app chrome — so it is used directly
+     * when the request is unambiguously photo/video and not a camera capture;
+     * anything else (Camera's own capture intent, the broad Files input, or a
+     * device too old to have the picker) falls back to the default unchanged.
+     */
+    private fun galleryPickerIntent(params: WebChromeClient.FileChooserParams): Intent? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+        if (params.isCaptureEnabled) return null
+
+        val types = params.acceptTypes.filter { it.isNotBlank() }
+        val isVisualMediaOnly = types.isNotEmpty() && types.all { it.startsWith("image/") || it.startsWith("video/") }
+        if (!isVisualMediaOnly) return null
+
+        val picker = Intent(MediaStore.ACTION_PICK_IMAGES)
+        if (params.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+            picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit())
+        }
+        return if (picker.resolveActivity(packageManager) != null) picker else null
     }
 
     // Below Android 13 a notification needs no runtime permission at all; asking

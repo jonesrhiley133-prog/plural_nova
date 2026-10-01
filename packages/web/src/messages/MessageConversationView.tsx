@@ -12,15 +12,23 @@ import {
 } from '../core/messages.js';
 import { Avatar, Button, IconButton } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
-import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { ActionMenu, ConfirmDialog, Dialog, useActionMenu, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
 import { MessageBubble } from '../chat/MessageBubble.js';
 import { PendingAttachmentChip, type ChatAttachmentLike } from '../chat/ChatAttachmentView.js';
+import { GifPickerDialog } from '../chat/GifPickerDialog.js';
 import { useVoiceRecorder, VoiceRecorderPanel } from '../chat/VoiceRecorder.js';
 import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
 import { MessagesInfoDialog } from './MessagesInfoDialog.js';
 
-const ATTACH_ACCEPT = 'image/*,video/*,audio/*,.pdf,.txt';
+// Files keeps today's broad reach — documents included — since that option is
+// deliberately the one that still opens the system file picker. Gallery and
+// Camera get their own, narrower inputs below so each can carry the right
+// `accept`/`capture` for what it is, which is also what lets the Android
+// shell (see MainActivity.kt's onShowFileChooser) tell Gallery apart from
+// Files and send it to the native photo picker instead of a generic chooser.
+const FILES_ACCEPT = 'image/*,video/*,audio/*,.pdf,.txt';
+const GALLERY_ACCEPT = 'image/*,video/*';
 
 /**
  * One open Messages conversation: header, history, composer — every DM is a
@@ -54,7 +62,11 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
   const forwardDialog = useDialog<Message>();
   const deleteDialog = useDialog<Message>();
   const recorder = useVoiceRecorder();
-  const attachInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
+  const attachMenu = useActionMenu();
+  const [gifPickerOpen, setGifPickerOpen] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const userScrolledUp = useRef(false);
@@ -300,10 +312,34 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
             }}
           >
             <input
-              ref={attachInputRef}
+              ref={galleryInputRef}
               type="file"
               multiple
-              accept={ATTACH_ACCEPT}
+              accept={GALLERY_ACCEPT}
+              className="visually-hidden"
+              tabIndex={-1}
+              onChange={(event) => {
+                void addFiles(event.target.files);
+                event.target.value = '';
+              }}
+            />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="visually-hidden"
+              tabIndex={-1}
+              onChange={(event) => {
+                void addFiles(event.target.files);
+                event.target.value = '';
+              }}
+            />
+            <input
+              ref={filesInputRef}
+              type="file"
+              multiple
+              accept={FILES_ACCEPT}
               className="visually-hidden"
               tabIndex={-1}
               onChange={(event) => {
@@ -313,10 +349,10 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
             />
             <IconButton
               icon="attach"
-              label="Attach a file"
+              label="Attach"
               variant="ghost"
               disabled={uploading}
-              onClick={() => attachInputRef.current?.click()}
+              onClick={(event) => attachMenu.openFrom(event)}
             />
             <input
               className="input chat-composer__input"
@@ -337,6 +373,21 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
               <IconButton icon="mic" label="Record a voice message" variant="primary" onClick={() => void recorder.start()} />
             )}
           </form>
+          <ActionMenu
+            position={attachMenu.position}
+            onClose={attachMenu.close}
+            items={[
+              { key: 'gallery', label: 'Gallery', icon: 'media', onSelect: () => galleryInputRef.current?.click() },
+              { key: 'camera', label: 'Camera', icon: 'camera', onSelect: () => cameraInputRef.current?.click() },
+              { key: 'gifs', label: 'GIFs', icon: 'sparkle', onSelect: () => setGifPickerOpen(true) },
+              { key: 'files', label: 'Files', icon: 'folder', onSelect: () => filesInputRef.current?.click() },
+            ]}
+          />
+          <GifPickerDialog
+            open={gifPickerOpen}
+            onClose={() => setGifPickerOpen(false)}
+            onPick={(attachment) => setPendingAttachments((current) => [...current, attachment])}
+          />
           {recorder.state === 'denied' ? (
             <p className="chat-voice__denied" role="alert">
               Could not reach the microphone.

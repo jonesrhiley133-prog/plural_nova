@@ -12,6 +12,14 @@ different versions of PluralNova.
 
 ### Added
 
+- **GIF search in both chat features.** The attach button opens a menu —
+  Gallery, Camera, GIFs, Files — instead of going straight to a file picker.
+  GIFs searches Tenor without Tenor ever seeing who is searching: the server
+  proxies the lookup, and sending a result downloads it server-side and
+  stores it the same way any other attachment is stored, so it stays usable
+  offline and isn't a live link to Tenor's own servers. Optional and off by
+  default — without a `PLURALNOVA_TENOR_API_KEY` set, GIFs says so plainly
+  and Gallery, Camera and Files all still work.
 - **School Life's second phase: extracurriculars, study timers, school
   check-ins, and deeper Journal and Calendar integration.** Track clubs,
   sports and anything else outside of class on their own roster, with hours
@@ -44,6 +52,12 @@ different versions of PluralNova.
 
 ### Changed
 
+- **Gallery now opens an actual photo gallery on Android, not the Files
+  app.** The attach menu's Gallery option used to fall through to whatever
+  generic document chooser the system offered, which on many devices is the
+  Files app rather than a photo browser. It now asks for the Android system
+  Photo Picker directly — swipeable, dismissed with a swipe down, no files-
+  app chrome — on devices that have it, with Camera and Files unaffected.
 - **Custom Field groups are more reliable.** Creating or editing a field now
   suggests group names already in use, so "Identity" and "identity" don't
   silently become two separate sections; grouping itself is now
@@ -261,6 +275,28 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **The PIN lock could trigger in the middle of actively using the app, on
+  both mobile and desktop.** The unlock window was set once when the PIN was
+  entered and left to expire on a flat timer, so "lock after N minutes"
+  actually meant N minutes since unlocking rather than N minutes of
+  inactivity — a long but continuous session got interrupted regardless of
+  how actively it was being used. Using the app while already unlocked now
+  pushes the window forward, the way an idle timeout is meant to work; a
+  window that has genuinely already expired still locks as before. The
+  Android app's own background-lock grace period — meant to tell a brief
+  file-picker or share-sheet round trip apart from actually leaving the
+  app — was also too short at 2 seconds, long enough to fire on an ordinary
+  tab switch, and is now 30.
+- **Returning from the file picker could leave a chat conversation's layout
+  and back button broken.** Opening the Files app, Camera or Photo Picker is
+  reported to sometimes kill the Android WebView's renderer process under
+  memory pressure, which previously left the page stuck rather than
+  recovering — easy to mistake for the message-alignment and back-button
+  bugs fixed earlier, since whatever was on screen when it happened simply
+  stopped responding. The app now rebuilds the WebView when this happens,
+  through the same state-restoring path an ordinary screen rotation already
+  uses, so the conversation and its back/forward history come back as they
+  were.
 - **School Life's screens stacked every section flush against the next, with
   no space between them.** The overview, Classes, a class's own page,
   Assignments and Academic Analytics now have the same visual breathing room

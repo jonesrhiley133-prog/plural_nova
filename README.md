@@ -53,6 +53,7 @@ Everything has a working default. The ones worth knowing:
 | `PLURALNOVA_MAIL_FROM` | unset | without it, reset codes come back in the response outside production |
 | `PLURALNOVA_MAX_UPLOAD` | 25 MB | per file |
 | `PLURALNOVA_FIREBASE_CREDENTIALS` | unset | only for push to the native Android app — see [`android/README.md`](android/README.md#push-notifications) |
+| `PLURALNOVA_TENOR_API_KEY` | unset | optional, enables GIF search in chat's attach menu — without it, that option explains it is not set up and Gallery/Camera/Files still work |
 
 Set `NODE_ENV=production` before exposing it to anything.
 

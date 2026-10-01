@@ -1517,6 +1517,45 @@
   }
 }
 
+/* ── GIF picker ─────────────────────────────────────────────────────────── */
+
+.gif-picker__tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+.gif-picker__tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .gif-picker__tile:hover {
+    border-color: var(--border-strong);
+  }
+}
+
+.gif-picker__tile:active {
+  transform: scale(calc(1 - 0.02 * var(--motion)));
+}
+
+.gif-picker__tile:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .stack {
   display: flex;
   flex-direction: column;

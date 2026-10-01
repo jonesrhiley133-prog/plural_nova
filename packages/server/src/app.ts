@@ -22,6 +22,7 @@ import { appLockRouter } from './routes/appLock.js';
 import { statsRouter } from './routes/stats.js';
 import { mediaRouter } from './routes/media.js';
 import { providersRouter } from './routes/providers.js';
+import { gifsRouter } from './routes/gifs.js';
 import { systemRouter } from './routes/system.js';
 
 export function createApp(): Express {
@@ -62,6 +63,7 @@ export function createApp(): Express {
   app.use('/api/stats', statsRouter);
   app.use('/api/media', mediaRouter);
   app.use('/api/providers', providersRouter);
+  app.use('/api/gifs', gifsRouter);
 
   app.use('/api/app', appRouter);
 
