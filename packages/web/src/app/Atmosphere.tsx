@@ -129,6 +129,26 @@ export function Atmosphere(): JSX.Element | null {
 
   return (
     <div className="atmosphere" aria-hidden="true">
+      {settings.backgroundImageUrl ? (
+        <>
+          <div
+            className="atmosphere__photo"
+            style={{
+              backgroundImage: `url(${JSON.stringify(settings.backgroundImageUrl)})`,
+              opacity: settings.backgroundOpacity / 100,
+              filter: settings.backgroundBlur > 0 ? `blur(${settings.backgroundBlur}px)` : undefined,
+            }}
+          />
+          {/*
+           * A photo picked for its own sake was never designed to sit behind
+           * body text — this is what keeps a bright sky or a busy room from
+           * taking contrast away from whatever is on top of it, regardless of
+           * how visible the photo itself is set to be.
+           */}
+          <div className="atmosphere__photo-scrim" />
+        </>
+      ) : null}
+
       {fields ? (
         <>
           <span className="atmosphere__field atmosphere__field--core" />

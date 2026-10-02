@@ -44,6 +44,16 @@ export interface PublicUser {
   activeMemberId: string | null;
   onboardedAt: Timestamp | null;
   isGuest: boolean;
+  /**
+   * The account's own picture, banner and bio — distinct from, and never
+   * shown as part of, a Constellation profile or a member's profile. Nothing
+   * else on this account reads these; they exist only so the account itself
+   * has somewhere to put a personal touch, the way an operating system's own
+   * user profile does.
+   */
+  avatarUrl: string;
+  bannerUrl: string;
+  bio: string;
 }
 
 export interface AuthResponse {

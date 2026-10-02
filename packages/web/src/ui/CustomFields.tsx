@@ -15,6 +15,8 @@ import {
   ColorField,
   DateTimeField,
   Field,
+  GalleryField,
+  ImageField,
   NumberField,
   ReferenceField,
   StarField,
@@ -24,6 +26,7 @@ import {
 } from './forms.js';
 import { useDialogHeaderActions } from './overlays.js';
 import { Icon } from './Icon.js';
+import { Markdown } from './Markdown.js';
 
 /**
  * Typed custom fields, shared across the whole system.
@@ -53,25 +56,13 @@ function colorForOption(options: CustomFieldOption[], id: string): string | unde
   return options.find((option) => option.id === id)?.color;
 }
 
-/** A small, deliberately incomplete subset — bold, italic, code and line breaks. Enough to be worth calling markdown, not a commitment to CommonMark. */
-function renderMarkdown(text: string): ReactNode {
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/\n/g, '<br />');
-  // eslint-disable-next-line react/no-danger -- built from four fixed, escaped patterns above, not arbitrary HTML.
-  return <span dangerouslySetInnerHTML={{ __html: escaped }} />;
-}
-
 // ── Read-only rendering ───────────────────────────────────────────────────────
 
 function hasValue(type: CustomFieldType, value: string): boolean {
   if (type === 'group') return false;
-  if (type === 'multiSelect' || type === 'checklist' || type === 'tags') return parseListValue(value).length > 0;
+  if (type === 'multiSelect' || type === 'checklist' || type === 'tags' || type === 'gallery') {
+    return parseListValue(value).length > 0;
+  }
   return value !== '';
 }
 
@@ -187,7 +178,7 @@ function formatValue(definition: StoredRecord, value: string, members: StoredRec
       );
     }
     case 'markdown':
-      return <span style={{ whiteSpace: 'pre-wrap' }}>{renderMarkdown(value)}</span>;
+      return <Markdown text={value} />;
     case 'code':
       return (
         <code className="tiny" style={{ fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'pre-wrap' }}>
@@ -196,6 +187,26 @@ function formatValue(definition: StoredRecord, value: string, members: StoredRec
       );
     case 'longText':
       return <span style={{ whiteSpace: 'pre-wrap' }}>{value}</span>;
+    case 'image':
+      return value ? (
+        <img src={value} alt="" style={{ width: 60, height: 60, borderRadius: 'var(--radius-sm)', objectFit: 'cover' }} />
+      ) : (
+        ''
+      );
+    case 'gallery':
+      return (
+        <div className="grid grid--tight" style={{ ['--grid-min' as never]: '72px' }}>
+          {parseListValue(value).map((url, index) => (
+            <img
+              key={`${url}-${index}`}
+              src={url}
+              alt=""
+              loading="lazy"
+              style={{ width: '100%', aspectRatio: '1', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }}
+            />
+          ))}
+        </div>
+      );
     case 'date':
       return value ? new Date(value).toLocaleDateString() : value;
     case 'datetime':
@@ -222,17 +233,26 @@ function FieldGroup({
     );
   }
   return (
-    <dl className="stack stack--tight" style={{ margin: 0 }}>
-      {filled.map((definition) => (
-        <div key={definition.id} className="row row--between" style={{ alignItems: 'flex-start' }}>
-          <dt className="small muted" style={{ minWidth: 120 }}>
-            {String(definition['label'])}
-          </dt>
-          <dd style={{ margin: 0, textAlign: 'right', flex: 1 }}>
-            {formatValue(definition, valueForDefinition(definition.id, values), members)}
-          </dd>
-        </div>
-      ))}
+    <dl className="stack" style={{ margin: 0 }}>
+      {filled.map((definition) => {
+        // Markdown and a multi-image gallery both need real width to read —
+        // content that looks broken squeezed right-aligned next to its label
+        // the way a one-line value does. They get the label above and the
+        // full row's width below instead; every other type keeps the
+        // label/value line unchanged.
+        const type = typeOf(definition);
+        const block = type === 'markdown' || type === 'gallery';
+        return (
+          <div key={definition.id} className={block ? 'stack stack--tight' : 'row row--between'} style={block ? undefined : { alignItems: 'flex-start' }}>
+            <dt className="small muted" style={block ? undefined : { minWidth: 120 }}>
+              {String(definition['label'])}
+            </dt>
+            <dd style={block ? { margin: 0 } : { margin: 0, textAlign: 'right', flex: 1 }}>
+              {formatValue(definition, valueForDefinition(definition.id, values), members)}
+            </dd>
+          </div>
+        );
+      })}
     </dl>
   );
 }
@@ -244,21 +264,18 @@ function FieldGroup({
  * all — the point of sharing definitions is not to turn every profile into
  * a form full of blanks for whatever the rest of the system fills in.
  */
-export function MemberCustomFieldsView({
-  definitions,
-  values,
-  members = [],
-  actions,
-}: {
-  definitions: StoredRecord[];
-  values: CustomFieldValueEntry[];
-  members?: StoredRecord[];
-  actions?: ReactNode;
-}): JSX.Element {
+/**
+ * Buckets a flat list of definitions by their `group` text field — trimmed
+ * and compared case-insensitively, so "Identity", "identity" and " Identity"
+ * land in one section instead of quietly forking into three, keeping
+ * whichever casing was typed first as the visible heading. Shared by the
+ * profile view and the definitions-management screen so the two always agree
+ * on what a "group" is, rather than two independent readings drifting apart.
+ */
+export function groupCustomFieldDefinitions(
+  definitions: StoredRecord[],
+): { ungrouped: StoredRecord[]; groups: { key: string; label: string; definitions: StoredRecord[] }[] } {
   const ungrouped: StoredRecord[] = [];
-  // Keyed by trimmed, lower-cased group name so "Identity", "identity" and
-  // " Identity" land in the same section instead of quietly forking into
-  // three — the visible heading keeps whichever casing was typed first.
   const groups = new Map<string, { label: string; definitions: StoredRecord[] }>();
   for (const definition of definitions) {
     const raw = definition['group'] ? String(definition['group']).trim() : '';
@@ -271,9 +288,24 @@ export function MemberCustomFieldsView({
       ungrouped.push(definition);
     }
   }
+  return { ungrouped, groups: [...groups.entries()].map(([key, bucket]) => ({ key, ...bucket })) };
+}
+
+export function MemberCustomFieldsView({
+  definitions,
+  values,
+  members = [],
+  actions,
+}: {
+  definitions: StoredRecord[];
+  values: CustomFieldValueEntry[];
+  members?: StoredRecord[];
+  actions?: ReactNode;
+}): JSX.Element {
+  const { ungrouped, groups } = groupCustomFieldDefinitions(definitions);
 
   return (
-    <>
+    <div className="stack stack--loose">
       <Card title="Custom fields" actions={actions}>
         {definitions.length > 0 ? (
           <FieldGroup definitions={ungrouped} values={values} members={members} />
@@ -281,12 +313,12 @@ export function MemberCustomFieldsView({
           <p className="small faint">No custom fields set up for this system yet.</p>
         )}
       </Card>
-      {[...groups.entries()].map(([key, { label, definitions: groupDefinitions }]) => (
+      {groups.map(({ key, label, definitions: groupDefinitions }) => (
         <Card key={key} title={label}>
           <FieldGroup definitions={groupDefinitions} values={values} members={members} />
         </Card>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -323,7 +355,7 @@ function ValueInput({
           onChange={onChange}
           multiline
           rows={4}
-          {...(type === 'markdown' ? { hint: '**bold**, *italic* and `code` are supported.' } : {})}
+          {...(type === 'markdown' ? { hint: 'Headers, lists, links, images and tables are all supported — see Help → Markdown for the full list.' } : {})}
         />
       );
     case 'number':
@@ -457,6 +489,16 @@ function ValueInput({
       );
     case 'color':
       return <ColorField label={label} value={value} onChange={onChange} />;
+    case 'image':
+      return <ImageField label={label} value={value} onChange={onChange} shape="square" />;
+    case 'gallery':
+      return (
+        <GalleryField
+          label={label}
+          value={parseListValue(value)}
+          onChange={(next) => onChange(JSON.stringify(next))}
+        />
+      );
     case 'link':
       return <TextField label={label} type="url" value={value} onChange={onChange} placeholder="https://…" />;
     case 'alterLink':

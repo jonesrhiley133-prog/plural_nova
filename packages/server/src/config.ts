@@ -21,6 +21,7 @@ function envInt(name: string, fallback: number): number {
 
 const dataDir = resolve(env('PLURALNOVA_DATA_DIR', './data'));
 const firebaseCredentialsEnv = env('PLURALNOVA_FIREBASE_CREDENTIALS', '');
+const tenorApiKeyEnv = env('PLURALNOVA_TENOR_API_KEY', '');
 
 /**
  * The built client sits beside the server inside the monorepo, so its default
@@ -64,6 +65,12 @@ export const config = {
    * paths resolve inside the data dir; empty means FCM delivery is disabled.
    */
   firebaseCredentialsFile: firebaseCredentialsEnv ? resolve(dataDir, firebaseCredentialsEnv) : '',
+  /**
+   * A Tenor API key, only needed for the chat composer's GIF search. Empty
+   * means that option says so and chat still works without it — same as an
+   * unset Firebase key leaves push disabled rather than broken.
+   */
+  tenorApiKey: tenorApiKeyEnv,
 } as const;
 
 export function ensureDirectories(): void {

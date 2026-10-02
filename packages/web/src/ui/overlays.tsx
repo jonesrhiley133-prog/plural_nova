@@ -58,6 +58,16 @@ export interface DialogProps {
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/**
+ * Every open dialog listens for Escape independently, so one dialog opened
+ * from inside another (the photo picker over the post composer, say) needs a
+ * way to tell which of them is actually on top. Each mounts its id here while
+ * open and only acts on Escape while its id is the last one in — the others
+ * see the same keypress and no-op rather than reaching past the dialog in
+ * front of them.
+ */
+const openDialogStack: string[] = [];
+
 export function Dialog({
   open,
   onClose,
@@ -73,6 +83,7 @@ export function Dialog({
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const stackId = useId();
   const [headerActions, setHeaderActions] = useState<ReactNode>(null);
 
   /*
@@ -91,6 +102,7 @@ export function Dialog({
   useEffect(() => {
     if (!open) return;
 
+    openDialogStack.push(stackId);
     previouslyFocused.current = document.activeElement as HTMLElement;
     const scrollY = window.scrollY;
     document.body.style.overflow = 'hidden';
@@ -100,6 +112,10 @@ export function Dialog({
 
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && dismissible) {
+        // Only the topmost dialog acts — otherwise the one underneath, whose
+        // listener was registered first, would close itself (and take this
+        // one down with it) before the dialog actually on top ever sees the key.
+        if (openDialogStack[openDialogStack.length - 1] !== stackId) return;
         event.stopPropagation();
         closeRef.current();
         return;
@@ -127,8 +143,14 @@ export function Dialog({
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
-      document.body.style.overflow = '';
-      window.scrollTo({ top: scrollY });
+      const index = openDialogStack.indexOf(stackId);
+      if (index !== -1) openDialogStack.splice(index, 1);
+      // Only drop the scroll lock once nothing else is still covering the
+      // page — an outer dialog left open underneath needs it to stay put.
+      if (openDialogStack.length === 0) {
+        document.body.style.overflow = '';
+        window.scrollTo({ top: scrollY });
+      }
       previouslyFocused.current?.focus?.();
     };
   }, [open, dismissible]);

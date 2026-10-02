@@ -14,7 +14,7 @@ import {
   type PublicUser,
   type StoredRecord,
 } from '@pluralnova/shared';
-import { ApiRequestError, api, getToken, messageFor, setToken } from './api.js';
+import { ApiRequestError, api, getToken, isOffline, messageFor, setToken } from './api.js';
 import { clearAll } from './localdb.js';
 import { recordStore } from './data.js';
 import { resetFrontingStore } from './fronting.js';
@@ -95,6 +95,36 @@ function writeCachedSession(session: CachedSession | null): void {
     else localStorage.removeItem(SESSION_KEY);
   } catch {
     // Storage can be blocked. The session then lasts only while the tab is open.
+  }
+}
+
+const PENDING_SETTINGS_KEY = 'pluralnova.pendingSettings';
+
+/**
+ * Every other write in this app queues in an outbox and survives being
+ * offline; a settings save did not — it just failed, and the next load showed
+ * whatever the server last actually had, which is indistinguishable from "it
+ * did not save". This is that same durability, sized for a single merged
+ * patch rather than a full operation queue: `mergeSettings` already combines
+ * partial patches correctly field by field, so there is nothing to gain from
+ * keeping them as separate entries the way record edits are.
+ */
+function readPendingSettingsPatch(): Partial<AppSettings> | null {
+  try {
+    const raw = localStorage.getItem(PENDING_SETTINGS_KEY);
+    return raw ? (JSON.parse(raw) as Partial<AppSettings>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingSettingsPatch(patch: Partial<AppSettings> | null): void {
+  try {
+    if (patch) localStorage.setItem(PENDING_SETTINGS_KEY, JSON.stringify(patch));
+    else localStorage.removeItem(PENDING_SETTINGS_KEY);
+  } catch {
+    // A save that fails while storage is also unavailable cannot be retried
+    // later; it still surfaces to the caller as a failure, same as before.
   }
 }
 
@@ -283,19 +313,58 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
    * only that one is allowed to update state, regardless of arrival order.
    */
   const saveSettingsSeq = useRef(0);
+  const pendingSettingsPatch = useRef<Partial<AppSettings> | null>(readPendingSettingsPatch());
 
   const saveSettings = useCallback<AuthActions['saveSettings']>(async (patch) => {
     const seq = (saveSettingsSeq.current += 1);
-    const result = await api.put<{ settings: AppSettings; user: PublicUser }>(
-      '/api/auth/settings',
-      patch,
-    );
-    const settings = mergeSettings(result.settings);
-    if (seq === saveSettingsSeq.current) {
-      setState((current) => ({ ...current, settings, user: result.user }));
+    // Recorded before the request, not after: a reload or a dropped connection
+    // between here and a response arriving must not lose track of a save that
+    // was never confirmed, which is the one thing that made this look saved
+    // and then not be.
+    const merged = { ...pendingSettingsPatch.current, ...patch };
+    pendingSettingsPatch.current = merged;
+    writePendingSettingsPatch(merged);
+
+    try {
+      const result = await api.put<{ settings: AppSettings; user: PublicUser }>(
+        '/api/auth/settings',
+        merged,
+      );
+      pendingSettingsPatch.current = null;
+      writePendingSettingsPatch(null);
+      const settings = mergeSettings(result.settings);
+      if (seq === saveSettingsSeq.current) {
+        setState((current) => ({ ...current, settings, user: result.user }));
+      }
+      return settings;
+    } catch (error) {
+      // Offline leaves the patch queued for the next reconnect to retry; a
+      // genuine rejection (bad data, server error) will not succeed by
+      // repeating it, so it is dropped rather than retried forever.
+      if (!isOffline(error)) {
+        pendingSettingsPatch.current = null;
+        writePendingSettingsPatch(null);
+      }
+      throw error;
     }
-    return settings;
   }, []);
+
+  /** Retries a save an earlier call (possibly from a previous, now-closed tab) could not get out. */
+  const flushPendingSettings = useCallback(async () => {
+    if (!pendingSettingsPatch.current || !navigator.onLine || state.status !== 'authenticated') return;
+    try {
+      await saveSettings(pendingSettingsPatch.current);
+    } catch {
+      // Still offline, or the server still refuses it — left for the next
+      // reconnect or launch to try again.
+    }
+  }, [saveSettings, state.status]);
+
+  useEffect(() => {
+    void flushPendingSettings();
+    window.addEventListener('online', flushPendingSettings);
+    return () => window.removeEventListener('online', flushPendingSettings);
+  }, [flushPendingSettings]);
 
   const setActiveSystem = useCallback(
     async (systemId: string) => {

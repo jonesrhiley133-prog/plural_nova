@@ -7,7 +7,7 @@ import { newId, now } from '@pluralnova/shared';
 import { config } from '../config.js';
 import { handler, ok } from '../http/respond.js';
 import { badRequest, notFound } from '../http/errors.js';
-import { auth, requireAuth } from '../auth/middleware.js';
+import { auth, requireAuth, type AuthContext } from '../auth/middleware.js';
 import { getDb } from '../db/index.js';
 import { createRecord, getRecord } from '../db/repository.js';
 
@@ -44,57 +44,82 @@ const ALLOWED: Record<string, { extension: string; kind: 'image' | 'video' | 'au
   'text/plain': { extension: '.txt', kind: 'document' },
 };
 
+export interface StoredUpload {
+  id: string;
+  url: string;
+  mediaType: 'image' | 'video' | 'audio' | 'document';
+  sizeBytes: number;
+  title: string;
+}
+
+/**
+ * Writes a buffer to the uploads dir and records it, exactly as `/upload`
+ * below does for a browser-submitted file. Shared with the GIF picker
+ * (`routes/gifs.ts`), which downloads a chosen GIF server-side and brings it
+ * in through this same path rather than keeping a second, parallel one.
+ */
+export async function storeUpload(
+  context: AuthContext,
+  buffer: Buffer,
+  mimeType: string,
+  title: string,
+  folder = '',
+): Promise<StoredUpload> {
+  const allowed = ALLOWED[mimeType];
+  if (!allowed) {
+    throw badRequest(
+      `PluralNova does not accept ${mimeType || 'that kind of file'}. Images, video, audio, PDFs and text files are supported.`,
+    );
+  }
+  if (buffer.length === 0) throw badRequest('The upload was empty.');
+  if (buffer.length > config.maxUploadBytes) {
+    throw badRequest(`Files are limited to ${Math.round(config.maxUploadBytes / 1024 / 1024)} MB.`);
+  }
+
+  const id = newId('upl');
+  const filename = `${id}${allowed.extension}`;
+  await writeFile(join(config.uploadsDir, filename), buffer);
+
+  getDb()
+    .prepare('INSERT INTO uploads (id, userId, filename, mimeType, sizeBytes, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, context.user.id, filename, mimeType, buffer.length, now());
+
+  const url = `/uploads/${filename}`;
+  const resolvedTitle = title.slice(0, 200) || filename;
+
+  // A media record is created alongside the file so the library, the gallery
+  // and backup all see it without a second round trip.
+  const record = createRecord(
+    'mediaItems',
+    context.scope,
+    {
+      title: resolvedTitle,
+      mediaType: allowed.kind,
+      url,
+      mimeType,
+      sizeBytes: buffer.length,
+      folder,
+      tags: [],
+      attachmentIds: [],
+    },
+    { visibility: 'private' },
+  );
+
+  return { id: record.id, url, mediaType: allowed.kind, sizeBytes: buffer.length, title: resolvedTitle };
+}
+
 mediaRouter.post(
   '/upload',
   express.raw({ type: () => true, limit: config.maxUploadBytes }),
   handler(async (req, res) => {
     const context = auth(req);
     const mimeType = (req.header('content-type') ?? '').split(';')[0]?.trim() ?? '';
-    const allowed = ALLOWED[mimeType];
-    if (!allowed) {
-      throw badRequest(
-        `PluralNova does not accept ${mimeType || 'that kind of file'}. Images, video, audio, PDFs and text files are supported.`,
-      );
-    }
-
     const buffer = req.body as Buffer;
-    if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw badRequest('The upload was empty.');
-    if (buffer.length > config.maxUploadBytes) {
-      throw badRequest(`Files are limited to ${Math.round(config.maxUploadBytes / 1024 / 1024)} MB.`);
-    }
+    if (!Buffer.isBuffer(buffer)) throw badRequest('The upload was empty.');
 
-    const id = newId('upl');
-    const filename = `${id}${allowed.extension}`;
-    await writeFile(join(config.uploadsDir, filename), buffer);
-
-    getDb()
-      .prepare(
-        'INSERT INTO uploads (id, userId, filename, mimeType, sizeBytes, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
-      )
-      .run(id, context.user.id, filename, mimeType, buffer.length, now());
-
-    const url = `/uploads/${filename}`;
-    const title = (req.header('x-file-name') ?? '').slice(0, 200) || filename;
-
-    // A media record is created alongside the file so the library, the gallery
-    // and backup all see it without a second round trip.
-    const record = createRecord(
-      'mediaItems',
-      context.scope,
-      {
-        title,
-        mediaType: allowed.kind,
-        url,
-        mimeType,
-        sizeBytes: buffer.length,
-        folder: req.header('x-folder') ?? '',
-        tags: [],
-        attachmentIds: [],
-      },
-      { visibility: 'private' },
-    );
-
-    ok(res, { id: record.id, url, mediaType: allowed.kind, sizeBytes: buffer.length, title }, 201);
+    const title = req.header('x-file-name') ?? '';
+    const stored = await storeUpload(context, buffer, mimeType, title, req.header('x-folder') ?? '');
+    ok(res, stored, 201);
   }),
 );
 

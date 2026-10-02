@@ -9,6 +9,7 @@ import { SearchField, SelectField, useDebounced } from '../ui/forms.js';
 import { AsyncContent } from '../ui/feedback.js';
 import { useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
+import { Markdown } from '../ui/Markdown.js';
 import { resolveTemplate, StoryTemplatePicker, TEMPLATES, type StoryTemplate } from './storyTemplates.js';
 
 /**
@@ -166,7 +167,7 @@ export default function Stories(): JSX.Element {
                   title={String(story['title'] ?? '').trim() || 'Untitled Story'}
                   subtitle={String(story['genre'] ?? '')}
                 >
-                  {story['summary'] ? <p className="small muted clamp-3">{String(story['summary'])}</p> : null}
+                  {story['summary'] ? <Markdown text={String(story['summary'])} className="small muted clamp-3" /> : null}
 
                   <div className="row" style={{ marginTop: 'var(--space-3)' }}>
                     <Chip accent>{String(story['status'] ?? 'planning')}</Chip>

@@ -777,3 +777,69 @@ describe('DM read receipts and typing: realtime signals, not just stored state',
     }
   });
 });
+
+describe('"send as a member" never attributes a DM to an alter unless the sender shows their member list', () => {
+  let client: TestClient;
+  let dana: { token: string; userId: string };
+  let eve: { token: string; userId: string };
+  let threadId: string;
+  let danaConversationId: string;
+  let memberId: string;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    dana = await registerUser(client, { email: 'sendas-dana@example.com', displayName: 'Dana' });
+    eve = await registerUser(client, { email: 'sendas-eve@example.com', displayName: 'Eve' });
+
+    for (const [account, handle] of [
+      [dana, 'sendas-dana'],
+      [eve, 'sendas-eve'],
+    ] as const) {
+      await client.request('PUT', '/api/social/profile', { token: account.token, body: { handle, displayName: handle, isPublic: true } });
+    }
+    const request = await client.request('POST', '/api/social/friends/requests', { token: dana.token, body: { handle: 'sendas-eve' } });
+    await client.request('POST', `/api/social/friends/requests/${request.body.data.id}/accept`, { token: eve.token });
+
+    const created = await client.request('POST', '/api/messages/conversations', { token: dana.token, body: { handle: 'sendas-eve' } });
+    threadId = created.body.data.conversation.threadId;
+    danaConversationId = created.body.data.conversation.id;
+
+    const member = await client.request('POST', '/api/records/members', { token: dana.token, body: { name: 'Dana-Alt' } });
+    memberId = member.body.data.id;
+    await client.request('PATCH', `/api/messages/conversations/${danaConversationId}`, {
+      token: dana.token,
+      body: { asMemberId: memberId },
+    });
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('hides the alter from the other side until the sender opts in, and always shows it to the sender themselves', async () => {
+    const sent = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: dana.token,
+      body: { body: 'hello from my alter' },
+    });
+    expect(sent.body.data.message.asMember).not.toBeNull();
+
+    const asRecipient = await client.request('GET', `/api/messages/threads/${threadId}`, { token: eve.token });
+    const received = asRecipient.body.data.messages.find((m: any) => m.id === sent.body.data.message.id);
+    expect(received.asMember).toBeNull();
+
+    const asSender = await client.request('GET', `/api/messages/threads/${threadId}`, { token: dana.token });
+    expect(asSender.body.data.messages.find((m: any) => m.id === sent.body.data.message.id).asMember).not.toBeNull();
+
+    await client.request('PUT', '/api/social/profile', {
+      token: dana.token,
+      body: { handle: 'sendas-dana', displayName: 'sendas-dana', isPublic: true, showMemberList: true },
+    });
+    const afterOptIn = await client.request('GET', `/api/messages/threads/${threadId}`, { token: eve.token });
+    expect(afterOptIn.body.data.messages.find((m: any) => m.id === sent.body.data.message.id).asMember).not.toBeNull();
+
+    await client.request('PATCH', `/api/records/members/${memberId}`, {
+      token: dana.token,
+      body: { privacy: { showOnProfile: false } },
+    });
+    const afterMemberOptOut = await client.request('GET', `/api/messages/threads/${threadId}`, { token: eve.token });
+    expect(afterMemberOptOut.body.data.messages.find((m: any) => m.id === sent.body.data.message.id).asMember).toBeNull();
+  });
+});

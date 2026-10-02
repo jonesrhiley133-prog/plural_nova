@@ -83,6 +83,30 @@ describe('MemberCustomFieldsView', () => {
     expect(screen.getByText('Yes')).toBeInTheDocument();
   });
 
+  it('renders a single image field as a thumbnail', () => {
+    const definitions = [definition({ id: 'cfd_1', label: 'Portrait', type: 'image' })];
+    const values: CustomFieldValueEntry[] = [{ definitionId: 'cfd_1', value: 'https://example.com/portrait.png' }];
+    const { container } = render(<MemberCustomFieldsView definitions={definitions} values={values} />);
+    const img = container.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toBe('https://example.com/portrait.png');
+  });
+
+  it('renders a gallery field as a grid of thumbnails, and hides it entirely with no images', () => {
+    const definitions = [definition({ id: 'cfd_1', label: 'Reference sheet', type: 'gallery' })];
+    const withImages = [
+      { definitionId: 'cfd_1', value: JSON.stringify(['https://example.com/a.png', 'https://example.com/b.png']) },
+    ];
+    const { container, rerender } = render(<MemberCustomFieldsView definitions={definitions} values={withImages} />);
+    expect(container.querySelectorAll('img')).toHaveLength(2);
+
+    rerender(<MemberCustomFieldsView definitions={definitions} values={[{ definitionId: 'cfd_1', value: '[]' }]} />);
+    expect(container.querySelectorAll('img')).toHaveLength(0);
+    expect(
+      screen.getByText('Nothing filled in here. Every field is optional — a blank one is not a gap.'),
+    ).toBeInTheDocument();
+  });
+
   it('shares one definition’s choices across whichever member answered it', () => {
     const definitions = [
       definition({

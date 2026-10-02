@@ -35,6 +35,9 @@ const FIXED_TABLE_COLUMNS: Record<string, Record<string, string>> = {
   users: {
     appLockPinHash: 'TEXT',
     appLockPinSalt: 'TEXT',
+    avatarUrl: 'TEXT',
+    bannerUrl: 'TEXT',
+    bio: 'TEXT',
   },
   sessions: {
     appLockUnlockedUntil: 'TEXT',

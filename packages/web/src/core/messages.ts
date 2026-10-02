@@ -3,23 +3,22 @@ import { newId, type StoredRecord } from '@pluralnova/shared';
 import { api, messageFor } from './api.js';
 import { useAuth } from './auth.js';
 import { realtime } from './realtime.js';
-import {
-  DecryptionFailed,
-  cryptoAvailable,
-  openMessage,
-  publishMessageKey,
-  sealMessage,
-  type KeyPairRecord,
-} from './crypto.js';
+import { DecryptionFailed, cryptoAvailable, loadOrCreateKeyPair, openMessage, type KeyPairRecord } from './crypto.js';
 
 /**
  * Messages: online, account-to-account conversation.
  *
  * A genuinely separate data layer from In-Sys Chat (see systemChat.ts) — its
  * own server collections (conversations/messages), its own identity (the
- * other party is a PluralNova account, never an alter), end-to-end
- * encrypted. Nothing here imports, or is imported by, systemChat.ts; they
- * share only the visual language their components render with.
+ * other party is a PluralNova account, never an alter). Nothing here
+ * imports, or is imported by, systemChat.ts; they share only the visual
+ * language their components render with.
+ *
+ * Sending is plain text. Older conversations may still hold messages sealed
+ * from before encryption was removed, which is why key loading and
+ * `decryptMessageBody` below are still here — a message's own `encrypted`
+ * flag, not anything about the account, is what decides whether a given row
+ * still needs them.
  */
 
 export interface MessagePerson {
@@ -296,9 +295,6 @@ interface MessageConversationState {
   loading: boolean;
   error: string | null;
   sending: boolean;
-  /** True once this account's key is loaded and the other side's is known. */
-  encryptionReady: boolean;
-  cryptoSupported: boolean;
   /** The other person is actively typing right now — expires on its own if a "stopped" signal never arrives. */
   theirTyping: boolean;
 }
@@ -477,20 +473,18 @@ export function useMessageConversation(
     [threadId, load, theirKeys, myUserId, otherUserId],
   );
 
-  // Key exchange: publishing is idempotent, so re-confirming this device's
-  // own key here (rather than trusting the one published at sign-in to have
-  // already landed) costs nothing and closes a race on a very fast first
-  // open. Both the other side's keys and this account's own other devices
-  // are fetched, since either can hold a copy of a message addressed here —
-  // and re-tried whenever a message arrives while the other side still has
-  // none on record (they may have just signed in and published one), or
-  // whenever either side publishes a key for an additional device while
-  // this conversation is already open.
+  // Nothing publishes a key for new encryption anymore, so this only loads
+  // this device's own previously-generated one (if it has one) plus the
+  // other side's and this account's own other devices' previously-published
+  // keys — exactly what decrypting old history in this conversation, below,
+  // still needs. Re-tried on the same events a live key exchange used to
+  // care about, since that cost nothing and a stale key list is still worth
+  // refreshing without requiring a reload.
   useEffect(() => {
     if (!cryptoAvailable() || !otherUserId) return;
     let cancelled = false;
     void (async () => {
-      const pair = await publishMessageKey();
+      const pair = await loadOrCreateKeyPair();
       if (!pair || cancelled) return;
       setKeyPair(pair);
       const [theirs, mine] = await Promise.all([
@@ -580,12 +574,6 @@ export function useMessageConversation(
       if ((!body && (options.attachments?.length ?? 0) === 0) || !threadId) return;
       stopTyping();
       const clientId = newId('cli').slice(4);
-      const activeKeyId = keyPair?.activeKeyId;
-      // Encryption is gated on the other side having a key, not on this
-      // device's own other devices — a message this account's other devices
-      // could read but the actual recipient could not would defeat the point
-      // of sending it.
-      const canEncrypt = Boolean(keyPair && activeKeyId) && theirKeys.length > 0;
       const optimistic: Message = {
         id: `pending-${clientId}`,
         threadId,
@@ -597,7 +585,7 @@ export function useMessageConversation(
         reactions: {},
         attachments: options.attachments ?? [],
         forwardedFrom: options.forwardedFrom ?? null,
-        encrypted: canEncrypt,
+        encrypted: false,
         sequence: Number.MAX_SAFE_INTEGER,
         readBy: [],
         clientId,
@@ -607,35 +595,10 @@ export function useMessageConversation(
       setSending(true);
 
       try {
-        let payloadBody = body;
-        let encrypted = false;
-        let encryptionKeyId = '';
-        if (canEncrypt && keyPair && activeKeyId) {
-          // One sealed copy per device that might need to read this — the
-          // other side's devices and this account's own other devices alike
-          // — so the conversation stays readable from any of them, not just
-          // whichever one last happened to publish a key.
-          const variants: SealedVariant[] = [];
-          for (const [keyId, publicKey] of keyDirectory) {
-            const sealed = await sealMessage(body, keyPair.privateKeyJwk, publicKey);
-            variants.push({ keyId, body: sealed.body });
-          }
-          if (variants.length > 0) {
-            payloadBody = JSON.stringify(variants);
-            encryptionKeyId = activeKeyId;
-            encrypted = true;
-          }
-        }
         await api.post(`/api/messages/threads/${threadId}`, {
-          body: payloadBody,
+          body,
           clientId,
-          encrypted,
-          encryptionKeyId,
           replyToId: options.replyToId ?? null,
-          // Attachments ride along in the clear even on an encrypted
-          // message: the files themselves are plain uploads on this
-          // server's disk, so sealing only the caption would be a false
-          // promise of privacy the file itself does not keep.
           attachments: options.attachments ?? [],
           forwardedFrom: options.forwardedFrom ?? null,
           asMemberId: speakingAsMemberId,
@@ -649,7 +612,7 @@ export function useMessageConversation(
         setSending(false);
       }
     },
-    [threadId, keyPair, keyDirectory, theirKeys, speakingAsMemberId, load, stopTyping],
+    [threadId, speakingAsMemberId, load, stopTyping],
   );
 
   const retry = useCallback(
@@ -721,8 +684,6 @@ export function useMessageConversation(
     loading,
     error,
     sending,
-    encryptionReady: Boolean(keyPair?.activeKeyId) && theirKeys.length > 0,
-    cryptoSupported: cryptoAvailable(),
     theirTyping,
     send,
     retry,

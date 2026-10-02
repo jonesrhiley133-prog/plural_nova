@@ -6,7 +6,7 @@ import {
 } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { badRequest, forbidden, notFound } from '../http/errors.js';
-import { auth, requireAuth } from '../auth/middleware.js';
+import { auth, requireAuth, type AuthContext } from '../auth/middleware.js';
 import {
   createRecord,
   deleteRecord,
@@ -174,10 +174,26 @@ recordsRouter.delete(
     const context = auth(req);
     const collection = collectionFor(req.params['collection'], context.settings.mode);
     const record = deleteRecord(collection.name, context.scope, String(req.params['id']));
+    if (collection.name === 'flags') deleteFlagAssignmentsFor(context, record.id);
     afterWrite(context.scope, collection, record.id, 'deleted', record);
     ok(res, { deleted: true, id: record.id, restorableUntil: thirtyDaysFrom(record.deletedAt) });
   }),
 );
+
+/**
+ * A flag assignment has no screen of its own and nothing ever restores or
+ * purges one individually, so once its flag is gone it would otherwise sit
+ * in the database forever, unreachable by anything. Deleting it alongside
+ * the flag it points to keeps that join table honest.
+ */
+function deleteFlagAssignmentsFor(context: AuthContext, flagId: string): void {
+  const assignments = collectionFor('flagAssignments', context.settings.mode);
+  const { items } = listRecords('flagAssignments', context.scope, { filters: { flagId }, limit: 500 });
+  for (const assignment of items) {
+    const deleted = deleteRecord('flagAssignments', context.scope, assignment.id);
+    afterWrite(context.scope, assignments, deleted.id, 'deleted', deleted);
+  }
+}
 
 recordsRouter.post(
   '/:collection/:id/restore',
@@ -199,10 +215,22 @@ recordsRouter.delete(
     if (req.query['confirm'] !== 'permanent') {
       throw badRequest('Add ?confirm=permanent to delete this for good.');
     }
-    purgeRecord(collection.name, context.scope, String(req.params['id']));
+    const id = String(req.params['id']);
+    if (collection.name === 'flags') purgeFlagAssignmentsFor(context, id);
+    purgeRecord(collection.name, context.scope, id);
     ok(res, { purged: true });
   }),
 );
+
+/** As `deleteFlagAssignmentsFor`, but for the permanent-delete path: no undo, so no trace left behind. */
+function purgeFlagAssignmentsFor(context: AuthContext, flagId: string): void {
+  const { items } = listRecords('flagAssignments', context.scope, {
+    filters: { flagId },
+    includeDeleted: true,
+    limit: 500,
+  });
+  for (const assignment of items) purgeRecord('flagAssignments', context.scope, assignment.id);
+}
 
 /** Batch create, used by import flows and by the offline outbox on reconnect. */
 recordsRouter.post(

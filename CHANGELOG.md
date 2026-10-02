@@ -12,6 +12,113 @@ different versions of PluralNova.
 
 ### Added
 
+- **The theme can now use a photo for its background.** Settings → Appearance
+  gets a new Background image card, using the same upload-or-choose-existing
+  flow as every other photo in the app. A fixed scrim sits behind the content
+  and in front of the photo regardless of how it's set up, so a bright or
+  busy picture can never make the text on top of it hard to read — the two
+  controls that are yours to set are how visible the photo itself is and how
+  much it's blurred, both live-previewed as you move them. Removing it goes
+  straight back to the usual background.
+- **Flux grew a photo, a repost, a bookmark, and a reply thread.** The
+  composer now takes a photo — snapped or picked from the system's media
+  library — alongside a post's words, the same upload flow custom fields
+  already use. Every post can be reposted as-is or quoted with words of your
+  own, both from a menu next to the existing reaction and comment buttons;
+  a quote shows the original post underneath, one level deep, so quoting a
+  repost never nests further than that one original. A post can also be
+  bookmarked for later — a new Bookmarks page, reached from Flux's own
+  header, lists everything saved regardless of which feed tab or scope it
+  was found in. Comments can now reply to a specific earlier comment
+  instead of only ever the post itself, shown inline as "replying to
+  so-and-so" rather than a nested thread. A system's public profile also
+  gained a Flux section of its own, showing what that system has actually
+  posted, under the exact same visibility rules as the main feed — nothing
+  shows there that a visitor couldn't already see in it.
+- **Two new custom field types: Image and Gallery.** Image holds one picture
+  shown as a thumbnail on the profile; Gallery holds any number, laid out as
+  a grid, for things like a reference sheet or a set of fancasts. Both pick
+  from the same upload dialog — snap or choose a new photo, or reuse
+  anything already in the system's media library — and both appear, grouped
+  and labelled, under a new "Media" category alongside the existing field
+  types. Custom field groups (the free-text "Physical", "Identity", etc.
+  grouping that already existed) are also more reliable now: reordering a
+  field within a group can no longer accidentally jump it into a different
+  group, and the management screen now visually groups fields the same way
+  a member's profile already did, so the two views can't disagree about
+  what belongs together.
+
+### Changed
+
+- **Messages are no longer end-to-end encrypted.** Every new message sent
+  between accounts is now stored and delivered as plain text — the lock
+  icon, the "End-to-end encrypted" / "Not encrypted yet" status, and the
+  key-exchange step on opening a conversation are all gone, since none of
+  them meant anything once nothing is actually being sealed. Older messages
+  sent while encryption still existed are unaffected and still decrypt and
+  display normally; nothing about them, or the history itself, changed. A
+  long conversation in either Messages or In-Sys Chat also renders
+  noticeably lighter now — only the messages actually on screen (plus a
+  small buffer) are kept mounted while scrolling, the same way the member
+  list already worked, rather than every message in the conversation at
+  once.
+
+### Fixed
+
+- **Opening a dialog from inside another dialog — picking a photo from the
+  Flux composer, say — could close both at once, or close the wrong one, on
+  Escape.** Every open dialog listens for Escape independently, and with two
+  listening at the same time the outer one (first to start listening) always
+  ran first and closed itself, taking the inner one down with it before the
+  dialog actually on top ever got a say. Escape now closes only whichever
+  dialog is actually on top, and the page stays locked from scrolling until
+  the last dialog underneath it closes too.
+- **Deleting a flag left it attached to everything it was ever put on.**
+  A flag and the records of what it is attached to are stored separately,
+  and deleting the flag itself never cleaned up the attachments pointing at
+  it. They stopped being shown, but kept accumulating in the database
+  forever with nothing to ever clear them out — the flag's own trash icon
+  now takes its attachments with it, and the one-time "delete for good"
+  action a flag has no screen for yet does too.
+- **Reordering a custom field could silently cross into a different
+  group.** The "move up"/"move down" buttons on the field-management screen
+  worked against the full flat list of fields rather than the fields in the
+  field's own group, so a reorder near a group boundary could pull a field
+  out of its group without any visible warning. Reordering is now scoped to
+  the group a field is actually displayed in.
+
+- **The account itself can now have a picture, a banner and a Markdown bio.**
+  Settings → Account gets a profile card above the existing account details —
+  entirely separate from a Constellation profile (public, discoverable, has
+  its own handle) and from a member's own profile: nothing set here is
+  ever sent to another account or shown on either of those. Constellation
+  profiles also gain the editor for "custom information" rows — free-form
+  labelled fields such as a fandom or a pronoun set — which the server and
+  the public profile page already supported but which the owner's own editor
+  had no way to actually create, and the bio field there now mentions that it
+  too supports Markdown.
+- **Real Markdown formatting, almost everywhere text is written.** Bios,
+  notes, boundaries, personality/likes/dislikes, journal entries, Flux posts
+  and comments, constellation profile bios, and story/character text all now
+  render headings, **bold**, *italic*, ~~strikethrough~~, lists, quotes,
+  links, images (including a `=300x200` sizing syntax), tables, fenced code
+  blocks, checklists, and a `::: grid` container for placing two or more
+  things side by side. It's sanitised twice before it ever reaches the
+  screen — raw HTML is disabled in the parser itself, then the rendered
+  output is filtered again against an explicit list of allowed tags — so a
+  script tag or a `javascript:` link typed into someone's bio can never run.
+  The custom-field type that already supported a small hand-rolled subset of
+  this (bold, italic, code, line breaks) now goes through the same full
+  renderer, and a new "Formatting text with Markdown" topic under Help shows
+  every supported piece of syntax next to its own live, rendered example.
+- **GIF search in both chat features.** The attach button opens a menu —
+  Gallery, Camera, GIFs, Files — instead of going straight to a file picker.
+  GIFs searches Tenor without Tenor ever seeing who is searching: the server
+  proxies the lookup, and sending a result downloads it server-side and
+  stores it the same way any other attachment is stored, so it stays usable
+  offline and isn't a live link to Tenor's own servers. Optional and off by
+  default — without a `PLURALNOVA_TENOR_API_KEY` set, GIFs says so plainly
+  and Gallery, Camera and Files all still work.
 - **School Life's second phase: extracurriculars, study timers, school
   check-ins, and deeper Journal and Calendar integration.** Track clubs,
   sports and anything else outside of class on their own roster, with hours
@@ -44,6 +151,12 @@ different versions of PluralNova.
 
 ### Changed
 
+- **Gallery now opens an actual photo gallery on Android, not the Files
+  app.** The attach menu's Gallery option used to fall through to whatever
+  generic document chooser the system offered, which on many devices is the
+  Files app rather than a photo browser. It now asks for the Android system
+  Photo Picker directly — swipeable, dismissed with a swipe down, no files-
+  app chrome — on devices that have it, with Camera and Files unaffected.
 - **Custom Field groups are more reliable.** Creating or editing a field now
   suggests group names already in use, so "Identity" and "identity" don't
   silently become two separate sections; grouping itself is now
@@ -261,6 +374,55 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **A setting that failed to save — most commonly while briefly offline —
+  looked like it had taken, then reverted the next time the app loaded.**
+  Theme changes applied to the screen immediately and then saved in the
+  background with nothing checking whether that save actually succeeded;
+  a dropped connection left the on-screen change with nothing behind it.
+  Every settings save now durably records what it owes the server before
+  attempting to send it, retries automatically the moment the connection
+  returns, and a theme change that still fails tells you so the same way
+  every other setting already did — instead of just quietly not being
+  there next time.
+- **Profiles in the Members grid rendered their photo by hand instead of
+  through the same avatar component the rest of the app already uses
+  correctly.** No visible crop difference today, but it was a second,
+  separately-maintained copy of the same cropping/centering logic — exactly
+  the kind of place a future fix to one would quietly miss the other. The
+  grid now uses the shared `Avatar` component like everywhere else, which
+  also gained a `fill` mode so a component built for a fixed badge size can
+  correctly fill a responsive grid tile too.
+- **A post made as a specific alter, or a direct message sent "as" one,
+  named that alter to the other person even when the system's own "show
+  member list" setting was off.** The public profile page already hid
+  members correctly when that setting is off; Flux posts and "send as a
+  member" in Messages were a second, ungated path the same information
+  could reach someone through. Both now check the same setting — and the
+  same per-member "show on profile" opt-out — before ever attaching an
+  alter's name to anything another account can see; the post or message
+  itself is unaffected, only whose name is on it.
+- **The PIN lock could trigger in the middle of actively using the app, on
+  both mobile and desktop.** The unlock window was set once when the PIN was
+  entered and left to expire on a flat timer, so "lock after N minutes"
+  actually meant N minutes since unlocking rather than N minutes of
+  inactivity — a long but continuous session got interrupted regardless of
+  how actively it was being used. Using the app while already unlocked now
+  pushes the window forward, the way an idle timeout is meant to work; a
+  window that has genuinely already expired still locks as before. The
+  Android app's own background-lock grace period — meant to tell a brief
+  file-picker or share-sheet round trip apart from actually leaving the
+  app — was also too short at 2 seconds, long enough to fire on an ordinary
+  tab switch, and is now 30.
+- **Returning from the file picker could leave a chat conversation's layout
+  and back button broken.** Opening the Files app, Camera or Photo Picker is
+  reported to sometimes kill the Android WebView's renderer process under
+  memory pressure, which previously left the page stuck rather than
+  recovering — easy to mistake for the message-alignment and back-button
+  bugs fixed earlier, since whatever was on screen when it happened simply
+  stopped responding. The app now rebuilds the WebView when this happens,
+  through the same state-restoring path an ordinary screen rotation already
+  uses, so the conversation and its back/forward history come back as they
+  were.
 - **School Life's screens stacked every section flush against the next, with
   no space between them.** The overview, Classes, a class's own page,
   Assignments and Academic Analytics now have the same visual breathing room

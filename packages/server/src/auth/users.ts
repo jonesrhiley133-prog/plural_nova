@@ -23,6 +23,9 @@ export interface UserRow {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  bio: string | null;
 }
 
 export function findUserById(id: string): UserRow | null {
@@ -69,15 +72,20 @@ export function insertUser(input: {
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
+    avatarUrl: null,
+    bannerUrl: null,
+    bio: null,
   };
   getDb()
     .prepare(
       `INSERT INTO users (id, email, displayName, passwordHash, passwordSalt, mode, activeSystemId,
         activeMemberId, settings, vaultPinHash, vaultPinSalt, appLockPinHash, appLockPinSalt,
-        recoveryCodeHash, resetCodeHash, resetExpiresAt, isGuest, onboardedAt, createdAt, updatedAt, deletedAt)
+        recoveryCodeHash, resetCodeHash, resetExpiresAt, isGuest, onboardedAt, createdAt, updatedAt, deletedAt,
+        avatarUrl, bannerUrl, bio)
        VALUES (@id, @email, @displayName, @passwordHash, @passwordSalt, @mode, @activeSystemId,
         @activeMemberId, @settings, @vaultPinHash, @vaultPinSalt, @appLockPinHash, @appLockPinSalt,
-        @recoveryCodeHash, @resetCodeHash, @resetExpiresAt, @isGuest, @onboardedAt, @createdAt, @updatedAt, @deletedAt)`,
+        @recoveryCodeHash, @resetCodeHash, @resetExpiresAt, @isGuest, @onboardedAt, @createdAt, @updatedAt, @deletedAt,
+        @avatarUrl, @bannerUrl, @bio)`,
     )
     .run(row);
   return row;
@@ -88,6 +96,7 @@ export function updateUser(id: string, patch: Partial<UserRow>): UserRow {
     'email', 'displayName', 'passwordHash', 'passwordSalt', 'mode', 'activeSystemId',
     'activeMemberId', 'settings', 'vaultPinHash', 'vaultPinSalt', 'appLockPinHash', 'appLockPinSalt',
     'recoveryCodeHash', 'resetCodeHash', 'resetExpiresAt', 'isGuest', 'onboardedAt', 'deletedAt',
+    'avatarUrl', 'bannerUrl', 'bio',
   ];
   const assignments: string[] = ['updatedAt = ?'];
   const params: unknown[] = [now()];
@@ -130,6 +139,9 @@ export function toPublicUser(user: UserRow): PublicUser {
     activeMemberId: user.activeMemberId,
     onboardedAt: user.onboardedAt,
     isGuest: user.isGuest === 1,
+    avatarUrl: user.avatarUrl ?? '',
+    bannerUrl: user.bannerUrl ?? '',
+    bio: user.bio ?? '',
   };
 }
 

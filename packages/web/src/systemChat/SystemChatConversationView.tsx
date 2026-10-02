@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { readableTextOn, resolveChatAppearance } from '@pluralnova/shared';
 import { useAuth } from '../core/auth.js';
 import { useCollection } from '../core/data.js';
@@ -13,16 +13,25 @@ import {
 } from '../core/systemChat.js';
 import { Avatar, AvatarStack, Button, IconButton } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
-import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { ActionMenu, ConfirmDialog, Dialog, useActionMenu, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
 import { MessageBubble } from '../chat/MessageBubble.js';
 import { PendingAttachmentChip, type ChatAttachmentLike } from '../chat/ChatAttachmentView.js';
+import { GifPickerDialog } from '../chat/GifPickerDialog.js';
 import { useVoiceRecorder, VoiceRecorderPanel } from '../chat/VoiceRecorder.js';
 import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
+import { useVirtualizedChat } from '../chat/useVirtualizedChat.js';
 import { SendAsStrip } from './SendAsStrip.js';
 import { SystemChatInfoDialog } from './SystemChatInfoDialog.js';
 
-const ATTACH_ACCEPT = 'image/*,video/*,audio/*,.pdf,.txt';
+// Files keeps today's broad reach — documents included — since that option is
+// deliberately the one that still opens the system file picker. Gallery and
+// Camera get their own, narrower inputs below so each can carry the right
+// `accept`/`capture` for what it is, which is also what lets the Android
+// shell (see MainActivity.kt's onShowFileChooser) tell Gallery apart from
+// Files and send it to the native photo picker instead of a generic chooser.
+const FILES_ACCEPT = 'image/*,video/*,audio/*,.pdf,.txt';
+const GALLERY_ACCEPT = 'image/*,video/*';
 
 /**
  * One open In-Sys Chat conversation: header, history, composer. The header
@@ -56,36 +65,74 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   const forwardDialog = useDialog<SystemChatMessage>();
   const deleteDialog = useDialog<SystemChatMessage>();
   const recorder = useVoiceRecorder();
-  const attachInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
+  const attachMenu = useActionMenu();
+  const [gifPickerOpen, setGifPickerOpen] = useState(false);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const userScrolledUp = useRef(false);
+  const messagesByOldestFirst = conversation.messages;
+  const { scrollRef, virtualizer, userScrolledUp, handleScroll, scrollToBottom, scrollToId } = useVirtualizedChat(
+    messagesByOldestFirst,
+    { estimateSize: 76 },
+  );
 
   useEffect(() => {
     setReplyTo(null);
     setDraft('');
     setPendingAttachments([]);
     userScrolledUp.current = false;
-  }, [threadId, viewerMemberId]);
+  }, [threadId, viewerMemberId, userScrolledUp]);
 
   useEffect(() => {
     if (userScrolledUp.current) return;
-    bottomRef.current?.scrollIntoView({ block: 'end' });
-  }, [conversation.messages.length]);
+    scrollToBottom();
+  }, [messagesByOldestFirst.length, userScrolledUp, scrollToBottom]);
 
   useEffect(() => {
     conversation.markRead();
   }, [conversation]);
 
-  const messagesByOldestFirst = conversation.messages;
-  const byId = new Map(messagesByOldestFirst.map((message) => [message.id, message]));
+  const byId = useMemo(() => new Map(messagesByOldestFirst.map((message) => [message.id, message])), [messagesByOldestFirst]);
+
+  // Grouping (day headings, whether to repeat an avatar) depends on the
+  // previous message in the full, oldest-first order — computed once here,
+  // over every message, rather than from whatever the virtualizer currently
+  // has mounted, which is only ever a scrolled-to slice of the conversation.
+  const rows = useMemo(() => {
+    let lastDay = '';
+    let lastSenderKey = '';
+    return messagesByOldestFirst.map((message) => {
+      const day = dayKey(message.sentAt);
+      const senderKey = `${message.isMine}:${message.sender?.id ?? ''}`;
+      const showDayHeading = day !== lastDay;
+      const showAvatar = showDayHeading || senderKey !== lastSenderKey;
+      const showName = showAvatar && !message.isMine;
+      lastDay = day;
+      lastSenderKey = senderKey;
+      return {
+        message,
+        showDayHeading,
+        showAvatar,
+        showName,
+        quoted: message.replyToId ? byId.get(message.replyToId) ?? null : null,
+      };
+    });
+  }, [messagesByOldestFirst, byId]);
 
   const scrollToMessage = (id: string): void => {
-    const element = document.getElementById(`chat-message-${id}`);
-    if (!element) return;
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    element.classList.add('chat-message--highlight');
-    window.setTimeout(() => element.classList.remove('chat-message--highlight'), 1200);
+    scrollToId(id);
+    // The target row may not exist yet — jumping the scroll position only
+    // brings it into the virtualizer's rendered window; it mounts on the
+    // next render, which this briefly waits out before smooth-scrolling the
+    // last bit and applying the highlight, same as before virtualization.
+    window.setTimeout(() => {
+      const element = document.getElementById(`chat-message-${id}`);
+      if (!element) return;
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('chat-message--highlight');
+      window.setTimeout(() => element.classList.remove('chat-message--highlight'), 1200);
+    }, 50);
   };
 
   const send = async (): Promise<void> => {
@@ -212,34 +259,28 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
         <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
       </header>
 
-      <div
-        className="chat-conversation__messages"
-        onScroll={(event) => {
-          const target = event.currentTarget;
-          userScrolledUp.current = target.scrollTop + target.clientHeight < target.scrollHeight - 80;
-        }}
-      >
-        {messagesByOldestFirst.length === 0 ? (
+      <div className="chat-conversation__messages" ref={scrollRef} onScroll={handleScroll}>
+        {rows.length === 0 ? (
           <EmptyState icon="chat" title="Say hello" body="Nothing here yet — the first message starts the conversation." />
         ) : (
-          (() => {
-            let lastDay = '';
-            let lastSenderKey = '';
-            return messagesByOldestFirst.map((message) => {
-              const day = dayKey(message.sentAt);
-              const senderKey = `${message.isMine}:${message.sender?.id ?? ''}`;
-              const showDayHeading = day !== lastDay;
-              const showAvatar = showDayHeading || senderKey !== lastSenderKey;
-              const showName = showAvatar && !message.isMine;
-              lastDay = day;
-              lastSenderKey = senderKey;
-              const quoted = message.replyToId ? byId.get(message.replyToId) ?? null : null;
-
+          <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const { message, showDayHeading, showAvatar, showName, quoted } = rows[virtualRow.index]!;
               return (
                 <div
-                  key={message.id}
+                  key={virtualRow.key}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
                   id={`chat-message-${message.id}`}
                   className={`chat-message-row ${message.isMine ? 'chat-message-row--mine' : 'chat-message-row--theirs'}`}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    paddingBottom: 2,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
                 >
                   {showDayHeading ? <div className="chat-day-heading">{dates.date(message.sentAt)}</div> : null}
                   <MessageBubble
@@ -261,10 +302,9 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
                   />
                 </div>
               );
-            });
-          })()
+            })}
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       {replyTo ? (
@@ -306,10 +346,34 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
             }}
           >
             <input
-              ref={attachInputRef}
+              ref={galleryInputRef}
               type="file"
               multiple
-              accept={ATTACH_ACCEPT}
+              accept={GALLERY_ACCEPT}
+              className="visually-hidden"
+              tabIndex={-1}
+              onChange={(event) => {
+                void addFiles(event.target.files);
+                event.target.value = '';
+              }}
+            />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="visually-hidden"
+              tabIndex={-1}
+              onChange={(event) => {
+                void addFiles(event.target.files);
+                event.target.value = '';
+              }}
+            />
+            <input
+              ref={filesInputRef}
+              type="file"
+              multiple
+              accept={FILES_ACCEPT}
               className="visually-hidden"
               tabIndex={-1}
               onChange={(event) => {
@@ -319,10 +383,10 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
             />
             <IconButton
               icon="attach"
-              label="Attach a file"
+              label="Attach"
               variant="ghost"
               disabled={uploading}
-              onClick={() => attachInputRef.current?.click()}
+              onClick={(event) => attachMenu.openFrom(event)}
             />
             <input
               className="input chat-composer__input"
@@ -340,6 +404,21 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
               <IconButton icon="mic" label="Record a voice message" variant="primary" onClick={() => void recorder.start()} />
             )}
           </form>
+          <ActionMenu
+            position={attachMenu.position}
+            onClose={attachMenu.close}
+            items={[
+              { key: 'gallery', label: 'Gallery', icon: 'media', onSelect: () => galleryInputRef.current?.click() },
+              { key: 'camera', label: 'Camera', icon: 'camera', onSelect: () => cameraInputRef.current?.click() },
+              { key: 'gifs', label: 'GIFs', icon: 'sparkle', onSelect: () => setGifPickerOpen(true) },
+              { key: 'files', label: 'Files', icon: 'folder', onSelect: () => filesInputRef.current?.click() },
+            ]}
+          />
+          <GifPickerDialog
+            open={gifPickerOpen}
+            onClose={() => setGifPickerOpen(false)}
+            onPick={(attachment) => setPendingAttachments((current) => [...current, attachment])}
+          />
           {recorder.state === 'denied' ? (
             <p className="chat-voice__denied" role="alert">
               Could not reach the microphone.

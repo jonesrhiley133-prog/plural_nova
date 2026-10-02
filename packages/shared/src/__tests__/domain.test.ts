@@ -220,6 +220,19 @@ describe('theming', () => {
     expect(normaliseThemeSettings({}).uiZoom).toBe(100);
   });
 
+  it('has no background image by default, and clamps its opacity and blur', () => {
+    expect(normaliseThemeSettings({}).backgroundImageUrl).toBeNull();
+    expect(normaliseThemeSettings({ backgroundImageUrl: '' }).backgroundImageUrl).toBeNull();
+    expect(normaliseThemeSettings({ backgroundImageUrl: '   ' }).backgroundImageUrl).toBeNull();
+    expect(normaliseThemeSettings({ backgroundImageUrl: '/uploads/sky.jpg' }).backgroundImageUrl).toBe(
+      '/uploads/sky.jpg',
+    );
+    expect(normaliseThemeSettings({ backgroundOpacity: 1000 }).backgroundOpacity).toBe(100);
+    expect(normaliseThemeSettings({ backgroundOpacity: -5 }).backgroundOpacity).toBe(5);
+    expect(normaliseThemeSettings({ backgroundBlur: 1000 }).backgroundBlur).toBe(40);
+    expect(normaliseThemeSettings({ backgroundBlur: -5 }).backgroundBlur).toBe(0);
+  });
+
   it('has a unique, buildable id for every built-in preset', () => {
     const ids = THEME_PRESETS.map((preset) => preset.id);
     expect(new Set(ids).size).toBe(ids.length);

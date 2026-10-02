@@ -1,6 +1,6 @@
 {
   "name": "@pluralnova/web",
-  "version": "1.0.31",
+  "version": "1.0.40",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,6 +17,10 @@
     "@pluralnova/shared": "*",
     "@simplewebauthn/browser": "^13.3.0",
     "@tanstack/react-virtual": "^3.14.13",
+    "dompurify": "^3.4.16",
+    "markdown-it": "^15.0.2",
+    "markdown-it-container": "^4.0.0",
+    "markdown-it-task-lists": "^2.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0"
@@ -26,6 +30,8 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
     "@testing-library/user-event": "^14.5.2",
+    "@types/markdown-it": "^14.2.0",
+    "@types/markdown-it-container": "^4.0.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",

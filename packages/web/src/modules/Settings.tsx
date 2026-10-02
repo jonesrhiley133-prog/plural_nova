@@ -33,11 +33,12 @@ import { offlineStorageProblem, storageEstimate } from '../core/localdb.js';
 import { PageHeader } from '../app/PageHeader.js';
 import CustomFieldDefinitions from './CustomFieldDefinitions.js';
 import { Avatar, Button, Card, Chip, IconButton, ListRow, SegmentedControl, Stat } from '../ui/primitives.js';
-import { NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
+import { ImageField, NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
 import { ColorPicker, ColorSwatch } from '../ui/ColorPicker.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { DescriptiveNote, ErrorLine, LoadingLine } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
+import { Markdown } from '../ui/Markdown.js';
 
 /**
  * Settings.
@@ -465,6 +466,41 @@ function Appearance(): JSX.Element {
           checked={theme.showStarfield}
           onChange={(value) => void update({ showStarfield: value })}
         />
+      </Card>
+
+      <Card
+        title="Background image"
+        subtitle="A photo behind everything, instead of (or under) the usual glow. A fixed safeguard behind it keeps text readable no matter how bright or busy the photo is."
+      >
+        <ImageField
+          label="Photo"
+          value={theme.backgroundImageUrl ?? ''}
+          onChange={(value) => void update({ backgroundImageUrl: value || null })}
+          shape="banner"
+          hint="Snap one, pick from your media library, or remove it to go back to the usual background."
+        />
+
+        {theme.backgroundImageUrl ? (
+          <>
+            <NumberField
+              label="How visible"
+              value={theme.backgroundOpacity}
+              onChange={(value) => void update({ backgroundOpacity: value ?? 35 })}
+              min={5}
+              max={100}
+              suffix="%"
+            />
+            <NumberField
+              label="Blur"
+              value={theme.backgroundBlur}
+              onChange={(value) => void update({ backgroundBlur: value ?? 10 })}
+              min={0}
+              max={40}
+              suffix="px"
+              hint="Softens a busy photo so it does not compete with whatever is written over it."
+            />
+          </>
+        ) : null}
       </Card>
 
       <Card title="Typeface">
@@ -1304,6 +1340,7 @@ function Account(): JSX.Element {
   const claimDialog = useDialog();
   const deleteDialog = useDialog();
   const nameDialog = useDialog();
+  const profileDialog = useDialog();
 
   const [sessions, setSessions] = useState<{ id: string; userAgent: string | null; lastSeenAt: string; current: boolean }[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -1319,6 +1356,33 @@ function Account(): JSX.Element {
 
   return (
     <>
+      <Card flush style={{ marginBottom: 'var(--space-4)', overflow: 'visible' }}>
+        <div className="banner" style={{ borderRadius: 'var(--radius) var(--radius) 0 0' }}>
+          {user?.bannerUrl ? <img className="banner__image" src={user.bannerUrl} alt="" /> : null}
+          <span className="banner__scrim" />
+        </div>
+        <div className="banner-profile">
+          <div className="banner-profile__avatar" style={{ ['--avatar-size' as never]: '72px' }}>
+            <Avatar name={user?.displayName ?? '?'} src={user?.avatarUrl || null} size={72} round />
+          </div>
+          <div className="banner-profile__body">
+            <div className="row row--between" style={{ alignItems: 'flex-start' }}>
+              <h1 style={{ fontSize: 'var(--size-xl)' }}>{user?.displayName ?? 'Someone'}</h1>
+              <Button variant="secondary" size="sm" onClick={() => profileDialog.show()}>
+                Edit profile
+              </Button>
+            </div>
+            {user?.bio ? (
+              <Markdown text={user.bio} style={{ marginTop: 'var(--space-2)' }} />
+            ) : (
+              <p className="small faint" style={{ marginTop: 'var(--space-2)' }}>
+                {term('No bio yet. This is yours alone — it is never shown on a Constellation or {{member}} profile.')}
+              </p>
+            )}
+          </div>
+        </div>
+      </Card>
+
       <Card title="Account">
         <div className="stat-grid">
           <Stat label="Name" value={user?.displayName ?? '—'} />
@@ -1417,6 +1481,11 @@ function Account(): JSX.Element {
       </Card>
 
       <NameDialog dialog={nameDialog} currentName={user?.displayName ?? ''} onDone={() => void refresh()} />
+      <ProfileDialog
+        dialog={profileDialog}
+        current={{ avatarUrl: user?.avatarUrl ?? '', bannerUrl: user?.bannerUrl ?? '', bio: user?.bio ?? '' }}
+        onDone={() => void refresh()}
+      />
       <PasswordDialog dialog={passwordDialog} />
       <ClaimDialog dialog={claimDialog} onDone={() => void refresh()} />
 
@@ -1492,6 +1561,92 @@ function NameDialog({
       }
     >
       <TextField label="Name" value={name} onChange={setName} autoFocus />
+    </Dialog>
+  );
+}
+
+interface AccountProfileFields {
+  avatarUrl: string;
+  bannerUrl: string;
+  bio: string;
+}
+
+/**
+ * The account's own picture, banner and bio. Separate from a Constellation
+ * profile (public, discoverable, has its own handle and privacy switches)
+ * and from a member's own profile — nothing saved here is ever sent to
+ * another account.
+ */
+function ProfileDialog({
+  dialog,
+  current,
+  onDone,
+}: {
+  dialog: ReturnType<typeof useDialog<true>>;
+  current: AccountProfileFields;
+  onDone: () => void;
+}): JSX.Element {
+  const toast = useToast();
+  const [draft, setDraft] = useState<AccountProfileFields>(current);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (dialog.open) setDraft(current);
+    // Only reset the draft when the dialog opens, not on every keystroke
+    // elsewhere that happens to touch `current`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialog.open]);
+
+  const save = async (): Promise<void> => {
+    setBusy(true);
+    try {
+      await api.patch('/api/auth/me', draft);
+      onDone();
+      toast.success('Profile saved');
+      dialog.hide();
+    } catch (cause) {
+      toast.fromError(cause, 'That did not save');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={dialog.open}
+      onClose={dialog.hide}
+      title="Edit profile"
+      footer={
+        <>
+          <Button variant="ghost" onClick={dialog.hide}>
+            Cancel
+          </Button>
+          <Button variant="primary" loading={busy} onClick={() => void save()}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <ImageField
+        label="Picture"
+        value={draft.avatarUrl}
+        onChange={(value) => setDraft((prev) => ({ ...prev, avatarUrl: value }))}
+        shape="avatar"
+      />
+      <ImageField
+        label="Banner"
+        value={draft.bannerUrl}
+        onChange={(value) => setDraft((prev) => ({ ...prev, bannerUrl: value }))}
+        shape="banner"
+      />
+      <TextField
+        label="Bio"
+        value={draft.bio}
+        onChange={(value) => setDraft((prev) => ({ ...prev, bio: value }))}
+        multiline
+        rows={4}
+        hint="Headers, lists, links, images and tables are all supported — see Help → Markdown for the full list."
+      />
     </Dialog>
   );
 }

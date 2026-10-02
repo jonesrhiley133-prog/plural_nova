@@ -11,7 +11,6 @@ import { AppLockProvider } from './core/appLock.js';
 import { AppLockGate } from './app/AppLockGate.js';
 import { startSyncWatchers, syncEngine } from './core/sync.js';
 import { startRealtime } from './core/realtime.js';
-import { publishMessageKey } from './core/crypto.js';
 import { ErrorBoundary, SkeletonList } from './ui/feedback.js';
 import { Layout } from './app/Layout.js';
 import { Atmosphere } from './app/Atmosphere.js';
@@ -71,6 +70,7 @@ const Constellations = load(() => import('./modules/Constellations.js'));
 const ConstellationProfile = load(() => import('./modules/ConstellationProfile.js'));
 const Friends = load(() => import('./modules/Friends.js'));
 const Flux = load(() => import('./modules/Flux.js'));
+const Bookmarks = load(() => import('./modules/Bookmarks.js'));
 const SystemChatPage = load(() => import('./systemChat/SystemChatPage.js'));
 const MessagesPage = load(() => import('./messages/MessagesPage.js'));
 const Bulletin = load(() => import('./modules/Bulletin.js'));
@@ -132,9 +132,6 @@ function AppRoutes(): JSX.Element {
     const stopSync = startSyncWatchers();
     const stopRealtime = startRealtime();
     void syncEngine.run();
-    // Published here rather than when a conversation is opened, so the first
-    // message anyone sends this account can already be encrypted.
-    void publishMessageKey();
     // A no-op after the first successful run, on any account that still has
     // fields in the old, per-member shape — safe to fire every login rather
     // than tracking whether it already happened.
@@ -223,6 +220,7 @@ function AppRoutes(): JSX.Element {
           <Route path="constellations/:handle" element={<ConstellationProfile />} />
           <Route path="friends" element={<Friends />} />
           <Route path="flux" element={<Flux />} />
+          <Route path="flux/bookmarks" element={<Bookmarks />} />
           <Route path="flux/:id" element={<Flux />} />
           <Route path="messages" element={<MessagesRedirect />} />
           <Route path="messages/:threadId" element={<MessagesRedirect />} />
@@ -259,10 +257,10 @@ export function App(): JSX.Element {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <AuthProvider>
-          <I18nProvider>
-            <ThemeProvider>
-              <ToastProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <I18nProvider>
+              <ThemeProvider>
                 <DataProvider>
                   <MusicPlayerProvider>
                     <AppLockProvider>
@@ -273,10 +271,10 @@ export function App(): JSX.Element {
                     </AppLockProvider>
                   </MusicPlayerProvider>
                 </DataProvider>
-              </ToastProvider>
-            </ThemeProvider>
-          </I18nProvider>
-        </AuthProvider>
+              </ThemeProvider>
+            </I18nProvider>
+          </AuthProvider>
+        </ToastProvider>
       </BrowserRouter>
     </ErrorBoundary>
   );

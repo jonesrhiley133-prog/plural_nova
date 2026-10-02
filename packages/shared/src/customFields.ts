@@ -49,6 +49,9 @@ export const CUSTOM_FIELD_TYPES = [
   // Visual
   'color',
   'flag',
+  // Media
+  'image',
+  'gallery',
   // Links
   'link',
   'alterLink',
@@ -85,12 +88,22 @@ export const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
   time: 'Time',
   color: 'Colour',
   flag: 'Flag',
+  image: 'Image',
+  gallery: 'Gallery',
   link: 'Link',
   alterLink: 'Member link',
   group: 'Section header',
 };
 
-export type CustomFieldCategory = 'Text' | 'Numbers' | 'Selection' | 'Date & time' | 'Visual' | 'Links' | 'Structure';
+export type CustomFieldCategory =
+  | 'Text'
+  | 'Numbers'
+  | 'Selection'
+  | 'Date & time'
+  | 'Visual'
+  | 'Media'
+  | 'Links'
+  | 'Structure';
 
 export const CUSTOM_FIELD_TYPE_CATEGORIES: Record<CustomFieldType, CustomFieldCategory> = {
   text: 'Text',
@@ -119,6 +132,8 @@ export const CUSTOM_FIELD_TYPE_CATEGORIES: Record<CustomFieldType, CustomFieldCa
   time: 'Date & time',
   color: 'Visual',
   flag: 'Visual',
+  image: 'Media',
+  gallery: 'Media',
   link: 'Links',
   alterLink: 'Links',
   group: 'Structure',
@@ -152,13 +167,15 @@ export const CUSTOM_FIELD_TYPE_ICONS: Record<CustomFieldType, string> = {
   time: 'clock',
   color: 'sparkle',
   flag: 'flag',
+  image: 'media',
+  gallery: 'media',
   link: 'link',
   alterLink: 'member',
   group: 'folder',
 };
 
 /** Types whose per-member value is a JSON-encoded array rather than a plain string. */
-export const CUSTOM_FIELD_LIST_TYPES: readonly CustomFieldType[] = ['multiSelect', 'checklist'];
+export const CUSTOM_FIELD_LIST_TYPES: readonly CustomFieldType[] = ['multiSelect', 'checklist', 'gallery'];
 
 /** Types with a system-wide preset list of choices, editable where the definition is managed. */
 export const CUSTOM_FIELD_CHOICE_TYPES: readonly CustomFieldType[] = [

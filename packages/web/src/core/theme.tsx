@@ -6,6 +6,7 @@ import {
   type ThemeTokens,
 } from '@pluralnova/shared';
 import { useAuth } from './auth.js';
+import { useToast } from './toast.js';
 
 /**
  * The theming engine.
@@ -86,6 +87,7 @@ export function applyTheme(settings: ThemeSettings): ThemeTokens {
 
 export function ThemeProvider({ children }: { children: ReactNode }): JSX.Element {
   const { settings, saveSettings } = useAuth();
+  const toast = useToast();
 
   // Performance mode is a separate switch from the theme's effect tier: turning
   // it on forces the lowest tier without discarding the tier the user chose.
@@ -108,15 +110,29 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
       update: async (patch) => {
         const next = normaliseThemeSettings({ ...settings.theme, ...patch });
         applyTheme(settings.performanceMode ? { ...next, effects: 'performance' } : next);
-        await saveSettings({ theme: next });
+        try {
+          await saveSettings({ theme: next });
+        } catch (cause) {
+          // The DOM already shows `next` — without this, a save that fails
+          // (offline, a dropped connection) leaves the page looking changed
+          // right up until the next reload quietly puts the old theme back
+          // with no explanation. It is still queued to retry once back
+          // online (see auth.tsx's saveSettings); this is just telling the
+          // person now, the same way every other setting already does.
+          toast.fromError(cause, 'That theme change was not saved');
+        }
       },
       reset: async () => {
         const next = normaliseThemeSettings(null);
         applyTheme(next);
-        await saveSettings({ theme: next });
+        try {
+          await saveSettings({ theme: next });
+        } catch (cause) {
+          toast.fromError(cause, 'Resetting the theme was not saved');
+        }
       },
     }),
-    [effective, tokens, settings.theme, settings.performanceMode, saveSettings],
+    [effective, tokens, settings.theme, settings.performanceMode, saveSettings, toast],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

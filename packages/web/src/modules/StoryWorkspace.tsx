@@ -10,6 +10,7 @@ import { AsyncContent, EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { RecordForm } from '../ui/RecordForm.js';
 import { Icon } from '../ui/Icon.js';
+import { Markdown } from '../ui/Markdown.js';
 import { resolveTemplate, StoryTemplatePicker, type StoryTemplate } from './storyTemplates.js';
 
 /**
@@ -337,7 +338,7 @@ export default function StoryWorkspace(): JSX.Element {
                   }
                 >
                   {location['description'] ? (
-                    <p className="small muted clamp-3">{String(location['description'])}</p>
+                    <Markdown text={String(location['description'])} className="small muted clamp-3" />
                   ) : null}
                 </Card>
               ))}
@@ -451,9 +452,11 @@ function ChapterEditor({
           placeholder="Write your chapter here…"
           style={{ lineHeight: 1.75, fontSize: 'var(--size-md)' }}
         />
+      ) : body.trim() ? (
+        <Markdown text={body} style={{ minHeight: 300 }} />
       ) : (
-        <div className="prose" style={{ minHeight: 300, whiteSpace: 'pre-wrap' }}>
-          {body.trim() ? body : <span className="faint">Nothing written yet.</span>}
+        <div className="prose" style={{ minHeight: 300 }}>
+          <span className="faint">Nothing written yet.</span>
         </div>
       )}
 
