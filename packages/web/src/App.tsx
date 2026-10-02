@@ -70,6 +70,7 @@ const Constellations = load(() => import('./modules/Constellations.js'));
 const ConstellationProfile = load(() => import('./modules/ConstellationProfile.js'));
 const Friends = load(() => import('./modules/Friends.js'));
 const Flux = load(() => import('./modules/Flux.js'));
+const Bookmarks = load(() => import('./modules/Bookmarks.js'));
 const SystemChatPage = load(() => import('./systemChat/SystemChatPage.js'));
 const MessagesPage = load(() => import('./messages/MessagesPage.js'));
 const Bulletin = load(() => import('./modules/Bulletin.js'));
@@ -219,6 +220,7 @@ function AppRoutes(): JSX.Element {
           <Route path="constellations/:handle" element={<ConstellationProfile />} />
           <Route path="friends" element={<Friends />} />
           <Route path="flux" element={<Flux />} />
+          <Route path="flux/bookmarks" element={<Bookmarks />} />
           <Route path="flux/:id" element={<Flux />} />
           <Route path="messages" element={<MessagesRedirect />} />
           <Route path="messages/:threadId" element={<MessagesRedirect />} />

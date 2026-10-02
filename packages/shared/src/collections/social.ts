@@ -175,6 +175,21 @@ export const reactions: CollectionDef = {
   ],
 };
 
+export const fluxBookmarks: CollectionDef = {
+  name: 'fluxBookmarks',
+  label: 'Bookmarks',
+  singular: 'Bookmark',
+  icon: 'flux',
+  area: 'social',
+  scope: 'user',
+  serverManaged: true,
+  titleField: 'postId',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  indexes: [['userId', 'postId']],
+  fields: [f.ref('postId', 'Post', 'posts', { required: true })],
+};
+
 export const conversations: CollectionDef = {
   name: 'conversations',
   label: 'Conversations',
@@ -310,6 +325,7 @@ export const SOCIAL_COLLECTIONS = [
   posts,
   comments,
   reactions,
+  fluxBookmarks,
   conversations,
   messages,
   notifications,

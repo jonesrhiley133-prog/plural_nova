@@ -537,7 +537,13 @@ socialRouter.post(
 
 // — Flux ————————————————————————————————————————————————————
 
-function postView(viewerId: string, post: StoredRecord): Record<string, unknown> {
+/**
+ * `includeRepostOf` is only ever false for the one recursive call just below,
+ * hydrating the original post a repost points to — a second level would mean
+ * a repost-of-a-repost renders its own nested repost inside the card already
+ * rendering one, which buys nothing over reposting the original directly.
+ */
+function postView(viewerId: string, post: StoredRecord, includeRepostOf = true): Record<string, unknown> {
   const ownerId = post['userId'] as string;
   const author = counterpartSummary(ownerId);
   const isMine = ownerId === viewerId;
@@ -566,6 +572,31 @@ function postView(viewerId: string, post: StoredRecord): Record<string, unknown>
     .prepare('SELECT "emoji" FROM "reactions" WHERE "targetId" = ? AND "userId" = ? AND "deletedAt" IS NULL')
     .get(post.id, viewerId) as { emoji: string } | undefined;
 
+  const bookmarked =
+    db()
+      .prepare('SELECT 1 FROM "fluxBookmarks" WHERE "postId" = ? AND "userId" = ? AND "deletedAt" IS NULL')
+      .get(post.id, viewerId) !== undefined;
+
+  // Null whenever the original is gone or no longer visible to this viewer
+  // (deleted, gone private, a block since the repost was made) — a repost
+  // still exists as its own post either way, it just has nothing to show
+  // for what it was reposting.
+  let repostOf: Record<string, unknown> | null = null;
+  if (includeRepostOf && post['repostOfId']) {
+    const originalRow = db()
+      .prepare('SELECT * FROM "posts" WHERE "id" = ? AND "deletedAt" IS NULL')
+      .get(post['repostOfId']) as Record<string, unknown> | undefined;
+    if (originalRow) {
+      const original = deserialize(requireCollection('posts'), originalRow);
+      if (
+        canSee(viewerId, original['userId'] as string, original['visibility'] as Visibility) &&
+        !isBlockedEitherWay(viewerId, original['userId'] as string)
+      ) {
+        repostOf = postView(viewerId, original, false);
+      }
+    }
+  }
+
   return {
     // Spread through shareableView rather than directly: this is the one
     // projection in the codebase that emits a whole stored record to somebody
@@ -575,6 +606,8 @@ function postView(viewerId: string, post: StoredRecord): Record<string, unknown>
     asMember,
     isMine: ownerId === viewerId,
     myReaction: myReaction?.emoji ?? null,
+    bookmarked,
+    repostOf,
   };
 }
 
@@ -583,6 +616,12 @@ socialRouter.get(
   handler((req, res) => {
     const context = auth(req);
     const scopeParam = String(req.query['scope'] ?? 'friends');
+    // Set only by a profile's own feed tab, which wants one specific
+    // account's posts rather than anything shaped by the viewer's own
+    // friends/mine/public scopes above — visibility is still enforced
+    // below, same as every other branch, just in JS instead of the WHERE
+    // clause, since this is the one branch not already scoped by it in SQL.
+    const authorUserId = typeof req.query['authorUserId'] === 'string' ? req.query['authorUserId'] : null;
     const limit = Math.min(60, Math.max(1, Number(req.query['limit'] ?? 30)));
     const before = typeof req.query['before'] === 'string' ? req.query['before'] : now();
 
@@ -598,8 +637,10 @@ socialRouter.get(
     const visibleAuthors = [context.user.id, ...friendIds];
     const placeholders = visibleAuthors.map(() => '?').join(', ');
 
-    const sql =
-      scopeParam === 'mine'
+    const sql = authorUserId
+      ? `SELECT * FROM "posts" WHERE "userId" = ? AND "deletedAt" IS NULL AND "postedAt" < ?
+         ORDER BY "postedAt" DESC LIMIT ?`
+      : scopeParam === 'mine'
         ? `SELECT * FROM "posts" WHERE "userId" = ? AND "deletedAt" IS NULL AND "postedAt" < ?
            ORDER BY "postedAt" DESC LIMIT ?`
         : scopeParam === 'public'
@@ -611,8 +652,9 @@ socialRouter.get(
                     OR "userId" = ?)
              ORDER BY "postedAt" DESC LIMIT ?`;
 
-    const params =
-      scopeParam === 'mine'
+    const params = authorUserId
+      ? [authorUserId, before, limit]
+      : scopeParam === 'mine'
         ? [context.user.id, before, limit]
         : scopeParam === 'public'
           ? [before, limit]
@@ -622,6 +664,9 @@ socialRouter.get(
     const posts = rows
       .map((row) => deserialize(requireCollection('posts'), row))
       .filter((post) => !isBlockedEitherWay(context.user.id, post['userId'] as string))
+      .filter(
+        (post) => !authorUserId || canSee(context.user.id, post['userId'] as string, post['visibility'] as Visibility),
+      )
       .map((post) => postView(context.user.id, post));
 
     ok(res, {
@@ -706,6 +751,45 @@ function loadVisiblePost(viewerId: string, id: string): StoredRecord {
   }
   return post;
 }
+
+// Registered ahead of the `/flux/:id` wildcard just below, so "bookmarks" is
+// never swallowed as a literal id.
+socialRouter.get(
+  '/flux/bookmarks',
+  handler((req, res) => {
+    const context = auth(req);
+    const limit = Math.min(60, Math.max(1, Number(req.query['limit'] ?? 30)));
+    const before = typeof req.query['before'] === 'string' ? req.query['before'] : now();
+
+    const rows = db()
+      .prepare(
+        `SELECT "postId", "createdAt" FROM "fluxBookmarks"
+         WHERE "userId" = ? AND "deletedAt" IS NULL AND "createdAt" < ?
+         ORDER BY "createdAt" DESC LIMIT ?`,
+      )
+      .all(context.user.id, before, limit) as { postId: string; createdAt: string }[];
+
+    const posts = rows
+      .map((row) => {
+        const postRow = db().prepare('SELECT * FROM "posts" WHERE "id" = ? AND "deletedAt" IS NULL').get(row.postId) as
+          | Record<string, unknown>
+          | undefined;
+        return postRow ? deserialize(requireCollection('posts'), postRow) : null;
+      })
+      // A bookmarked post that was since deleted, gone private, or blocked
+      // just drops out of the list — the bookmark row itself is untouched,
+      // so it reappears correctly if the post becomes visible again.
+      .filter((post): post is StoredRecord => post !== null)
+      .filter((post) => canSee(context.user.id, post['userId'] as string, post['visibility'] as Visibility))
+      .filter((post) => !isBlockedEitherWay(context.user.id, post['userId'] as string))
+      .map((post) => postView(context.user.id, post));
+
+    ok(res, {
+      posts,
+      nextCursor: rows.length === limit ? (rows[rows.length - 1]?.createdAt ?? null) : null,
+    });
+  }),
+);
 
 socialRouter.get(
   '/flux/:id',
@@ -799,6 +883,34 @@ socialRouter.post(
   }),
 );
 
+socialRouter.post(
+  '/flux/:id/bookmark',
+  handler((req, res) => {
+    const context = auth(req);
+    const post = loadVisiblePost(context.user.id, String(req.params['id']));
+
+    const existing = db()
+      .prepare('SELECT "id" FROM "fluxBookmarks" WHERE "postId" = ? AND "userId" = ? AND "deletedAt" IS NULL')
+      .get(post.id, context.user.id) as { id: string } | undefined;
+
+    if (existing) {
+      db().prepare('UPDATE "fluxBookmarks" SET "deletedAt" = ?, "updatedAt" = ? WHERE "id" = ?').run(now(), now(), existing.id);
+      ok(res, { bookmarked: false });
+      return;
+    }
+
+    const timestamp = now();
+    db()
+      .prepare(
+        `INSERT INTO "fluxBookmarks"
+          ("id","userId","systemId","memberId","visibility","createdAt","updatedAt","deletedAt","version","postId")
+         VALUES (?,?,?,NULL,'private',?,?,NULL,1,?)`,
+      )
+      .run(newId('bkm'), context.user.id, context.user.activeSystemId, timestamp, timestamp, post.id);
+    ok(res, { bookmarked: true });
+  }),
+);
+
 socialRouter.get(
   '/flux/:id/comments',
   handler((req, res) => {
@@ -828,6 +940,14 @@ socialRouter.post(
     const body = (req.body as { body?: string; replyToId?: string; memberId?: string }).body?.trim();
     if (!body) throw badRequest('Write something first.');
 
+    const replyToId = (req.body as { replyToId?: string }).replyToId ?? null;
+    if (replyToId) {
+      const parent = db()
+        .prepare('SELECT "id" FROM "comments" WHERE "id" = ? AND "postId" = ? AND "deletedAt" IS NULL')
+        .get(replyToId, post.id);
+      if (!parent) throw badRequest('That comment no longer exists.');
+    }
+
     const id = newId('cmt');
     const timestamp = now();
     db()
@@ -847,7 +967,7 @@ socialRouter.post(
         post.id,
         body.slice(0, 2000),
         timestamp,
-        (req.body as { replyToId?: string }).replyToId ?? null,
+        replyToId,
         (req.body as { memberId?: string }).memberId ? 'member' : 'system',
       );
     db().prepare('UPDATE "posts" SET "commentCount" = "commentCount" + 1 WHERE "id" = ?').run(post.id);

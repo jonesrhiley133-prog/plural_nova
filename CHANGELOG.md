@@ -12,6 +12,21 @@ different versions of PluralNova.
 
 ### Added
 
+- **Flux grew a photo, a repost, a bookmark, and a reply thread.** The
+  composer now takes a photo — snapped or picked from the system's media
+  library — alongside a post's words, the same upload flow custom fields
+  already use. Every post can be reposted as-is or quoted with words of your
+  own, both from a menu next to the existing reaction and comment buttons;
+  a quote shows the original post underneath, one level deep, so quoting a
+  repost never nests further than that one original. A post can also be
+  bookmarked for later — a new Bookmarks page, reached from Flux's own
+  header, lists everything saved regardless of which feed tab or scope it
+  was found in. Comments can now reply to a specific earlier comment
+  instead of only ever the post itself, shown inline as "replying to
+  so-and-so" rather than a nested thread. A system's public profile also
+  gained a Flux section of its own, showing what that system has actually
+  posted, under the exact same visibility rules as the main feed — nothing
+  shows there that a visitor couldn't already see in it.
 - **Two new custom field types: Image and Gallery.** Image holds one picture
   shown as a thumbnail on the profile; Gallery holds any number, laid out as
   a grid, for things like a reference sheet or a set of fancasts. Both pick
@@ -42,6 +57,14 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Opening a dialog from inside another dialog — picking a photo from the
+  Flux composer, say — could close both at once, or close the wrong one, on
+  Escape.** Every open dialog listens for Escape independently, and with two
+  listening at the same time the outer one (first to start listening) always
+  ran first and closed itself, taking the inner one down with it before the
+  dialog actually on top ever got a say. Escape now closes only whichever
+  dialog is actually on top, and the page stays locked from scrolling until
+  the last dialog underneath it closes too.
 - **Deleting a flag left it attached to everything it was ever put on.**
   A flag and the records of what it is attached to are stored separately,
   and deleting the flag itself never cleaned up the attachments pointing at

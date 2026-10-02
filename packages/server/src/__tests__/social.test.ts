@@ -137,6 +137,146 @@ describe('friends, flux and messaging', () => {
     expect(off.body.data.emoji).toBeNull();
   });
 
+  it('bookmarks a post, then un-bookmarks it on a second toggle', async () => {
+    const post = await client.request('POST', '/api/social/flux', {
+      token: alice.token,
+      body: { body: 'Worth saving', visibility: 'friends' },
+    });
+    const id = post.body.data.id;
+
+    const saved = await client.request('POST', `/api/social/flux/${id}/bookmark`, { token: bob.token });
+    expect(saved.body.data.bookmarked).toBe(true);
+    const reloaded = await client.request('GET', `/api/social/flux/${id}`, { token: bob.token });
+    expect(reloaded.body.data.bookmarked).toBe(true);
+
+    const removed = await client.request('POST', `/api/social/flux/${id}/bookmark`, { token: bob.token });
+    expect(removed.body.data.bookmarked).toBe(false);
+    const reloadedAgain = await client.request('GET', `/api/social/flux/${id}`, { token: bob.token });
+    expect(reloadedAgain.body.data.bookmarked).toBe(false);
+  });
+
+  it('lists bookmarked posts newest-saved first, and does not bookmark them for anyone else', async () => {
+    const first = await client.request('POST', '/api/social/flux', {
+      token: alice.token,
+      body: { body: 'Saved first', visibility: 'friends' },
+    });
+    const second = await client.request('POST', '/api/social/flux', {
+      token: alice.token,
+      body: { body: 'Saved second', visibility: 'friends' },
+    });
+    await client.request('POST', `/api/social/flux/${first.body.data.id}/bookmark`, { token: bob.token });
+    await client.request('POST', `/api/social/flux/${second.body.data.id}/bookmark`, { token: bob.token });
+
+    const bobList = await client.request('GET', '/api/social/flux/bookmarks', { token: bob.token });
+    expect(bobList.body.data.posts.map((p: any) => p.body)).toEqual(['Saved second', 'Saved first']);
+
+    const aliceList = await client.request('GET', '/api/social/flux/bookmarks', { token: alice.token });
+    expect(aliceList.body.data.posts).toHaveLength(0);
+  });
+
+  it('reposts with no text and counts it on the original', async () => {
+    const original = await client.request('POST', '/api/social/flux', {
+      token: alice.token,
+      body: { body: 'Reposted later', visibility: 'friends' },
+    });
+    const repost = await client.request('POST', '/api/social/flux', {
+      token: bob.token,
+      body: { repostOfId: original.body.data.id, visibility: 'friends' },
+    });
+    expect(repost.status).toBe(201);
+    expect(repost.body.data.body).toBe('');
+    expect(repost.body.data.repostOf.body).toBe('Reposted later');
+    expect(repost.body.data.repostOf.author.displayName).toBe('alice-system');
+
+    const reloadedOriginal = await client.request('GET', `/api/social/flux/${original.body.data.id}`, { token: alice.token });
+    expect(reloadedOriginal.body.data.repostCount).toBe(1);
+  });
+
+  it('quote-reposts by sending both a body and repostOfId together', async () => {
+    const original = await client.request('POST', '/api/social/flux', {
+      token: alice.token,
+      body: { body: 'The original take', visibility: 'friends' },
+    });
+    const quoted = await client.request('POST', '/api/social/flux', {
+      token: bob.token,
+      body: { body: 'Strongly agree', repostOfId: original.body.data.id, visibility: 'friends' },
+    });
+    expect(quoted.body.data.body).toBe('Strongly agree');
+    expect(quoted.body.data.repostOf.body).toBe('The original take');
+  });
+
+  it('hides the quoted post once it is no longer visible, without breaking the repost itself', async () => {
+    const original = await client.request('POST', '/api/social/flux', {
+      token: alice.token,
+      body: { body: 'Private after all', visibility: 'friends' },
+    });
+    const quoted = await client.request('POST', '/api/social/flux', {
+      token: bob.token,
+      body: { body: 'Quoting this', repostOfId: original.body.data.id, visibility: 'friends' },
+    });
+    await client.request('DELETE', `/api/social/flux/${original.body.data.id}`, { token: alice.token });
+
+    const reloaded = await client.request('GET', `/api/social/flux/${quoted.body.data.id}`, { token: bob.token });
+    expect(reloaded.status).toBe(200);
+    expect(reloaded.body.data.body).toBe('Quoting this');
+    expect(reloaded.body.data.repostOf).toBeNull();
+  });
+
+  it('threads a comment reply and refuses one pointing at a comment from another post', async () => {
+    const post = await client.request('POST', '/api/social/flux', {
+      token: alice.token,
+      body: { body: 'Reply to me', visibility: 'friends' },
+    });
+    const otherPost = await client.request('POST', '/api/social/flux', {
+      token: alice.token,
+      body: { body: 'A different post', visibility: 'friends' },
+    });
+    const root = await client.request('POST', `/api/social/flux/${post.body.data.id}/comments`, {
+      token: bob.token,
+      body: { body: 'First comment' },
+    });
+    const reply = await client.request('POST', `/api/social/flux/${post.body.data.id}/comments`, {
+      token: alice.token,
+      body: { body: 'Replying to you', replyToId: root.body.data.id },
+    });
+    expect(reply.status).toBe(201);
+
+    const comments = await client.request('GET', `/api/social/flux/${post.body.data.id}/comments`, { token: alice.token });
+    const stored = comments.body.data.comments.find((c: any) => c.id === reply.body.data.id);
+    expect(stored.replyToId).toBe(root.body.data.id);
+
+    const otherRoot = await client.request('POST', `/api/social/flux/${otherPost.body.data.id}/comments`, {
+      token: bob.token,
+      body: { body: 'On the other post' },
+    });
+    const crossed = await client.request('POST', `/api/social/flux/${post.body.data.id}/comments`, {
+      token: alice.token,
+      body: { body: 'Pointing at the wrong post', replyToId: otherRoot.body.data.id },
+    });
+    expect(crossed.status).toBe(400);
+  });
+
+  it('scopes the feed to one author, still gated by whether the viewer can see each post', async () => {
+    await client.request('POST', '/api/social/flux', {
+      token: bob.token,
+      body: { body: 'Bob, public', visibility: 'public' },
+    });
+    await client.request('POST', '/api/social/flux', {
+      token: bob.token,
+      body: { body: 'Bob, friends only', visibility: 'friends' },
+    });
+
+    const aliceView = await client.request('GET', `/api/social/flux?authorUserId=${bob.userId}`, { token: alice.token });
+    const aliceBodies = aliceView.body.data.posts.map((p: any) => p.body);
+    expect(aliceBodies).toContain('Bob, public');
+    expect(aliceBodies).toContain('Bob, friends only');
+
+    const carolView = await client.request('GET', `/api/social/flux?authorUserId=${bob.userId}`, { token: carol.token });
+    const carolBodies = carolView.body.data.posts.map((p: any) => p.body);
+    expect(carolBodies).toContain('Bob, public');
+    expect(carolBodies).not.toContain('Bob, friends only');
+  });
+
   it('delivers a message from one account to the other', async () => {
     const created = await client.request('POST', '/api/messages/conversations', {
       token: alice.token,

@@ -5,9 +5,11 @@ import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, Stat } from '../ui/primitives.js';
-import { EmptyState, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
+import { EmptyState, ErrorPanel, SkeletonCards, SkeletonList } from '../ui/feedback.js';
+import { ConfirmDialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
 import { Markdown } from '../ui/Markdown.js';
+import { PostCard, QuoteDialog, type Post } from './Flux.js';
 
 /**
  * Someone else's profile.
@@ -78,6 +80,72 @@ export default function ConstellationProfile(): JSX.Element {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [postsError, setPostsError] = useState<string | null>(null);
+  const quoting = useDialog<Post>();
+  const confirm = useDialog<Post>();
+
+  const loadPosts = useCallback(async () => {
+    if (!profile) return;
+    setPostsLoading(true);
+    try {
+      const result = await api.get<{ posts: Post[] }>('/api/social/flux', { authorUserId: profile.userId });
+      setPosts(result.posts);
+      setPostsError(null);
+    } catch (cause) {
+      setPostsError(messageFor(cause));
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    void loadPosts();
+  }, [loadPosts]);
+
+  const react = async (post: Post, emoji: string): Promise<void> => {
+    try {
+      const result = await api.post<{ emoji: string | null }>(`/api/social/flux/${post.id}/reactions`, { emoji });
+      setPosts((current) =>
+        current.map((candidate) =>
+          candidate.id === post.id
+            ? {
+                ...candidate,
+                myReaction: result.emoji,
+                reactionCount: candidate.reactionCount + (result.emoji ? (post.myReaction ? 0 : 1) : -1),
+              }
+            : candidate,
+        ),
+      );
+    } catch (cause) {
+      toast.fromError(cause, 'Could not react');
+    }
+  };
+
+  const toggleBookmark = async (post: Post): Promise<void> => {
+    try {
+      const result = await api.post<{ bookmarked: boolean }>(`/api/social/flux/${post.id}/bookmark`);
+      setPosts((current) =>
+        current.map((candidate) => (candidate.id === post.id ? { ...candidate, bookmarked: result.bookmarked } : candidate)),
+      );
+    } catch (cause) {
+      toast.fromError(cause, 'Could not save that');
+    }
+  };
+
+  const repost = async (post: Post, quoteBody?: string): Promise<void> => {
+    try {
+      await api.post('/api/social/flux', { repostOfId: post.id, body: quoteBody ?? '', visibility: 'friends' });
+      // A repost is a new post of your own, not just a counter on the old one
+      // — only a reload puts it here when this happens to be your own profile.
+      await loadPosts();
+      toast.success(quoteBody ? 'Quoted' : 'Reposted');
+    } catch (cause) {
+      toast.fromError(cause, 'Could not repost that');
+    }
+  };
 
   if (loading) return <SkeletonCards count={3} />;
 
@@ -245,7 +313,11 @@ export default function ConstellationProfile(): JSX.Element {
       ) : null}
 
       {members.length > 0 ? (
-        <Card title={term('{{Members}}')} subtitle={`Shown in ${profile.memberSort} order`}>
+        <Card
+          title={term('{{Members}}')}
+          subtitle={`Shown in ${profile.memberSort} order`}
+          style={{ marginBottom: 'var(--space-4)' }}
+        >
           <div
             className="grid"
             style={{ ['--grid-min' as never]: `${Math.max(110, 560 / profile.memberColumns)}px` }}
@@ -279,7 +351,7 @@ export default function ConstellationProfile(): JSX.Element {
           </div>
         </Card>
       ) : (
-        <Card>
+        <Card style={{ marginBottom: 'var(--space-4)' }}>
           <p className="small muted prose">
             {term(
               'This {{system}} has not published a {{member}} list. That is a choice they made, not something missing.',
@@ -287,6 +359,58 @@ export default function ConstellationProfile(): JSX.Element {
           </p>
         </Card>
       )}
+
+      <Card title="Flux" subtitle="Recent posts">
+        {postsLoading && posts.length === 0 ? (
+          <SkeletonList rows={2} />
+        ) : postsError ? (
+          <ErrorPanel message={postsError} onRetry={() => void loadPosts()} />
+        ) : posts.length === 0 ? (
+          <p className="small muted prose" style={{ margin: 0 }}>
+            {profile.isOwner
+              ? "You haven't posted anything yet."
+              : 'Nothing here yet — posts only show up if they were shared with you.'}
+          </p>
+        ) : (
+          <div className="stack">
+            {posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onReact={(emoji) => void react(post, emoji)}
+                onToggleBookmark={() => void toggleBookmark(post)}
+                onRepost={() => void repost(post)}
+                onQuote={() => quoting.show(post)}
+                onDelete={() => confirm.show(post)}
+                onOpen={() => navigate(`/flux/${post.id}`)}
+                expanded={false}
+              />
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <QuoteDialog
+        dialog={quoting}
+        onQuote={(body) => {
+          if (!quoting.value) return;
+          void repost(quoting.value, body);
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirm.open}
+        onClose={confirm.hide}
+        title="Delete this post?"
+        body="It disappears for everyone who could see it."
+        recoverable={false}
+        onConfirm={async () => {
+          if (!confirm.value) return;
+          await api.delete(`/api/social/flux/${confirm.value.id}`);
+          toast.success('Post deleted');
+          void loadPosts();
+        }}
+      />
     </>
   );
 }
