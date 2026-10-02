@@ -42,6 +42,15 @@ const CATEGORY_ORDER: CustomFieldCategory[] = ['Text', 'Numbers', 'Selection', '
  */
 const CREATABLE_FIELD_TYPES = CUSTOM_FIELD_TYPES.filter((type) => type !== 'group');
 
+/** A starter set for the "Favourites" group button below — plain text, so they work the moment they're added. */
+const FAVOURITES_STARTER_FIELDS: readonly string[] = [
+  'Favourite constellation or star',
+  'Favourite activity',
+  'Favourite food',
+  'Favourite song',
+  'Favourite quote',
+];
+
 /** Distinct group names already in use, trimmed and de-duplicated by case, keeping whichever casing was typed first — offered as autocomplete so a new field joins an existing section instead of quietly forking it. */
 function existingGroupNames(definitions: StoredRecord[]): string[] {
   const seen = new Map<string, string>();
@@ -69,6 +78,28 @@ export default function CustomFieldDefinitions(): JSX.Element {
       editor.show(created);
     } catch (cause) {
       toast.fromError(cause, 'Could not add that field');
+    }
+  };
+
+  const hasFavouritesGroup = existingGroupNames(definitions.items).some(
+    (name) => name.toLowerCase() === 'favourites',
+  );
+
+  /** Opt-in per system — never run automatically, and never for an account that already has the group. */
+  const addStarterFavourites = async (): Promise<void> => {
+    try {
+      await Promise.all(
+        FAVOURITES_STARTER_FIELDS.map((label, index) =>
+          definitions.create({
+            ...newCustomFieldDefinitionInput('text', definitions.items.length + index),
+            label,
+            group: 'Favourites',
+          }),
+        ),
+      );
+      toast.success('Added the Favourites fields');
+    } catch (cause) {
+      toast.fromError(cause, 'Could not add those fields');
     }
   };
 
@@ -105,9 +136,16 @@ export default function CustomFieldDefinitions(): JSX.Element {
             'Defined once for the whole system — every {{member}} sees the same fields, and the same choices for one that offers a pick list.',
           )}
         </p>
-        <Button variant="primary" icon="plus" onClick={() => typePicker.show()}>
-          Add field
-        </Button>
+        <div className="row">
+          <Button variant="primary" icon="plus" onClick={() => typePicker.show()}>
+            Add field
+          </Button>
+          {!hasFavouritesGroup ? (
+            <Button variant="ghost" icon="sparkle" onClick={() => void addStarterFavourites()}>
+              Add starter Favourites fields
+            </Button>
+          ) : null}
+        </div>
       </Card>
 
       <AsyncContent

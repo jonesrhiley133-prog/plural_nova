@@ -10,6 +10,7 @@ import {
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
+import { useActiveMemberId } from '../core/auth.js';
 import { FRONT_STATUS_META, useFronting } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { BirthdayCelebration } from '../app/BirthdayCelebration.js';
@@ -19,7 +20,7 @@ import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { MemberEditorForm } from '../ui/MemberEditorForm.js';
 import { SwitchRow } from '../ui/forms.js';
 import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
-import { MemberBadgeRow, parseBadges } from '../ui/MemberBadges.js';
+import { GiveBadgePicker, MemberBadgeRow, createBadge, parseBadges } from '../ui/MemberBadges.js';
 import { Icon } from '../ui/Icon.js';
 import { Markdown } from '../ui/Markdown.js';
 
@@ -53,6 +54,7 @@ export default function MemberProfile(): JSX.Element {
   const { t, term } = useI18n();
   const dates = useDateFormat();
   const toast = useToast();
+  const activeMemberId = useActiveMemberId();
 
   const member = useRecord('members', id);
   const { update, remove, loading } = useCollection('members');
@@ -65,6 +67,13 @@ export default function MemberProfile(): JSX.Element {
   const flags = useCollection('flags');
   const flagAssignments = useCollection('flagAssignments', {
     filter: (record) => record['targetType'] === 'member' && record['targetId'] === id,
+  });
+  // Their latest "today's vibe" board post, reused here as a "currently
+  // feeling" line rather than a field of its own — the board already is the
+  // record of this, just read from a different angle.
+  const vibePosts = useCollection('boards', {
+    filter: (record) => record['boardType'] === 'vibe' && record['authorMemberId'] === id,
+    limit: 1,
   });
   const flagById = useMemo(() => new Map(flags.items.map((flag) => [flag.id, flag])), [flags.items]);
   const attachedFlags = useMemo(
@@ -94,6 +103,7 @@ export default function MemberProfile(): JSX.Element {
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
   const alreadyFronting = isFrontingAlready(member.id);
   const isBirthday = member['birthday'] ? isBirthdayToday(String(member['birthday'])) : false;
+  const latestVibe = vibePosts.items[0];
 
   // Instant: applied to the shared fronting state before the request that
   // tells the server about it resolves, so this never shows a loading state.
@@ -119,6 +129,7 @@ export default function MemberProfile(): JSX.Element {
               name={String(member['name'])}
               src={(member['avatarUrl'] as string) ?? null}
               color={color}
+              icon={(member['icon'] as string) ?? null}
               size={88}
               round
               ring={alreadyFronting}
@@ -149,6 +160,12 @@ export default function MemberProfile(): JSX.Element {
                 />
               </div>
             </div>
+
+            {latestVibe ? (
+              <p className="small muted" style={{ marginTop: 'var(--space-2)' }}>
+                Currently feeling: "{String(latestVibe['body'])}"
+              </p>
+            ) : null}
 
             {flagsVisible ? (
               <div className="row" style={{ marginTop: 'var(--space-3)' }}>
@@ -243,6 +260,13 @@ export default function MemberProfile(): JSX.Element {
 
   function Overview({ member }: { member: StoredRecord }): JSX.Element {
     const badges = parseBadges(member['customBadges']);
+
+    const addSticker = async (emoji: string, label: string): Promise<void> => {
+      const badge = createBadge(emoji, label, activeMemberId ?? null);
+      await update(member.id, { customBadges: [...badges, badge] });
+      toast.success(`Added ${label.toLowerCase()}`);
+    };
+
     return (
       <div className="stack">
         {isBirthday ? (
@@ -254,11 +278,42 @@ export default function MemberProfile(): JSX.Element {
           </Card>
         ) : null}
 
-        {badges.length > 0 ? (
-          <Card title="Badges">
-            <MemberBadgeRow badges={badges} />
-          </Card>
+        {member['color'] || member['icon'] ? (
+          <div className="row" style={{ gap: 'var(--space-5)' }}>
+            {member['color'] ? (
+              <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: 'inline-block',
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: String(member['color']),
+                    border: '1px solid var(--border)',
+                  }}
+                />
+                <span className="small muted">Favourite colour</span>
+              </span>
+            ) : null}
+            {member['icon'] ? (
+              <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
+                <span aria-hidden="true" style={{ fontSize: 'var(--size-lg)', lineHeight: 1 }}>
+                  {String(member['icon'])}
+                </span>
+                <span className="small muted">Favourite emoji</span>
+              </span>
+            ) : null}
+          </div>
         ) : null}
+
+        <Card title="Badges" subtitle={badges.length > 0 ? undefined : 'Pick a sticker for their profile'}>
+          <MemberBadgeRow badges={badges} />
+          <p className="tiny faint" style={{ marginTop: badges.length > 0 ? 'var(--space-3)' : 0 }}>
+            Tap one to add it
+          </p>
+          <GiveBadgePicker onGive={(emoji, label) => void addSticker(emoji, label)} />
+        </Card>
 
         {member['bio'] ? (
           <Card title="Biography">

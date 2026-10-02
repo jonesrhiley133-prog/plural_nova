@@ -12,6 +12,23 @@ different versions of PluralNova.
 
 ### Added
 
+- **Alter personalisation, surfaced rather than invented.** A {{member}}'s
+  profile colour and symbol — both already there, already driving the rest of
+  the page — now show up labelled on their Overview tab as "Favourite
+  colour"/"Favourite emoji", and a chosen symbol now also appears as their
+  avatar's own face when there's no photo. Badges (gifts given at a birthday)
+  are now a self-serve sticker picker on every profile, not only a birthday
+  one, sharing the exact same component and data shape. A {{member}}'s latest
+  "today's vibe" board post now shows on their profile header as "currently
+  feeling" — read from the board that already holds it, not a new field. An
+  opt-in "Add starter Favourites fields" button on the custom fields screen
+  seeds five free-text prompts (constellation, activity, food, song, quote)
+  for systems that want them, and never runs on its own.
+- **An optional shooting star, every so often, behind everything.** Off by
+  default and dependent on the starfield already being on, it adds three
+  slow, staggered streaks to the existing atmosphere layer rather than a
+  showy new effect — and like the rest of the app's motion, it stops
+  completely with reduced motion or performance mode.
 - **Eight new Wellbeing games**, alongside the three that were already there:
   memory matching, a connect-the-stars constellation, an emotion word-and-face
   match, a four-card mood-prompt pull, a small procedurally-generated maze, a

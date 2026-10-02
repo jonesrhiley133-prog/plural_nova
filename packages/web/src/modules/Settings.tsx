@@ -465,6 +465,14 @@ function Appearance(): JSX.Element {
           checked={theme.showStarfield}
           onChange={(value) => void update({ showStarfield: value })}
         />
+
+        <SwitchRow
+          label="Shooting stars"
+          hint="An occasional streak across the starfield. Off with reduced motion or performance mode, and needs the starfield on."
+          checked={theme.showShootingStars}
+          disabled={!theme.showStarfield}
+          onChange={(value) => void update({ showShootingStars: value })}
+        />
       </Card>
 
       <Card

@@ -88,6 +88,8 @@ export interface ThemeSettings {
   custom: Partial<ThemeTokens> | null;
   presetId: string | null;
   showStarfield: boolean;
+  /** An occasional streak across the starfield. Off by default — the one atmosphere layer with continuous motion, so it earns its own switch. */
+  showShootingStars: boolean;
   /** A photo behind everything, in place of (or under) the usual atmosphere. Null means none. */
   backgroundImageUrl: string | null;
   /** 0–100; how strongly the image shows through. A fixed scrim behind the content keeps text readable regardless. */
@@ -123,6 +125,7 @@ export const DEFAULT_THEME: ThemeSettings = {
   custom: null,
   presetId: 'nebula',
   showStarfield: false,
+  showShootingStars: false,
   backgroundImageUrl: null,
   backgroundOpacity: 35,
   backgroundBlur: 10,

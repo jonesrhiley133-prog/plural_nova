@@ -133,6 +133,96 @@
 }
 
 /*
+ * An occasional streak across the starfield — three independent cycles of
+ * different lengths so no two ever read as the same event repeating. Opt-in
+ * and off by default: unlike the rest of this layer, which is a single paint
+ * the compositor just holds still, this one actually moves continuously.
+ */
+.atmosphere__shooting-stars {
+  position: absolute;
+  inset: 0;
+}
+
+.atmosphere__shooting-star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #ecf2ff;
+  opacity: 0;
+  animation: atmosphere-shoot calc(13000ms / max(var(--motion), 0.001)) linear infinite;
+}
+
+.atmosphere__shooting-star::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 86px;
+  height: 1px;
+  background: linear-gradient(to left, rgba(236, 242, 255, 0.8), transparent);
+  transform-origin: left center;
+}
+
+.atmosphere__shooting-star:nth-child(1) {
+  top: 10%;
+  left: 75%;
+}
+.atmosphere__shooting-star:nth-child(1)::before {
+  transform: translateY(-50%) rotate(26deg);
+}
+
+.atmosphere__shooting-star:nth-child(2) {
+  top: 30%;
+  left: 38%;
+  animation-delay: 5500ms;
+  animation-duration: calc(16500ms / max(var(--motion), 0.001));
+}
+.atmosphere__shooting-star:nth-child(2)::before {
+  transform: translateY(-50%) rotate(20deg);
+}
+
+.atmosphere__shooting-star:nth-child(3) {
+  top: 6%;
+  left: 55%;
+  animation-delay: 9800ms;
+  animation-duration: calc(19000ms / max(var(--motion), 0.001));
+}
+.atmosphere__shooting-star:nth-child(3)::before {
+  transform: translateY(-50%) rotate(33deg);
+}
+
+@keyframes atmosphere-shoot {
+  0%,
+  92% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  93% {
+    opacity: 1;
+  }
+  97% {
+    opacity: 1;
+    transform: translate(-220px, 130px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-220px, 130px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atmosphere__shooting-star {
+    animation: none;
+  }
+}
+
+:root[data-reduced-motion='true'] .atmosphere__shooting-star,
+:root[data-effects='performance'] .atmosphere__shooting-star {
+  animation: none;
+}
+
+/*
  * Two faint rings, the same orbital figure as the app's own mark. They read as
  * structure behind the glass rather than as a picture of anything.
  */

@@ -54,6 +54,7 @@ export function Atmosphere(): JSX.Element | null {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   const show = settings.showStarfield && settings.effects !== 'performance';
+  const shootingStars = show && settings.showShootingStars;
 
   useEffect(() => {
     if (!show) return;
@@ -158,6 +159,14 @@ export function Atmosphere(): JSX.Element | null {
       ) : null}
 
       {show ? <canvas ref={canvas} className="atmosphere__stars" /> : null}
+
+      {shootingStars ? (
+        <div className="atmosphere__shooting-stars" aria-hidden="true">
+          <span className="atmosphere__shooting-star" />
+          <span className="atmosphere__shooting-star" />
+          <span className="atmosphere__shooting-star" />
+        </div>
+      ) : null}
 
       {settings.effects === 'full'
         ? rings.map((ring, index) => (

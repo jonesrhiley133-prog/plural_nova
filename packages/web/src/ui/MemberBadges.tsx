@@ -28,6 +28,16 @@ export const GIFT_EMOJI: readonly { emoji: string; label: string }[] = [
   { emoji: '🌈', label: 'Rainbow' },
 ];
 
+export function createBadge(emoji: string, label: string, awardedByMemberId: string | null): MemberBadge {
+  return {
+    id: `badge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    emoji,
+    label,
+    awardedAt: new Date().toISOString(),
+    awardedByMemberId,
+  };
+}
+
 export function parseBadges(value: unknown): MemberBadge[] {
   if (!Array.isArray(value)) return [];
   return value.filter(

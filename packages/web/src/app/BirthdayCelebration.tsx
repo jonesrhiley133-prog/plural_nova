@@ -14,7 +14,7 @@ import { Button, Card } from '../ui/primitives.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
 import { TextField } from '../ui/forms.js';
 import { Icon } from '../ui/Icon.js';
-import { GiveBadgePicker, MemberBadgeRow, parseBadges, type MemberBadge } from '../ui/MemberBadges.js';
+import { GiveBadgePicker, MemberBadgeRow, createBadge, parseBadges } from '../ui/MemberBadges.js';
 
 /**
  * The birthday celebration view: a card, a guestbook, a place to give a gift,
@@ -81,13 +81,7 @@ export function BirthdayCelebration({
   if (!member) return null;
 
   const giveBadge = async (emoji: string, label: string): Promise<void> => {
-    const badge: MemberBadge = {
-      id: `badge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      emoji,
-      label,
-      awardedAt: new Date().toISOString(),
-      awardedByMemberId: activeMemberId ?? null,
-    };
+    const badge = createBadge(emoji, label, activeMemberId ?? null);
     await onUpdateMember(member.id, { customBadges: [...badges, badge] });
     toast.success(`Gave ${String(member['name'])} a ${label.toLowerCase()}`);
   };
