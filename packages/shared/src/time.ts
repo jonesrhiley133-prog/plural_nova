@@ -38,6 +38,31 @@ export function parseDateOnly(value: string): Date {
   return new Date(year!, month! - 1, day!);
 }
 
+/** The next time a `YYYY-MM-DD` birthday comes around, and the age turned that day. */
+export function nextBirthdayOccurrence(birthday: string): { date: Date; age: number } | null {
+  const born = parseDateOnly(birthday);
+  if (Number.isNaN(born.getTime())) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let year = today.getFullYear();
+  let next = new Date(year, born.getMonth(), born.getDate());
+  if (next < today) {
+    year += 1;
+    next = new Date(year, born.getMonth(), born.getDate());
+  }
+  return { date: next, age: year - born.getFullYear() };
+}
+
+/** Whether a `YYYY-MM-DD` birthday's month and day fall on today, regardless of year. */
+export function isBirthdayToday(birthday: string): boolean {
+  const occurrence = nextBirthdayOccurrence(birthday);
+  if (!occurrence) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return occurrence.date.getTime() === today.getTime();
+}
+
 /** The inverse of `parseDateOnly` — local calendar fields, never a UTC-shifted `toISOString` slice. */
 export function toDateOnlyString(date: Date): string {
   const month = `${date.getMonth() + 1}`.padStart(2, '0');

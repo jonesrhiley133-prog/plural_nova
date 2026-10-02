@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { dayKey, parseDateOnly, toDateOnlyString, type StoredRecord } from '@pluralnova/shared';
+import {
+  dayKey,
+  nextBirthdayOccurrence,
+  parseDateOnly,
+  toDateOnlyString,
+  type StoredRecord,
+} from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useAuth } from '../core/auth.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
+import { BirthdayCelebration } from '../app/BirthdayCelebration.js';
 import { Avatar, Button, Card, Chip, IconButton, ListRow, SegmentedControl, Tabs } from '../ui/primitives.js';
 import { EmptyState } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -290,21 +297,6 @@ function recurrenceUnitLabel(recurrenceType: string): string {
 }
 
 /** The next time a birthday comes around from today, and the age it brings. */
-function nextBirthdayOccurrence(birthday: string): { date: Date; age: number } | null {
-  const born = new Date(`${birthday}T00:00:00`);
-  if (Number.isNaN(born.getTime())) return null;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let year = today.getFullYear();
-  let next = new Date(year, born.getMonth(), born.getDate());
-  if (next < today) {
-    year += 1;
-    next = new Date(year, born.getMonth(), born.getDate());
-  }
-  return { date: next, age: year - born.getFullYear() };
-}
-
 /** A precise day-count reads better as a countdown than a fuzzy "in 1 month" would. */
 function birthdayCountdown(daysAway: number): string {
   if (daysAway <= 0) return 'Today!';
@@ -1106,6 +1098,7 @@ function BirthdaysPanel({
 }): JSX.Element {
   const dialog = useDialog<StoredRecord>();
   const importDialog = useDialog();
+  const celebrate = useDialog<StoredRecord>();
 
   const upcoming = useMemo(() => {
     const today = new Date();
@@ -1153,7 +1146,7 @@ function BirthdaysPanel({
           {upcoming.map(({ member, occurrence, daysAway }) => (
             <ListRow
               key={member.id}
-              onClick={() => dialog.show(member)}
+              onClick={() => (daysAway <= 0 ? celebrate.show(member) : dialog.show(member))}
               leading={
                 <Avatar
                   name={String(member['name'])}
@@ -1191,6 +1184,7 @@ function BirthdaysPanel({
 
       <BirthdayDialog dialog={dialog} members={members} onSave={onSave} />
       <BirthdayImportDialog dialog={importDialog} members={members} onSave={onSave} />
+      <BirthdayCelebration dialog={celebrate} onUpdateMember={onSave} />
     </Card>
   );
 }

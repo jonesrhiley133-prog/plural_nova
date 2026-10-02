@@ -12,6 +12,15 @@ different versions of PluralNova.
 
 ### Added
 
+- **A birthday is now an occasion, not just a date on the calendar.** On the
+  day itself, the Birthdays panel and that {{member}}'s profile both offer
+  a small celebration: a warm card, a place for anyone to give a curated
+  emoji gift (shown afterward on their profile), a guestbook for birthday
+  messages, and a shortcut into a pre-filled {{journal}} entry for "add a
+  memory." Gifts and guestbook messages both stay real records — the
+  guestbook reuses Compliments' own visibility rules, so what's written
+  there follows the same "who can actually see this" logic rather than a
+  separate one invented for the occasion.
 - **Compliments: a place to leave something for a specific alter, or the
   whole system.** Reached from Life, it covers notes, compliments,
   greetings, recommendations, "I was here" markers, and messages you can

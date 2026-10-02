@@ -63,6 +63,18 @@ export const COMPLIMENTS: readonly string[] = [
   "Somebody in here is grateful for you, even if they haven't said so.",
 ];
 
+/** Birthday cards. `{name}` is replaced with the member's name before showing one. */
+export const BIRTHDAY_MESSAGES: readonly string[] = [
+  "Happy birthday, {name}. Another year in the constellation.",
+  "{name}, today's yours. Everyone else is just visiting it.",
+  "Here's to another year of {name} being part of this system.",
+  "Happy birthday, {name} — the constellation is glad you're in it.",
+  "One more year of {name}. The system's lucky to have you.",
+  "{name}, today counts for something just because it's yours.",
+  "Happy birthday, {name}. May the year ahead be gentle.",
+  "{name}'s day. No agenda required, just the one.",
+];
+
 /** A simple, stable hash — good enough to spread dates across a short pool evenly, nothing more. */
 function hashString(value: string): number {
   let hash = 0;

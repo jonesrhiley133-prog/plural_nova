@@ -1,17 +1,25 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { customFieldValues, emotionIdsOf, formatDuration, type StoredRecord } from '@pluralnova/shared';
+import {
+  customFieldValues,
+  emotionIdsOf,
+  formatDuration,
+  isBirthdayToday,
+  type StoredRecord,
+} from '@pluralnova/shared';
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { FRONT_STATUS_META, useFronting } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
+import { BirthdayCelebration } from '../app/BirthdayCelebration.js';
 import { Avatar, Button, Card, Chip, FieldList, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { MemberEditorForm } from '../ui/MemberEditorForm.js';
 import { SwitchRow } from '../ui/forms.js';
 import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
+import { MemberBadgeRow, parseBadges } from '../ui/MemberBadges.js';
 import { Icon } from '../ui/Icon.js';
 import { Markdown } from '../ui/Markdown.js';
 
@@ -52,6 +60,7 @@ export default function MemberProfile(): JSX.Element {
   const [tab, setTab] = useState<Tab>('overview');
   const editor = useDialog();
   const confirm = useDialog();
+  const celebrate = useDialog<StoredRecord>();
 
   const flags = useCollection('flags');
   const flagAssignments = useCollection('flagAssignments', {
@@ -84,6 +93,7 @@ export default function MemberProfile(): JSX.Element {
   const color = (member['color'] as string) || 'var(--accent)';
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
   const alreadyFronting = isFrontingAlready(member.id);
+  const isBirthday = member['birthday'] ? isBirthdayToday(String(member['birthday'])) : false;
 
   // Instant: applied to the shared fronting state before the request that
   // tells the server about it resolves, so this never shows a loading state.
@@ -210,6 +220,8 @@ export default function MemberProfile(): JSX.Element {
           navigate('/members');
         }}
       />
+
+      <BirthdayCelebration dialog={celebrate} onUpdateMember={update} />
     </div>
   );
 
@@ -230,8 +242,24 @@ export default function MemberProfile(): JSX.Element {
   }
 
   function Overview({ member }: { member: StoredRecord }): JSX.Element {
+    const badges = parseBadges(member['customBadges']);
     return (
       <div className="stack">
+        {isBirthday ? (
+          <Card style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 'var(--size-lg)' }}>🎉 It's {String(member['name'])}'s birthday!</p>
+            <Button variant="primary" size="sm" style={{ marginTop: 'var(--space-2)' }} onClick={() => celebrate.show(member)}>
+              Celebrate
+            </Button>
+          </Card>
+        ) : null}
+
+        {badges.length > 0 ? (
+          <Card title="Badges">
+            <MemberBadgeRow badges={badges} />
+          </Card>
+        ) : null}
+
         {member['bio'] ? (
           <Card title="Biography">
             <Markdown text={String(member['bio'])} />
