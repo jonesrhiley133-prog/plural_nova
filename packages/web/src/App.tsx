@@ -53,6 +53,7 @@ const Boards = load(() => import('./modules/Boards.js'));
 const BucketList = load(() => import('./modules/BucketList.js'));
 const Watchlist = load(() => import('./modules/Watchlist.js'));
 const Compliments = load(() => import('./modules/Compliments.js'));
+const Traditions = load(() => import('./modules/Traditions.js'));
 const Calendar = load(() => import('./modules/Calendar.js'));
 const Media = load(() => import('./modules/Media.js'));
 const Flags = load(() => import('./modules/Flags.js'));
@@ -203,6 +204,7 @@ function AppRoutes(): JSX.Element {
           <Route path="bucket-list" element={<BucketList />} />
           <Route path="watchlist" element={<Watchlist />} />
           <Route path="compliments" element={<Compliments />} />
+          <Route path="traditions" element={<Traditions />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="media" element={<Media />} />
           <Route path="flags" element={<Flags />} />

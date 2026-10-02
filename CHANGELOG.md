@@ -12,6 +12,14 @@ different versions of PluralNova.
 
 ### Added
 
+- **Traditions: things the {{system}} does on a rhythm, surfaced when due and
+  never nagged about.** A movie night, a monthly check-in, an end-of-month
+  scrapbook — pick a starter or write your own, say how often it comes
+  around (daily, weekly, monthly, yearly, with the same interval and
+  weekday controls Calendar events already have), and a "We did it!" button
+  marks it done. A Dashboard widget lists what's due right now; nothing
+  here ever sends a notification, since the whole point is that it stays
+  optional.
 - **A birthday is now an occasion, not just a date on the calendar.** On the
   day itself, the Birthdays panel and that {{member}}'s profile both offer
   a small celebration: a warm card, a place for anyone to give a curated

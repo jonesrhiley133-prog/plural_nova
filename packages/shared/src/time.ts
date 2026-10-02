@@ -109,6 +109,116 @@ export function formatDurationPrecise(totalSeconds: number): string {
   return `${seconds}s`;
 }
 
+export interface RecurrenceRule {
+  recurrenceType: 'daily' | 'weekly' | 'monthly' | 'yearly' | string;
+  recurrenceInterval?: number | null;
+  /** 0 (Sunday) through 6. Only consulted for a weekly rule with no interval set beyond 1 — see below. */
+  recurrenceWeekdays?: number[] | null;
+}
+
+/**
+ * The next occurrence of a recurring `anchor` date on or after `from`.
+ *
+ * Nothing in this codebase expanded `calendarEvents`' recurrence fields into
+ * actual occurrences before this — they were stored and shown back as text,
+ * never projected forward — so this is a first implementation against that
+ * shape, not an extraction of existing math. Traditions is its first caller.
+ *
+ * A weekday set is only honoured at the default interval of one: combining
+ * "every 2 weeks" with "on Tuesdays and Fridays" needs week-counting from the
+ * anchor that a "surfaced, not nagged" feature doesn't need precisely right —
+ * at any other interval the weekday set is ignored and the anchor's own
+ * weekday is kept instead.
+ */
+export function nextRecurrence(anchor: Date, rule: RecurrenceRule, from: Date = new Date()): Date {
+  const interval = Math.max(1, Math.floor(rule.recurrenceInterval ?? 1));
+  const weekdays = rule.recurrenceType === 'weekly' && interval === 1 ? rule.recurrenceWeekdays : null;
+
+  const start = startOfDay(from);
+  let next = new Date(anchor);
+  next.setHours(0, 0, 0, 0);
+
+  const step = (): void => {
+    switch (rule.recurrenceType) {
+      case 'daily':
+        next.setDate(next.getDate() + interval);
+        break;
+      case 'monthly':
+        next.setMonth(next.getMonth() + interval);
+        break;
+      case 'yearly':
+        next.setFullYear(next.getFullYear() + interval);
+        break;
+      case 'weekly':
+      default:
+        next.setDate(next.getDate() + 7 * interval);
+        break;
+    }
+  };
+
+  if (weekdays && weekdays.length > 0) {
+    // Day by day rather than week by week, so landing exactly on `from` still counts.
+    while (next < start || !weekdays.includes(next.getDay())) {
+      next.setDate(next.getDate() + 1);
+    }
+    return next;
+  }
+
+  while (next < start) step();
+  return next;
+}
+
+export interface TraditionDueInfo {
+  /** `null` for a one-time tradition that's already been celebrated — there is nothing left to be due. */
+  dueDate: Date | null;
+  isDueNow: boolean;
+}
+
+/**
+ * When a tradition is next due. A one-time tradition is due once, from its
+ * anchor date, until celebrated. A recurring one is always due again,
+ * computed from whichever is the more recent reference point: the anchor, or
+ * the last time it was actually celebrated — so marking one done visibly
+ * pushes it out by a full interval rather than it reappearing immediately.
+ */
+export function traditionDue(input: {
+  anchorDate: string;
+  isRecurring: boolean;
+  recurrenceType?: string | null;
+  recurrenceInterval?: number | null;
+  recurrenceWeekdays?: number[] | null;
+  lastCelebratedAt?: string | null;
+}): TraditionDueInfo {
+  const anchor = parseDateOnly(input.anchorDate);
+  if (Number.isNaN(anchor.getTime())) return { dueDate: null, isDueNow: false };
+  const today = startOfDay(new Date());
+
+  if (!input.isRecurring) {
+    if (input.lastCelebratedAt) return { dueDate: null, isDueNow: false };
+    return { dueDate: anchor, isDueNow: anchor.getTime() <= today.getTime() };
+  }
+
+  const rule: RecurrenceRule = {
+    recurrenceType: input.recurrenceType ?? 'weekly',
+    recurrenceInterval: input.recurrenceInterval,
+    recurrenceWeekdays: input.recurrenceWeekdays,
+  };
+
+  // The anchor always defines the pattern's phase (which weekday, which day
+  // of the month) — a celebration never shifts that. What a celebration does
+  // move is the earliest day a next one can land: strictly after it, so
+  // marking one done the same day it was due doesn't leave it due again
+  // immediately.
+  if (!input.lastCelebratedAt) {
+    const dueDate = nextRecurrence(anchor, rule);
+    return { dueDate, isDueNow: dueDate.getTime() <= today.getTime() };
+  }
+  const dayAfterLast = addDays(startOfDay(input.lastCelebratedAt), 1);
+  const from = dayAfterLast.getTime() > today.getTime() ? dayAfterLast : today;
+  const dueDate = nextRecurrence(anchor, rule, from);
+  return { dueDate, isDueNow: dueDate.getTime() <= today.getTime() };
+}
+
 export function weekKey(value: Date | string): string {
   const d = new Date(value);
   const day = (d.getDay() + 6) % 7; // Monday-first

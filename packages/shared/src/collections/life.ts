@@ -229,6 +229,60 @@ export const memberNotes: CollectionDef = {
   ],
 };
 
+export const traditions: CollectionDef = {
+  name: 'traditions',
+  label: 'Traditions',
+  singular: 'Tradition',
+  icon: 'star',
+  area: 'life',
+  scope: 'system',
+  titleField: 'title',
+  sortField: 'anchorDate',
+  sortDir: 'asc',
+  description: 'Things the system does together on a rhythm — surfaced when due, never nagged about.',
+  fields: [
+    f.text('title', 'Title', { required: true, inList: true, searchable: true }),
+    f.long('description', 'Description', { searchable: true }),
+    f.enumOf(
+      'kind',
+      'Starter',
+      [
+        { value: 'movieNight', label: 'Movie night' },
+        { value: 'gameNight', label: 'Game night' },
+        { value: 'checkIn', label: 'Monthly check-in' },
+        { value: 'appreciationDay', label: 'Alter appreciation day' },
+        { value: 'memoryCollection', label: 'Weekly memory collection' },
+        { value: 'favoritesBoard', label: 'Monthly favourites board' },
+        { value: 'scrapbook', label: 'End-of-month scrapbook' },
+        { value: 'custom', label: 'Custom' },
+      ],
+      { defaultValue: 'custom', inList: true, hint: 'A starting point — the title and description are still yours to write.' },
+    ),
+    f.date('anchorDate', 'Starting from', { required: true, inList: true }),
+    f.bool('isRecurring', 'Repeats', { group: 'Repeating' }),
+    f.enumOf(
+      'recurrenceType',
+      'How often',
+      [
+        { value: 'daily', label: 'Daily' },
+        { value: 'weekly', label: 'Weekly' },
+        { value: 'monthly', label: 'Monthly' },
+        { value: 'yearly', label: 'Yearly' },
+      ],
+      { group: 'Repeating' },
+    ),
+    f.int('recurrenceInterval', 'Every', {
+      min: 1,
+      max: 365,
+      defaultValue: 1,
+      group: 'Repeating',
+      hint: '2 with "weekly" is every other week.',
+    }),
+    f.json('recurrenceWeekdays', 'On these days', { group: 'Repeating' }),
+    f.datetime('lastCelebratedAt', 'Last done'),
+  ],
+};
+
 export const calendarFolders: CollectionDef = {
   name: 'calendarFolders',
   label: 'Calendar folders',
@@ -1201,6 +1255,7 @@ export const LIFE_COLLECTIONS = [
   bucketListItems,
   watchlistItems,
   memberNotes,
+  traditions,
   calendarFolders,
   calendarEvents,
   mediaItems,

@@ -8,8 +8,10 @@ import {
   formatDuration,
   formatDurationPrecise,
   getEmotion,
+  now,
   pickDaily,
   pickRandom,
+  traditionDue,
   type StoredRecord,
   type WidgetSetting,
 } from '@pluralnova/shared';
@@ -169,6 +171,8 @@ function Widget({ id }: { id: string }): JSX.Element | null {
       return <WatchlistWidget />;
     case 'theme-music':
       return <ThemeMusicWidget />;
+    case 'traditions':
+      return <TraditionsWidget />;
     default:
       return null;
   }
@@ -1259,6 +1263,71 @@ function ThemeMusicWidget(): JSX.Element {
               onClick={() => (isCurrent ? player.toggle() : player.play(fromLibraryTrack(track)))}
             />
           </span>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function TraditionsWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const traditions = useCollection('traditions');
+
+  const due = useMemo(
+    () =>
+      traditions.items
+        .filter(
+          (record) =>
+            traditionDue({
+              anchorDate: String(record['anchorDate'] ?? ''),
+              isRecurring: record['isRecurring'] === true,
+              recurrenceType: (record['recurrenceType'] as string) ?? null,
+              recurrenceInterval: (record['recurrenceInterval'] as number) ?? null,
+              recurrenceWeekdays: (record['recurrenceWeekdays'] as number[]) ?? null,
+              lastCelebratedAt: (record['lastCelebratedAt'] as string) ?? null,
+            }).isDueNow,
+        )
+        .slice(0, 5),
+    [traditions.items],
+  );
+
+  return (
+    <Card
+      title="Traditions due"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/traditions')}>
+          Open
+        </Button>
+      }
+    >
+      {traditions.loading ? (
+        <LoadingLine label="Loading…" />
+      ) : traditions.error ? (
+        <ErrorLine message={traditions.error} />
+      ) : due.length === 0 ? (
+        <p className="small faint">Nothing due right now.</p>
+      ) : (
+        <div className="list">
+          {due.map((record) => (
+            <div key={record.id} className="list-row" style={{ padding: 0 }}>
+              <span className="list-row__body">
+                <span className="list-row__title truncate">{String(record['title'] ?? '')}</span>
+              </span>
+              <span className="list-row__trailing">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    void traditions.update(record.id, { lastCelebratedAt: now() });
+                    toast.success('We did it!');
+                  }}
+                >
+                  We did it!
+                </Button>
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </Card>

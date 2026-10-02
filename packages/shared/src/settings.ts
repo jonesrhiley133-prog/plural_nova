@@ -96,6 +96,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'bucket-list', label: 'Bucket list' },
   { id: 'watchlist', label: 'Watchlist' },
   { id: 'theme-music', label: 'Theme music' },
+  { id: 'traditions', label: 'Traditions due' },
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id'];
