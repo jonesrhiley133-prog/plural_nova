@@ -84,6 +84,8 @@ export const members: CollectionDef = {
     f.text('race', 'Race', { group: 'Identity' }),
     f.tags('identityLabels', 'Identity labels', { group: 'Identity' }),
     f.date('birthday', 'Birthday', { group: 'Identity' }),
+    /** Which year's birthday notification has already gone out — set by the server, never edited by hand. */
+    f.int('lastBirthdayNotifiedYear', 'Last birthday notified', { group: 'Identity' }),
     f.image('avatarUrl', 'Avatar', { group: 'Appearance' }),
     f.image('bannerUrl', 'Banner', { group: 'Appearance' }),
     f.json('avatarFocus', 'Avatar focal point', { group: 'Appearance' }),

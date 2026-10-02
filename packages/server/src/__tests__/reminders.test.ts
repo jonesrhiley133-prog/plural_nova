@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp, registerUser, type TestClient } from './harness.js';
-import { runReminderSweep } from '../services/reminders.js';
+import { runBirthdayCheck, runReminderSweep } from '../services/reminders.js';
 
 /**
  * The reminder sweep's generic SOURCES loop already delivers task/event/
@@ -83,6 +83,71 @@ describe('the custom reminders sweep', () => {
     const list = await client.request('GET', '/api/notifications', { token: user.token });
     const found = list.body.data.notifications.find(
       (n: { title: string }) => n.title === 'Future reminder',
+    );
+    expect(found).toBeUndefined();
+  });
+});
+
+describe('the birthday check', () => {
+  let client: TestClient;
+  let user: { token: string; userId: string };
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    user = await registerUser(client, { email: 'birthdays@example.com', displayName: 'Birthdays' });
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  function todayAsBirthday(yearsAgo: number): string {
+    const today = new Date();
+    return `${today.getUTCFullYear() - yearsAgo}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-${String(today.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  it("notifies once on a member's birthday, then never again this year", async () => {
+    const created = await client.request('POST', '/api/records/members', {
+      token: user.token,
+      body: { name: 'Hazel', birthday: todayAsBirthday(21) },
+    });
+    const memberId = created.body.data.id;
+
+    const delivered = await runBirthdayCheck();
+    expect(delivered).toBeGreaterThanOrEqual(1);
+
+    const list = await client.request('GET', '/api/notifications', { token: user.token });
+    const found = list.body.data.notifications.find((n: { kind: string }) => n.kind === 'birthday.annual');
+    expect(found).toBeTruthy();
+    expect(found.title).toBe("Hazel's birthday is today!");
+    expect(found.link).toBe('/calendar');
+
+    const record = await client.request('GET', `/api/records/members/${memberId}`, { token: user.token });
+    expect(record.body.data.lastBirthdayNotifiedYear).toBe(new Date().getUTCFullYear());
+
+    const countBefore = list.body.data.notifications.filter((n: { kind: string }) => n.kind === 'birthday.annual').length;
+    await runBirthdayCheck();
+    const listAfter = await client.request('GET', '/api/notifications', { token: user.token });
+    const countAfter = listAfter.body.data.notifications.filter(
+      (n: { kind: string }) => n.kind === 'birthday.annual',
+    ).length;
+    expect(countAfter).toBe(countBefore);
+  });
+
+  it('leaves a member whose birthday is not today alone', async () => {
+    const notToday = new Date();
+    notToday.setUTCDate(notToday.getUTCDate() + 3);
+    await client.request('POST', '/api/records/members', {
+      token: user.token,
+      body: {
+        name: 'Juniper',
+        birthday: `1995-${String(notToday.getUTCMonth() + 1).padStart(2, '0')}-${String(notToday.getUTCDate()).padStart(2, '0')}`,
+      },
+    });
+
+    await runBirthdayCheck();
+
+    const list = await client.request('GET', '/api/notifications', { token: user.token });
+    const found = list.body.data.notifications.find(
+      (n: { title: string }) => n.title === "Juniper's birthday is today!",
     );
     expect(found).toBeUndefined();
   });

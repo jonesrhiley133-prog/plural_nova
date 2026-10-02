@@ -119,3 +119,57 @@ export async function runReminderSweep(limit = 50): Promise<number> {
 
   return delivered;
 }
+
+interface BirthdayRow {
+  id: string;
+  userId: string;
+  name: string;
+  birthday: string;
+}
+
+/**
+ * Birthdays notify once a year, not once ever — they don't fit the
+ * `remindAt`/`remindSent` shape above, which is built for a single instant.
+ * `lastBirthdayNotifiedYear` plays the same "don't resend" role `remindSent`
+ * plays for everything else, just scoped to a year instead of forever.
+ */
+export async function runBirthdayCheck(limit = 200): Promise<number> {
+  const db = getDb();
+  const today = new Date();
+  const monthDay = `${String(today.getUTCMonth() + 1).padStart(2, '0')}-${String(today.getUTCDate()).padStart(2, '0')}`;
+  const year = today.getUTCFullYear();
+  let delivered = 0;
+
+  const rows = db
+    .prepare(
+      `SELECT "id", "userId", "name", "birthday"
+       FROM "members"
+       WHERE "birthday" IS NOT NULL AND "birthday" != ''
+         AND substr("birthday", 6, 5) = ?
+         AND ("lastBirthdayNotifiedYear" IS NULL OR "lastBirthdayNotifiedYear" != ?)
+         AND "deletedAt" IS NULL
+       LIMIT ?`,
+    )
+    .all(monthDay, year, limit) as BirthdayRow[];
+
+  for (const row of rows) {
+    db.prepare(`UPDATE "members" SET "lastBirthdayNotifiedYear" = ?, "updatedAt" = ? WHERE "id" = ?`).run(
+      year,
+      now(),
+      row.id,
+    );
+
+    await notify({
+      userId: row.userId,
+      category: 'birthdays',
+      kind: 'birthday.annual',
+      title: `${row.name || 'Someone'}'s birthday is today!`,
+      link: '/calendar',
+    }).catch((error: unknown) => {
+      console.warn('[pluralnova] birthday notification failed:', error);
+    });
+    delivered += 1;
+  }
+
+  return delivered;
+}

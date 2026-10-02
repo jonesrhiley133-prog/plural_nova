@@ -75,6 +75,15 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Birthdays never actually notified anyone.** The Calendar's own empty
+  state promised "to be reminded when it comes around," but nothing was
+  wired up to do that — it now checks once a day and lets the whole
+  {{system}} know when someone's birthday has arrived, through whichever
+  channels Settings → Notifications has on for its own "Birthdays"
+  category. The Birthdays panel also now shows a plain day-count ("In 12
+  days", "Tomorrow", "Today!") next to each one, instead of only the fuzzy
+  "in about a month" a general-purpose relative date gives once something
+  is more than a few weeks out.
 - **The chat composer's own input row had no safe-area padding in Direct
   Messages, and in System Chat whenever there were fewer than two alters
   to choose from.** A sibling row below it already reserved that space, so

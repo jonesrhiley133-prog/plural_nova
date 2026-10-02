@@ -305,6 +305,13 @@ function nextBirthdayOccurrence(birthday: string): { date: Date; age: number } |
   return { date: next, age: year - born.getFullYear() };
 }
 
+/** A precise day-count reads better as a countdown than a fuzzy "in 1 month" would. */
+function birthdayCountdown(daysAway: number): string {
+  if (daysAway <= 0) return 'Today!';
+  if (daysAway === 1) return 'Tomorrow';
+  return `In ${daysAway} days`;
+}
+
 /** Reads a birthday written any of the everyday ways, into the YYYY-MM-DD this field stores. */
 function normaliseImportedDate(raw: unknown): string | null {
   const value = String(raw ?? '').trim();
@@ -1097,11 +1104,12 @@ function BirthdaysPanel({
   members: StoredRecord[];
   onSave: (id: string, patch: Record<string, unknown>) => Promise<unknown>;
 }): JSX.Element {
-  const dates = useDateFormat();
   const dialog = useDialog<StoredRecord>();
   const importDialog = useDialog();
 
   const upcoming = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     return members
       .map((member) => ({
         member,
@@ -1111,6 +1119,10 @@ function BirthdaysPanel({
         (entry): entry is { member: StoredRecord; occurrence: { date: Date; age: number } } =>
           Boolean(entry.occurrence),
       )
+      .map((entry) => ({
+        ...entry,
+        daysAway: Math.round((entry.occurrence.date.getTime() - today.getTime()) / 86_400_000),
+      }))
       .sort((a, b) => a.occurrence.date.getTime() - b.occurrence.date.getTime());
   }, [members]);
 
@@ -1138,7 +1150,7 @@ function BirthdaysPanel({
         />
       ) : (
         <div className="list">
-          {upcoming.map(({ member, occurrence }) => (
+          {upcoming.map(({ member, occurrence, daysAway }) => (
             <ListRow
               key={member.id}
               onClick={() => dialog.show(member)}
@@ -1168,7 +1180,7 @@ function BirthdaysPanel({
                     {occurrence.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · Turning{' '}
                     {occurrence.age}
                   </span>
-                  <span className="faint">{dates.relative(occurrence.date.toISOString())}</span>
+                  <span className="faint">{birthdayCountdown(daysAway)}</span>
                 </>
               }
               trailing={<Icon name="chevronRight" size={14} />}
