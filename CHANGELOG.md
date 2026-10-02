@@ -12,6 +12,11 @@ different versions of PluralNova.
 
 ### Added
 
+- **A new Reminders screen for a notification at a time you choose.** A
+  title, an optional message, and a time — delivered through the same
+  reminder sweep that already handles tasks, events, assignments and
+  shifts, and through whichever channels Settings → Notifications has on
+  for its own "Reminders" category. Reached from Life in the navigation.
 - **The theme can now use a photo for its background.** Settings → Appearance
   gets a new Background image card, using the same upload-or-choose-existing
   flow as every other photo in the app. A fixed scrim sits behind the content
@@ -65,6 +70,15 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **The Android app could report notifications as "on" for a device they
+  could no longer actually reach.** Firebase can rotate a device's push
+  token on its own — a security-driven refresh on Google's side, not only
+  when the app asks for one — and nothing told the server when that
+  happened, so it kept sending to a token that no longer worked. The app
+  now compares the token it is currently using against the one last given
+  to the server every time it checks (including every time the app is
+  reopened) and silently re-registers on a mismatch, instead of only ever
+  checking once and trusting that forever.
 - **Opening a dialog from inside another dialog — picking a photo from the
   Flux composer, say — could close both at once, or close the wrong one, on
   Escape.** Every open dialog listens for Escape independently, and with two

@@ -82,6 +82,7 @@ export const NAVIGATION: readonly NavCategory[] = [
     items: [
       { id: 'calendar', path: '/calendar', label: 'Calendar', icon: 'calendar', primary: true, quickAction: true },
       { id: 'tasks', path: '/tasks', label: 'Tasks', icon: 'task', primary: true, quickAction: true },
+      { id: 'reminders', path: '/reminders', label: 'Reminders', icon: 'notification', quickAction: true },
       { id: 'notes', path: '/notes', label: 'Notes', icon: 'note', quickAction: true },
       { id: 'contacts', path: '/contacts', label: 'Contacts', icon: 'contact' },
       { id: 'emergency', path: '/emergency', label: 'Emergency contacts', icon: 'emergency' },

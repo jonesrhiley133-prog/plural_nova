@@ -70,10 +70,14 @@ class PushMessagingService : FirebaseMessagingService() {
      * Firebase can hand out a new token on its own — a security-driven
      * rotation on Google's side, say — not only when the page asks for one.
      * There is no route from here, a background service, back into the
-     * page's own session to re-register it, so this is a deliberate no-op:
-     * the common triggers for a new token (reinstalling, clearing app data)
-     * also clear this device's remembered registration, so the app asks
-     * again next time someone opens it and looks at notification settings.
+     * page's own authenticated session to register it, so this is a
+     * deliberate no-op rather than a gap: `WebAppBridge.getFcmToken` below
+     * always asks Firebase for whatever token is current, not a cached one,
+     * and `core/push.ts`'s `watchAndroidPushToken` compares that against
+     * what the server last has on every status check (including every time
+     * the app is reopened) — so a rotation that happens here is caught and
+     * silently re-registered the next time anything on the page looks,
+     * without this service needing a network path of its own.
      */
     override fun onNewToken(token: String) = Unit
 

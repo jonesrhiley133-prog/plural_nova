@@ -11,6 +11,7 @@ import { AppLockProvider } from './core/appLock.js';
 import { AppLockGate } from './app/AppLockGate.js';
 import { startSyncWatchers, syncEngine } from './core/sync.js';
 import { startRealtime } from './core/realtime.js';
+import { watchAndroidPushToken } from './core/push.js';
 import { ErrorBoundary, SkeletonList } from './ui/feedback.js';
 import { Layout } from './app/Layout.js';
 import { Atmosphere } from './app/Atmosphere.js';
@@ -47,6 +48,7 @@ const Timeline = load(() => import('./modules/Timeline.js'));
 const Journal = load(() => import('./modules/Journal.js'));
 const Notes = load(() => import('./modules/Notes.js'));
 const Tasks = load(() => import('./modules/Tasks.js'));
+const Reminders = load(() => import('./modules/Reminders.js'));
 const Calendar = load(() => import('./modules/Calendar.js'));
 const Media = load(() => import('./modules/Media.js'));
 const Flags = load(() => import('./modules/Flags.js'));
@@ -131,6 +133,7 @@ function AppRoutes(): JSX.Element {
     if (status !== 'authenticated') return;
     const stopSync = startSyncWatchers();
     const stopRealtime = startRealtime();
+    const stopPushWatch = watchAndroidPushToken();
     void syncEngine.run();
     // A no-op after the first successful run, on any account that still has
     // fields in the old, per-member shape — safe to fire every login rather
@@ -139,6 +142,7 @@ function AppRoutes(): JSX.Element {
     return () => {
       stopSync();
       stopRealtime();
+      stopPushWatch();
     };
   }, [status, settings.mode]);
 
@@ -190,6 +194,7 @@ function AppRoutes(): JSX.Element {
           <Route path="journal" element={<Journal />} />
           <Route path="notes" element={<Notes />} />
           <Route path="tasks" element={<Tasks />} />
+          <Route path="reminders" element={<Reminders />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="media" element={<Media />} />
           <Route path="flags" element={<Flags />} />

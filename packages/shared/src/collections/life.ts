@@ -75,6 +75,26 @@ export const tasks: CollectionDef = {
   ],
 };
 
+export const reminders: CollectionDef = {
+  name: 'reminders',
+  label: 'Reminders',
+  singular: 'Reminder',
+  icon: 'notification',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'title',
+  sortField: 'remindAt',
+  sortDir: 'asc',
+  fields: [
+    f.text('title', 'Title', { required: true, inList: true, searchable: true }),
+    f.long('body', 'Message', { searchable: true, hint: 'What the notification says — left blank, it just shows the title.' }),
+    f.datetime('remindAt', 'Remind at', { required: true, inList: true }),
+    f.bool('remindSent', 'Sent'),
+    f.bool('forWholeSystem', 'For the whole system', { defaultValue: true }),
+  ],
+};
+
 export const calendarFolders: CollectionDef = {
   name: 'calendarFolders',
   label: 'Calendar folders',
@@ -1042,6 +1062,7 @@ export const LIFE_COLLECTIONS = [
   noteFolders,
   notes,
   tasks,
+  reminders,
   calendarFolders,
   calendarEvents,
   mediaItems,

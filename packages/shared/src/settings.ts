@@ -27,6 +27,7 @@ export const NOTIFICATION_CATEGORIES = [
   'memberActivity',
   'dataJobs',
   'assignmentDue',
+  'customReminders',
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -55,6 +56,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   memberActivity: 'Member activity',
   dataJobs: 'Imports and backups',
   assignmentDue: 'Assignment reminders',
+  customReminders: 'Reminders',
 };
 
 export interface WidgetSetting {
