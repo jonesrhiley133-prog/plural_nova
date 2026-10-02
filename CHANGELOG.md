@@ -70,6 +70,21 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **The chat composer's own input row had no safe-area padding in Direct
+  Messages, and in System Chat whenever there were fewer than two alters
+  to choose from.** A sibling row below it already reserved that space, so
+  the gap only ever showed up where that row doesn't render — which is
+  every Direct Message conversation, since it has no "send as" row at all.
+  The composer now reserves it directly, the same way every other
+  fixed-to-the-bottom element in the app already does.
+- **A hidden file input behind every "add a photo" control had no
+  accessible name**, which an automated WCAG scan only surfaced once a
+  page (Settings → Appearance's new background-image upload) rendered one
+  without a dialog to open first. The control and its label were never
+  actually connected — the visible button next to it is a separate element
+  with its own label, so a screen reader had nothing to say about the
+  input itself. Fixed in the one shared component every photo upload in
+  the app already goes through.
 - **The Android app could report notifications as "on" for a device they
   could no longer actually reach.** Firebase can rotate a device's push
   token on its own — a security-driven refresh on Google's side, not only
