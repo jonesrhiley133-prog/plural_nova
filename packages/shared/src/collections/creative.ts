@@ -305,6 +305,9 @@ export const musicTracks: CollectionDef = {
     f.text('providerTrackId', 'Provider id'),
     f.int('durationSeconds', 'Duration'),
     f.bool('favorite', 'Favourite', { inList: true }),
+    f.bool('isTheme', 'Theme song', {
+      hint: "This alter's (or the system's) theme — shown and playable right from the Dashboard.",
+    }),
     f.int('sortOrder', 'Order', { defaultValue: 0 }),
     f.datetime('lastPlayedAt', 'Last played'),
     f.int('playCount', 'Plays', { defaultValue: 0 }),

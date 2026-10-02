@@ -191,6 +191,44 @@ export const watchlistItems: CollectionDef = {
   ],
 };
 
+export const memberNotes: CollectionDef = {
+  name: 'memberNotes',
+  label: 'Notes & compliments',
+  singular: 'Note',
+  icon: 'sparkle',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'body',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  description: 'Small notes alters leave for each other — a compliment, a greeting, a "thinking of you."',
+  fields: [
+    f.ref('fromMemberId', 'From', 'members', { inList: true }),
+    f.refs('toMemberIds', 'To', 'members', { hint: 'Leave empty for the whole system.' }),
+    f.enumOf(
+      'kind',
+      'Kind',
+      [
+        { value: 'note', label: 'Note' },
+        { value: 'compliment', label: 'Compliment' },
+        { value: 'greeting', label: 'Greeting' },
+        { value: 'recommendation', label: 'Recommendation' },
+        { value: 'wasHere', label: 'I was here' },
+        { value: 'surprise', label: 'Surprise, later' },
+      ],
+      { defaultValue: 'note', inList: true },
+    ),
+    f.long('body', 'Message', { required: true, searchable: true }),
+    f.text('sticker', 'Sticker', { maxLength: 8, hint: 'An emoji to decorate it with. Optional.' }),
+    f.datetime('remindAt', 'Reveal at', {
+      hint: 'Leave blank to show it right away — set a time to keep it a surprise until then, even from you.',
+    }),
+    f.bool('remindSent', 'Revealed'),
+    f.refs('seenByMemberIds', 'Seen by', 'members'),
+  ],
+};
+
 export const calendarFolders: CollectionDef = {
   name: 'calendarFolders',
   label: 'Calendar folders',
@@ -1162,6 +1200,7 @@ export const LIFE_COLLECTIONS = [
   boards,
   bucketListItems,
   watchlistItems,
+  memberNotes,
   calendarFolders,
   calendarEvents,
   mediaItems,

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp, registerUser, type TestClient } from './harness.js';
-import { runBirthdayCheck, runReminderSweep } from '../services/reminders.js';
+import { runBirthdayCheck, runReminderSweep, runScheduledNoteSweep } from '../services/reminders.js';
 
 /**
  * The reminder sweep's generic SOURCES loop already delivers task/event/
@@ -150,5 +150,59 @@ describe('the birthday check', () => {
       (n: { title: string }) => n.title === "Juniper's birthday is today!",
     );
     expect(found).toBeUndefined();
+  });
+});
+
+describe('the scheduled note sweep', () => {
+  let client: TestClient;
+  let user: { token: string; userId: string };
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    user = await registerUser(client, { email: 'scheduled-notes@example.com', displayName: 'Scheduled Notes' });
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('reveals a due note and notifies once, then never again', async () => {
+    const remindAt = new Date(Date.now() - 60_000).toISOString();
+    const created = await client.request('POST', '/api/records/memberNotes', {
+      token: user.token,
+      body: { toMemberIds: [], body: 'a surprise, now due', remindAt },
+    });
+    const noteId = created.body.data.id;
+
+    const delivered = await runScheduledNoteSweep();
+    expect(delivered).toBeGreaterThanOrEqual(1);
+
+    const revealed = await client.request('GET', `/api/records/memberNotes/${noteId}`, { token: user.token });
+    expect(revealed.status).toBe(200);
+    expect(revealed.body.data.remindSent).toBe(true);
+
+    const list = await client.request('GET', '/api/notifications', { token: user.token });
+    const found = list.body.data.notifications.find((n: { kind: string }) => n.kind === 'note.received');
+    expect(found).toBeTruthy();
+    expect(found.title).toBe('Someone left you a note');
+
+    const countBefore = list.body.data.notifications.filter((n: { kind: string }) => n.kind === 'note.received').length;
+    await runScheduledNoteSweep();
+    const listAfter = await client.request('GET', '/api/notifications', { token: user.token });
+    const countAfter = listAfter.body.data.notifications.filter(
+      (n: { kind: string }) => n.kind === 'note.received',
+    ).length;
+    expect(countAfter).toBe(countBefore);
+  });
+
+  it('notifies immediately for a note with no reveal time, through the create route instead of the sweep', async () => {
+    await client.request('POST', '/api/records/memberNotes', {
+      token: user.token,
+      body: { toMemberIds: [], body: 'right away' },
+    });
+
+    const list = await client.request('GET', '/api/notifications', { token: user.token });
+    const found = list.body.data.notifications.find(
+      (n: { kind: string; title: string }) => n.kind === 'note.received' && n.title === 'Someone left you a note',
+    );
+    expect(found).toBeTruthy();
   });
 });

@@ -8,7 +8,7 @@ import { attachRealtime, closeAll } from './realtime/hub.js';
 import { ensurePushKeys } from './services/push.js';
 import { pruneSessions } from './auth/sessions.js';
 import { pruneRateLimits } from './http/rateLimit.js';
-import { runBirthdayCheck, runReminderSweep } from './services/reminders.js';
+import { runBirthdayCheck, runReminderSweep, runScheduledNoteSweep } from './services/reminders.js';
 
 ensureDirectories();
 
@@ -43,6 +43,7 @@ const maintenance = setInterval(
       pruneRateLimits();
       void runReminderSweep();
       void runBirthdayCheck();
+      void runScheduledNoteSweep();
     } catch (error) {
       console.error('[pluralnova] maintenance sweep failed:', error);
     }

@@ -120,6 +120,49 @@ export async function runReminderSweep(limit = 50): Promise<number> {
   return delivered;
 }
 
+interface ScheduledNoteRow {
+  id: string;
+  userId: string;
+}
+
+/**
+ * A scheduled note's reveal is its only notification — unlike the sources
+ * above, it has no title of its own worth surfacing (just a kind and a body),
+ * so this gets its own small sweep rather than a forced SOURCES entry.
+ */
+export async function runScheduledNoteSweep(limit = 50): Promise<number> {
+  const db = getDb();
+  const timestamp = now();
+  let delivered = 0;
+
+  const rows = db
+    .prepare(
+      `SELECT "id", "userId"
+       FROM "memberNotes"
+       WHERE "remindAt" IS NOT NULL AND "remindAt" != '' AND "remindAt" <= ?
+         AND ("remindSent" IS NULL OR "remindSent" = 0) AND "deletedAt" IS NULL
+       LIMIT ?`,
+    )
+    .all(timestamp, limit) as ScheduledNoteRow[];
+
+  for (const row of rows) {
+    db.prepare(`UPDATE "memberNotes" SET "remindSent" = 1, "updatedAt" = ? WHERE "id" = ?`).run(timestamp, row.id);
+
+    await notify({
+      userId: row.userId,
+      category: 'alterNotes',
+      kind: 'note.received',
+      title: 'Someone left you a note',
+      link: '/compliments',
+    }).catch((error: unknown) => {
+      console.warn('[pluralnova] scheduled note delivery failed:', error);
+    });
+    delivered += 1;
+  }
+
+  return delivered;
+}
+
 interface BirthdayRow {
   id: string;
   userId: string;

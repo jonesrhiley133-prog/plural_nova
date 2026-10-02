@@ -141,6 +141,7 @@ export function collectMetrics(scope: Scope): Partial<Record<AchievementMetric, 
     'boards.count': countRows('boards', scope),
     'bucketListItems.completed': countRows('bucketListItems', scope, '"completed" = 1'),
     'watchlistItems.watched': countRows('watchlistItems', scope, '"status" = ?', ['watched']),
+    'memberNotes.count': countRows('memberNotes', scope),
     trackingDays: distinctTrackingDays(scope),
     'backups.count': (
       getDb().prepare('SELECT COUNT(*) AS n FROM backups WHERE userId = ?').get(scope.userId) as {

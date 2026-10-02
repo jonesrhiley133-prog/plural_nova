@@ -20,6 +20,7 @@ import { useOptimisticSettings } from '../core/settings.js';
 import { useBadges } from '../core/badges.js';
 import { useFronting } from '../core/fronting.js';
 import { useLiveSession } from '../core/liveSession.js';
+import { fromLibraryTrack, useMusicPlayer } from '../core/musicPlayer.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, IconButton, ListRow, Stat } from '../ui/primitives.js';
@@ -166,6 +167,8 @@ function Widget({ id }: { id: string }): JSX.Element | null {
       return <BucketListWidget />;
     case 'watchlist':
       return <WatchlistWidget />;
+    case 'theme-music':
+      return <ThemeMusicWidget />;
     default:
       return null;
   }
@@ -1205,6 +1208,57 @@ function WatchlistWidget(): JSX.Element {
               {String(item['title'] ?? '')}
             </div>
           ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ThemeMusicWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const activeMemberId = useActiveMemberId();
+  const player = useMusicPlayer();
+  const tracks = useCollection('musicTracks', { filter: (track) => track['isTheme'] === true });
+
+  // An alter's own theme wins; a system-wide theme (no member set) is the
+  // fallback everyone else sees.
+  const track =
+    tracks.items.find((item) => item['memberId'] === activeMemberId) ??
+    tracks.items.find((item) => !item['memberId']) ??
+    null;
+  const isCurrent = track ? player.current?.id === String(track.id) : false;
+
+  return (
+    <Card
+      title="Theme music"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/music')}>
+          Open
+        </Button>
+      }
+    >
+      {tracks.loading ? (
+        <LoadingLine label="Loading…" />
+      ) : tracks.error ? (
+        <ErrorLine message={tracks.error} />
+      ) : !track ? (
+        <p className="small faint">No theme pinned yet. Pin a track in Music to play it here.</p>
+      ) : (
+        <div className="list-row" style={{ padding: 0 }}>
+          <Avatar name={String(track['title'])} src={(track['artworkUrl'] as string) || null} size={38} />
+          <span className="list-row__body">
+            <span className="list-row__title truncate">{String(track['title'])}</span>
+            <span className="list-row__meta">{String(track['artist'] ?? '')}</span>
+          </span>
+          <span className="list-row__trailing">
+            <IconButton
+              icon={isCurrent && player.playing ? 'pause' : 'play'}
+              label={isCurrent && player.playing ? 'Pause' : `Play ${String(track['title'])}`}
+              variant="ghost"
+              size="sm"
+              onClick={() => (isCurrent ? player.toggle() : player.play(fromLibraryTrack(track)))}
+            />
+          </span>
         </div>
       )}
     </Card>

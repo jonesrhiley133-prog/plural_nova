@@ -48,7 +48,7 @@ export interface NotifyInput {
  * by turning these off, so they get their own, narrower switch instead of
  * sharing a category with a notification that still matters without it.
  */
-const COZY_KINDS = new Set(['birthday.annual', 'board.posted']);
+const COZY_KINDS = new Set(['birthday.annual', 'board.posted', 'note.received']);
 
 export async function notify(input: NotifyInput): Promise<StoredRecord | null> {
   const user = findUserById(input.userId);

@@ -30,6 +30,7 @@ export const NOTIFICATION_CATEGORIES = [
   'customReminders',
   'birthdays',
   'boards',
+  'alterNotes',
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -61,6 +62,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   customReminders: 'Reminders',
   birthdays: 'Birthdays',
   boards: 'Board posts',
+  alterNotes: 'Notes from alters',
 };
 
 export interface WidgetSetting {
@@ -93,6 +95,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'boards-preview', label: 'Boards' },
   { id: 'bucket-list', label: 'Bucket list' },
   { id: 'watchlist', label: 'Watchlist' },
+  { id: 'theme-music', label: 'Theme music' },
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id'];

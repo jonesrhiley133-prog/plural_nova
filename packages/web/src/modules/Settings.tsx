@@ -10,8 +10,6 @@ import {
   THEME_PRESETS,
   UI_ZOOM_PRESETS,
   ALL_NAV_ITEMS,
-  ALWAYS_VISIBLE_NAV_IDS,
-  categoriesForMode,
   createCustomPreset,
   sanitizeImportedPreset,
   type NotificationCategory,
@@ -31,6 +29,7 @@ import { disablePush, enablePush, isInstalled, pushStatus, pushSupported, sendTe
 import { syncEngine } from '../core/sync.js';
 import { offlineStorageProblem, storageEstimate } from '../core/localdb.js';
 import { PageHeader } from '../app/PageHeader.js';
+import { ModuleVisibilityCard } from '../app/ModuleVisibility.js';
 import CustomFieldDefinitions from './CustomFieldDefinitions.js';
 import { Avatar, Button, Card, Chip, IconButton, ListRow, SegmentedControl, Stat } from '../ui/primitives.js';
 import { ImageField, NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
@@ -1310,31 +1309,7 @@ function Navigation(): JSX.Element {
         ))}
       </Card>
 
-      <Card title="Sidebar &amp; menu" subtitle="Turn off anything you never use — nothing about it is deleted">
-        {categoriesForMode(settings.mode).map((category) => (
-          <div key={category.id} style={{ marginBottom: 'var(--space-3)' }}>
-            <p className="tiny faint" style={{ marginBottom: 'var(--space-1)' }}>
-              {term(category.label)}
-            </p>
-            {category.items
-              .filter((item) => !ALWAYS_VISIBLE_NAV_IDS.includes(item.id))
-              .map((item) => (
-                <SwitchRow
-                  key={item.id}
-                  label={term(item.label)}
-                  checked={!settings.hiddenModules.includes(item.id)}
-                  onChange={(visible) =>
-                    update({
-                      hiddenModules: visible
-                        ? settings.hiddenModules.filter((id) => id !== item.id)
-                        : [...settings.hiddenModules, item.id],
-                    })
-                  }
-                />
-              ))}
-          </div>
-        ))}
-      </Card>
+      <ModuleVisibilityCard />
     </>
   );
 }

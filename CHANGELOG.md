@@ -12,6 +12,24 @@ different versions of PluralNova.
 
 ### Added
 
+- **Compliments: a place to leave something for a specific alter, or the
+  whole system.** Reached from Life, it covers notes, compliments,
+  greetings, recommendations, "I was here" markers, and messages you can
+  schedule to stay hidden — from everyone, including whoever wrote it —
+  until the time you set, so a surprise actually stays one. Who a note is
+  addressed to is enforced on the server, not just hidden in the
+  interface: a note meant for one alter, or left with nobody picked
+  (meaning the whole system), only ever appears to the people it's for.
+- **A theme song on the Dashboard.** Any track already in Music — uploaded
+  or saved from search — can be pinned as a theme from its row in the
+  library. A pinned track shows in a new Theme music Dashboard widget with
+  its own play button: whichever alter is active sees their own theme if
+  they have one, or the system's theme otherwise.
+- **Features can now hide what you don't use.** The same per-page and
+  per-category switches Settings → Navigation has always had now also live
+  on the Features page, right where everything in the app is listed. It's
+  the same setting either way, so a page turned off from one of those
+  places stays off when you check from the other.
 - **Five new Dashboard widgets, a daily message, and a setting for the warmer
   touches.** A Daily message widget shows one line the whole system sees
   that day, with a button for a quick, unrelated fortune. Who was here

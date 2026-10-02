@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { EMOTIONS, COLLECTIONS } from '@pluralnova/shared';
 import { useI18n } from '../core/i18n.js';
 import { PageHeader } from '../app/PageHeader.js';
+import { ModuleVisibilityCard } from '../app/ModuleVisibility.js';
 import { Button, Card, Chip, Stat } from '../ui/primitives.js';
 import { Icon, iconOr } from '../ui/Icon.js';
 
@@ -116,6 +117,10 @@ export default function Features(): JSX.Element {
         <Stat label="Emotions" value={EMOTIONS.length} />
         <Stat label="Everything works" value="Offline" />
         <Stat label="Your data" value="Exportable" />
+      </div>
+
+      <div style={{ marginBottom: 'var(--space-5)' }}>
+        <ModuleVisibilityCard />
       </div>
 
       <div className="stack">

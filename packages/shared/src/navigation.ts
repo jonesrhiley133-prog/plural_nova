@@ -86,6 +86,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'boards', path: '/boards', label: 'Boards', icon: 'pin' },
       { id: 'bucket-list', path: '/bucket-list', label: 'Bucket list', icon: 'checkDouble' },
       { id: 'watchlist', path: '/watchlist', label: 'Watchlist', icon: 'play' },
+      { id: 'compliments', path: '/compliments', label: 'Compliments', icon: 'sparkle' },
       { id: 'notes', path: '/notes', label: 'Notes', icon: 'note', quickAction: true },
       { id: 'contacts', path: '/contacts', label: 'Contacts', icon: 'contact' },
       { id: 'emergency', path: '/emergency', label: 'Emergency contacts', icon: 'emergency' },

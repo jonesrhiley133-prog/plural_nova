@@ -2,7 +2,9 @@ import { Router } from 'express';
 import {
   CRUD_COLLECTIONS,
   getCollection,
+  now,
   type CollectionDef,
+  type StoredRecord,
 } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { badRequest, forbidden, notFound } from '../http/errors.js';
@@ -99,6 +101,24 @@ recordsRouter.get(
   }),
 );
 
+/**
+ * `memberNotes` is the one collection in the generic CRUD layer where
+ * "visible to this account" and "visible to this reader" are different
+ * questions — a note aimed at specific alters, or timed to reveal later,
+ * should not show up for every member sharing the login. `toMemberIds`
+ * empty means the whole system, matching the convention already used by
+ * `systemChatThreads.participantMemberIds`.
+ */
+function memberNoteVisible(record: StoredRecord, activeMemberId: string | null): boolean {
+  const revealAt = record['remindAt'] as string | null;
+  if (revealAt && revealAt > now()) return false;
+  const to = (record['toMemberIds'] as string[] | null) ?? [];
+  if (to.length === 0) return true;
+  if (activeMemberId && to.includes(activeMemberId)) return true;
+  if (activeMemberId && record['fromMemberId'] === activeMemberId) return true;
+  return false;
+}
+
 recordsRouter.get(
   '/:collection',
   handler((req, res) => {
@@ -108,6 +128,9 @@ recordsRouter.get(
       throw forbidden('The vault is locked. Unlock it to see what is inside.');
     }
     const result = listRecords(collection.name, context.scope, parseListQuery(req.query, collection));
+    if (collection.name === 'memberNotes') {
+      result.items = result.items.filter((item) => memberNoteVisible(item, context.user.activeMemberId));
+    }
     ok(res, result);
   }),
 );
@@ -122,6 +145,9 @@ recordsRouter.get(
     }
     const record = getRecord(collection.name, context.scope, String(req.params['id']));
     if (!record) throw notFound(collection.singular);
+    if (collection.name === 'memberNotes' && !memberNoteVisible(record, context.user.activeMemberId)) {
+      throw notFound(collection.singular);
+    }
     ok(res, record);
   }),
 );
@@ -152,6 +178,17 @@ recordsRouter.post(
         title: 'Someone added something to the shared board',
         link: '/boards',
       }).catch((error: unknown) => console.warn('[pluralnova] board notification failed:', error));
+    }
+    if (collection.name === 'memberNotes' && !record['remindAt']) {
+      // A scheduled note notifies later, when the reminder sweep reveals it —
+      // notifying now would spoil the surprise it was set up to be.
+      await notify({
+        userId: context.scope.userId,
+        category: 'alterNotes',
+        kind: 'note.received',
+        title: 'Someone left you a note',
+        link: '/compliments',
+      }).catch((error: unknown) => console.warn('[pluralnova] note notification failed:', error));
     }
     await checkAchievements(context.scope);
     ok(res, record, 201);
