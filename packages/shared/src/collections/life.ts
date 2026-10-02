@@ -557,6 +557,24 @@ export const bodySensations: CollectionDef = {
   ],
 };
 
+export const wellbeingGameLog: CollectionDef = {
+  name: 'wellbeingGameLog',
+  label: 'Wellbeing game log',
+  singular: 'Play',
+  icon: 'wellbeing',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'gameId',
+  sortField: 'playedAt',
+  sortDir: 'desc',
+  description: 'Which calming game was opened, and when — not a score, just enough for a played-today streak.',
+  fields: [
+    f.text('gameId', 'Game', { required: true, inList: true }),
+    f.datetime('playedAt', 'Played', { required: true, inList: true }),
+  ],
+};
+
 export const wellnessEntries: CollectionDef = {
   name: 'wellnessEntries',
   label: 'Wellbeing',
@@ -1264,6 +1282,7 @@ export const LIFE_COLLECTIONS = [
   customEmotions,
   favoriteEmotions,
   bodySensations,
+  wellbeingGameLog,
   wellnessEntries,
   sleepEntries,
   fitnessEntries,

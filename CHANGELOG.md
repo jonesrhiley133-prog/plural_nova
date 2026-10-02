@@ -12,6 +12,13 @@ different versions of PluralNova.
 
 ### Added
 
+- **Eight new Wellbeing games**, alongside the three that were already there:
+  memory matching, a connect-the-stars constellation, an emotion word-and-face
+  match, a four-card mood-prompt pull, a small procedurally-generated maze, a
+  freeform doodle canvas, spot-the-difference, and a daily trivia question.
+  None are timed, scored, or compared between {{members}} — playing one is
+  quietly logged so a "played something" streak can count toward achievements
+  the same way a mood log or a {{journal}} entry already does.
 - **Traditions: things the {{system}} does on a rhythm, surfaced when due and
   never nagged about.** A movie night, a monthly check-in, an end-of-month
   scrapbook — pick a starter or write your own, say how often it comes

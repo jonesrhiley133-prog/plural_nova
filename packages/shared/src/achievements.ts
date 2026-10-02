@@ -30,7 +30,9 @@ export type AchievementMetric =
   | 'boards.count'
   | 'bucketListItems.completed'
   | 'watchlistItems.watched'
-  | 'memberNotes.count';
+  | 'memberNotes.count'
+  | 'wellbeingGames.count'
+  | 'wellbeingGames.streakDays';
 
 export interface AchievementDef {
   key: string;
@@ -75,6 +77,8 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: 'first-bucket-item-done', label: 'Crossed off', description: 'Checked something off the bucket list.', icon: '✓', metric: 'bucketListItems.completed', threshold: 1, category: 'firsts' },
   { key: 'first-watched', label: 'Watched it', description: 'Marked something on the watchlist as watched.', icon: '▶', metric: 'watchlistItems.watched', threshold: 1, category: 'firsts' },
   { key: 'first-kind-word', label: 'A kind word', description: 'Left a note or a compliment for someone.', icon: '✧', metric: 'memberNotes.count', threshold: 1, category: 'firsts' },
+  { key: 'first-wellbeing-game', label: 'Played a little', description: 'Tried one of the games in Wellbeing.', icon: '🎲', metric: 'wellbeingGames.count', threshold: 1, category: 'firsts' },
+  { key: 'wellbeing-game-streak-7', label: 'A small daily habit', description: 'Played something in Wellbeing on seven days in a row.', icon: '🎯', metric: 'wellbeingGames.streakDays', threshold: 7, category: 'habits' },
 ];
 
 const BY_KEY = new Map(ACHIEVEMENTS.map((a) => [a.key, a]));

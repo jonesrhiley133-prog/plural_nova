@@ -85,12 +85,17 @@ function hashString(value: string): number {
   return Math.abs(hash);
 }
 
-/** The same pick for everyone, all day — changes only when the calendar date does. */
-export function pickDaily(pool: readonly string[], date: Date = new Date()): string {
+/**
+ * The same pick for everyone, all day — changes only when the calendar date
+ * does. Generic rather than string-only so a pool of richer data (a
+ * question-and-answer pair, say) can be date-seeded the same way a line of
+ * copy is.
+ */
+export function pickDaily<T>(pool: readonly T[], date: Date = new Date()): T {
   const dateKey = date.toISOString().slice(0, 10);
-  return pool[hashString(dateKey) % pool.length] ?? pool[0] ?? '';
+  return pool[hashString(dateKey) % pool.length] ?? pool[0]!;
 }
 
-export function pickRandom(pool: readonly string[]): string {
-  return pool[Math.floor(Math.random() * pool.length)] ?? pool[0] ?? '';
+export function pickRandom<T>(pool: readonly T[]): T {
+  return pool[Math.floor(Math.random() * pool.length)] ?? pool[0]!;
 }

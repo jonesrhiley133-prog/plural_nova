@@ -94,11 +94,12 @@ function distinctTrackingDays(scope: Scope): number {
   return days.size;
 }
 
-function taskStreakDays(scope: Scope): number {
+/** Consecutive days ending today (or the most recent day on record) with at least one row. */
+function distinctDayStreak(table: string, column: string, scope: Scope): number {
   const rows = getDb()
     .prepare(
-      `SELECT DISTINCT substr("completedAt", 1, 10) AS day FROM "tasks"
-       WHERE "userId" = ? AND "deletedAt" IS NULL AND "completedAt" IS NOT NULL
+      `SELECT DISTINCT substr("${column}", 1, 10) AS day FROM "${table}"
+       WHERE "userId" = ? AND "deletedAt" IS NULL AND "${column}" IS NOT NULL
        ORDER BY day DESC`,
     )
     .all(scope.userId) as { day: string }[];
@@ -114,6 +115,14 @@ function taskStreakDays(scope: Scope): number {
     }
   }
   return streak;
+}
+
+function taskStreakDays(scope: Scope): number {
+  return distinctDayStreak('tasks', 'completedAt', scope);
+}
+
+function wellbeingGameStreakDays(scope: Scope): number {
+  return distinctDayStreak('wellbeingGameLog', 'playedAt', scope);
 }
 
 export function collectMetrics(scope: Scope): Partial<Record<AchievementMetric, number>> {
@@ -142,6 +151,8 @@ export function collectMetrics(scope: Scope): Partial<Record<AchievementMetric, 
     'bucketListItems.completed': countRows('bucketListItems', scope, '"completed" = 1'),
     'watchlistItems.watched': countRows('watchlistItems', scope, '"status" = ?', ['watched']),
     'memberNotes.count': countRows('memberNotes', scope),
+    'wellbeingGames.count': countRows('wellbeingGameLog', scope),
+    'wellbeingGames.streakDays': wellbeingGameStreakDays(scope),
     trackingDays: distinctTrackingDays(scope),
     'backups.count': (
       getDb().prepare('SELECT COUNT(*) AS n FROM backups WHERE userId = ?').get(scope.userId) as {
