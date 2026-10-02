@@ -12,6 +12,11 @@ different versions of PluralNova.
 
 ### Added
 
+- **17 new words in the emotion library**, among them Cozy, Included,
+  Energized, Relieved, Jealous, Bored, and Understimulated — findable
+  straight away through the existing search and family filters, alongside
+  the 212 already there. Nothing existing was renamed, so anything already
+  logged still points at the same word it always did.
 - **A new Reminders screen for a notification at a time you choose.** A
   title, an optional message, and a time — delivered through the same
   reminder sweep that already handles tasks, events, assignments and
