@@ -12,6 +12,14 @@ different versions of PluralNova.
 
 ### Added
 
+- **The theme can now use a photo for its background.** Settings → Appearance
+  gets a new Background image card, using the same upload-or-choose-existing
+  flow as every other photo in the app. A fixed scrim sits behind the content
+  and in front of the photo regardless of how it's set up, so a bright or
+  busy picture can never make the text on top of it hard to read — the two
+  controls that are yours to set are how visible the photo itself is and how
+  much it's blurred, both live-previewed as you move them. Removing it goes
+  straight back to the usual background.
 - **Flux grew a photo, a repost, a bookmark, and a reply thread.** The
   composer now takes a photo — snapped or picked from the system's media
   library — alongside a post's words, the same upload flow custom fields

@@ -43,6 +43,26 @@
     linear-gradient(180deg, var(--bg) 0%, var(--bg-subtle) 55%, var(--bg) 100%);
 }
 
+/*
+ * A user's own photo, behind everything else in this layer. The scrim beneath
+ * it is not configurable — unlike the photo's own opacity and blur, it exists
+ * purely so a bright or busy picture never gets to decide whether the text
+ * sitting on top of it is still readable.
+ */
+.atmosphere__photo {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+
+.atmosphere__photo-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  opacity: 0.6;
+}
+
 .atmosphere__field {
   position: absolute;
   border-radius: 50%;

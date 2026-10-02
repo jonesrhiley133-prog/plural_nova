@@ -468,6 +468,41 @@ function Appearance(): JSX.Element {
         />
       </Card>
 
+      <Card
+        title="Background image"
+        subtitle="A photo behind everything, instead of (or under) the usual glow. A fixed safeguard behind it keeps text readable no matter how bright or busy the photo is."
+      >
+        <ImageField
+          label="Photo"
+          value={theme.backgroundImageUrl ?? ''}
+          onChange={(value) => void update({ backgroundImageUrl: value || null })}
+          shape="banner"
+          hint="Snap one, pick from your media library, or remove it to go back to the usual background."
+        />
+
+        {theme.backgroundImageUrl ? (
+          <>
+            <NumberField
+              label="How visible"
+              value={theme.backgroundOpacity}
+              onChange={(value) => void update({ backgroundOpacity: value ?? 35 })}
+              min={5}
+              max={100}
+              suffix="%"
+            />
+            <NumberField
+              label="Blur"
+              value={theme.backgroundBlur}
+              onChange={(value) => void update({ backgroundBlur: value ?? 10 })}
+              min={0}
+              max={40}
+              suffix="px"
+              hint="Softens a busy photo so it does not compete with whatever is written over it."
+            />
+          </>
+        ) : null}
+      </Card>
+
       <Card title="Typeface">
         <SelectField
           label="Font"

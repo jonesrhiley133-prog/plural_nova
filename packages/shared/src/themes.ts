@@ -88,6 +88,12 @@ export interface ThemeSettings {
   custom: Partial<ThemeTokens> | null;
   presetId: string | null;
   showStarfield: boolean;
+  /** A photo behind everything, in place of (or under) the usual atmosphere. Null means none. */
+  backgroundImageUrl: string | null;
+  /** 0–100; how strongly the image shows through. A fixed scrim behind the content keeps text readable regardless. */
+  backgroundOpacity: number;
+  /** 0–40px; softens a busy photo so it does not fight with foreground text. */
+  backgroundBlur: number;
 }
 
 export const DEFAULT_ACCENT = '#7aa2f7';
@@ -117,6 +123,9 @@ export const DEFAULT_THEME: ThemeSettings = {
   custom: null,
   presetId: 'nebula',
   showStarfield: false,
+  backgroundImageUrl: null,
+  backgroundOpacity: 35,
+  backgroundBlur: 10,
 };
 
 const DARK: ThemeTokens = {
@@ -618,6 +627,11 @@ export function normaliseThemeSettings(input: Partial<ThemeSettings> | null | un
   merged.textScale = Math.min(160, Math.max(80, Math.round(merged.textScale || 100)));
   merged.uiZoom = Math.min(150, Math.max(80, Math.round(merged.uiZoom || 100)));
   merged.surfaceOpacity = Math.min(100, Math.max(20, Math.round(merged.surfaceOpacity ?? 82)));
+  merged.backgroundOpacity = Math.min(100, Math.max(5, Math.round(merged.backgroundOpacity ?? 35)));
+  merged.backgroundBlur = Math.min(40, Math.max(0, Math.round(merged.backgroundBlur ?? 10)));
+  if (typeof merged.backgroundImageUrl !== 'string' || !merged.backgroundImageUrl.trim()) {
+    merged.backgroundImageUrl = null;
+  }
   if (!parseHex(merged.accent)) merged.accent = DEFAULT_ACCENT;
   if (!['dark', 'amoled', 'light'].includes(merged.base)) merged.base = 'dark';
   if (!['glass', 'solid', 'clear'].includes(merged.surfaceStyle)) merged.surfaceStyle = 'glass';
