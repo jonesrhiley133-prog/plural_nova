@@ -751,6 +751,14 @@ function Notifications(): JSX.Element {
             />
           </div>
         ) : null}
+        <SwitchRow
+          label="Warm, occasional extras"
+          hint="A handful of notifications — a birthday, a board post — use softer wording than the rest. Off keeps the ones that still mean something without it (fronting, reminders) and drops the rest."
+          checked={settings.cozyMessages}
+          onChange={(value) => {
+            update({ cozyMessages: value });
+          }}
+        />
       </Card>
 
       <Card title="What you are told about" subtitle="Each category, on each channel">

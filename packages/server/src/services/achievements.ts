@@ -138,6 +138,9 @@ export function collectMetrics(scope: Scope): Partial<Record<AchievementMetric, 
     'studySessions.count': countRows('studySessions', scope, '"durationSeconds" IS NOT NULL'),
     'studySessions.hours': sumStudyHours(scope),
     'schoolCheckIns.count': countRows('schoolCheckIns', scope),
+    'boards.count': countRows('boards', scope),
+    'bucketListItems.completed': countRows('bucketListItems', scope, '"completed" = 1'),
+    'watchlistItems.watched': countRows('watchlistItems', scope, '"status" = ?', ['watched']),
     trackingDays: distinctTrackingDays(scope),
     'backups.count': (
       getDb().prepare('SELECT COUNT(*) AS n FROM backups WHERE userId = ?').get(scope.userId) as {

@@ -12,6 +12,15 @@ different versions of PluralNova.
 
 ### Added
 
+- **Five new Dashboard widgets, a daily message, and a setting for the warmer
+  touches.** A Daily message widget shows one line the whole system sees
+  that day, with a button for a quick, unrelated fortune. Who was here
+  today shows who's logged fronting so far today. Boards, Bucket list and
+  Watchlist each get a small preview widget linking back to the full
+  screen. Settings → Notifications gets a new "Warm, occasional extras"
+  switch — off keeps birthday and board-post notifications from firing at
+  all (they're decoration, not something to miss), and keeps fronting
+  notifications firing with their plain wording instead of "Welcome back."
 - **Three small shared spaces for the whole system: Boards, a Bucket list,
   and a Watchlist.** Boards covers five small, low-stakes kinds of post —
   what you're currently obsessed with, today's vibe, inside jokes,

@@ -29,6 +29,7 @@ export const NOTIFICATION_CATEGORIES = [
   'assignmentDue',
   'customReminders',
   'birthdays',
+  'boards',
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -59,6 +60,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   assignmentDue: 'Assignment reminders',
   customReminders: 'Reminders',
   birthdays: 'Birthdays',
+  boards: 'Board posts',
 };
 
 export interface WidgetSetting {
@@ -86,6 +88,11 @@ export const DASHBOARD_WIDGETS = [
   { id: 'headspace', label: 'Headspace', systemOnly: true },
   { id: 'fronting-stats', label: 'Fronting statistics', systemOnly: true },
   { id: 'location', label: 'Location' },
+  { id: 'daily-message', label: 'Daily message' },
+  { id: 'memory-trail', label: 'Who was here today', systemOnly: true },
+  { id: 'boards-preview', label: 'Boards' },
+  { id: 'bucket-list', label: 'Bucket list' },
+  { id: 'watchlist', label: 'Watchlist' },
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id'];
@@ -217,6 +224,8 @@ export interface AppSettings {
   lowEndLogin: boolean;
   achievementsEnabled: boolean;
   achievementToasts: boolean;
+  /** The warm, occasional copy on a handful of notifications — a birthday, a board post. Off still leaves the notification itself working everywhere it has its own purpose beyond the tone. */
+  cozyMessages: boolean;
   /** Week starts on Monday (1) or Sunday (0). */
   weekStart: 0 | 1;
   timeFormat: '12h' | '24h';
@@ -278,6 +287,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     lowEndLogin: false,
     achievementsEnabled: true,
     achievementToasts: true,
+    cozyMessages: true,
     weekStart: 1,
     timeFormat: '12h',
     currency: 'USD',

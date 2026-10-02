@@ -250,7 +250,7 @@ frontingRouter.post(
       userId: context.user.id,
       category: 'fronting',
       kind: 'front.started',
-      title: `${name} is {{fronting}}`,
+      title: context.settings.cozyMessages === false ? `${name} is {{fronting}}` : `Welcome back, ${name}!`,
       body: body.activity ? `Activity: ${body.activity}` : '',
       link: '/fronting',
     });

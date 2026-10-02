@@ -15,6 +15,7 @@ export * from './analytics.js';
 export * from './strings.js';
 export * from './demo.js';
 export * from './customFields.js';
+export * from './cozyMessages.js';
 
 export const APP_NAME = 'PluralNova';
 /**
@@ -25,6 +26,6 @@ export const APP_NAME = 'PluralNova';
  * once — the Android versionCode is derived from the npm version, and a
  * mismatch would have the app reporting a version it is not.
  */
-export const APP_VERSION = '1.0.45';
+export const APP_VERSION = '1.0.46';
 /** Bumped whenever the wire shape of the API changes incompatibly. */
 export const API_VERSION = 1;

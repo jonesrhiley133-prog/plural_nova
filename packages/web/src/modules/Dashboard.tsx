@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+  DAILY_MESSAGES,
   DASHBOARD_WIDGETS,
+  FORTUNES,
   dayKey,
   formatDuration,
   formatDurationPrecise,
   getEmotion,
+  pickDaily,
+  pickRandom,
   type StoredRecord,
   type WidgetSetting,
 } from '@pluralnova/shared';
 import { useActiveMemberId, useAuth, useSystemMode } from '../core/auth.js';
-import { useCollection, useQuery, useRecord } from '../core/data.js';
+import { useCollection, useQuery, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useOptimisticSettings } from '../core/settings.js';
 import { useBadges } from '../core/badges.js';
@@ -152,6 +156,16 @@ function Widget({ id }: { id: string }): JSX.Element | null {
       return <FrontingStatsWidget />;
     case 'location':
       return <LocationWidget />;
+    case 'daily-message':
+      return <DailyMessageWidget />;
+    case 'memory-trail':
+      return <MemoryTrailWidget />;
+    case 'boards-preview':
+      return <BoardsPreviewWidget />;
+    case 'bucket-list':
+      return <BucketListWidget />;
+    case 'watchlist':
+      return <WatchlistWidget />;
     default:
       return null;
   }
@@ -1016,6 +1030,181 @@ function LocationWidget(): JSX.Element {
             {String(latest['name'])}
           </div>
           <div className="tiny faint">{dates.relative(String(latest['visitedAt']))}</div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function DailyMessageWidget(): JSX.Element {
+  const [fortune, setFortune] = useState<string | null>(null);
+
+  return (
+    <Card
+      title="Daily message"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => setFortune(pickRandom(FORTUNES))}>
+          Fortune
+        </Button>
+      }
+    >
+      <p className="small">{pickDaily(DAILY_MESSAGES)}</p>
+      {fortune ? <p className="small faint" style={{ marginTop: 'var(--space-2)' }}>{fortune}</p> : null}
+    </Card>
+  );
+}
+
+function MemoryTrailWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const events = useCollection('frontEvents', { limit: 50 });
+  const members = useRecordMap('members');
+  const today = dayKey(new Date().toISOString());
+
+  const hereToday = useMemo(() => {
+    const ids = new Set<string>();
+    for (const event of events.items) {
+      if (dayKey(String(event['startedAt'])) !== today) continue;
+      if (typeof event['memberId'] === 'string') ids.add(event['memberId']);
+      for (const id of (event['coFronterIds'] as string[] | undefined) ?? []) ids.add(id);
+    }
+    return [...ids].map((id) => members.get(id)).filter((member): member is StoredRecord => Boolean(member));
+  }, [events.items, members, today]);
+
+  return (
+    <Card
+      title="Who was here today"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/fronting')}>
+          Open
+        </Button>
+      }
+    >
+      {events.loading ? (
+        <LoadingLine label="Loading…" />
+      ) : events.error ? (
+        <ErrorLine message={events.error} />
+      ) : hereToday.length === 0 ? (
+        <p className="small faint">Nobody's logged fronting yet today.</p>
+      ) : (
+        <div className="row">
+          {hereToday.map((member) => (
+            <Avatar
+              key={member.id}
+              name={String(member['name'])}
+              src={(member['avatarUrl'] as string) ?? null}
+              color={(member['color'] as string) ?? null}
+              size={32}
+              round
+            />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function BoardsPreviewWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const dates = useDateFormat();
+  const members = useRecordMap('members');
+  const posts = useCollection('boards', { limit: 4 });
+
+  return (
+    <Card
+      title="Boards"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/boards')}>
+          Open
+        </Button>
+      }
+    >
+      {posts.loading ? (
+        <LoadingLine label="Loading…" />
+      ) : posts.error ? (
+        <ErrorLine message={posts.error} />
+      ) : posts.items.length === 0 ? (
+        <p className="small faint">Nothing posted yet. The obsession board is waiting.</p>
+      ) : (
+        <div className="stack stack--tight">
+          {posts.items.map((post) => (
+            <Link key={post.id} to="/boards" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div className="truncate small">{String(post['body'] ?? '')}</div>
+              <div className="tiny faint">
+                {String(members.get(post['authorMemberId'] as string)?.['name'] ?? 'Someone')} ·{' '}
+                {dates.relative(String(post['createdAt']))}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function BucketListWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const { items, loading, error } = useCollection('bucketListItems', {
+    filter: (item) => item['completed'] !== true,
+    limit: 5,
+  });
+
+  return (
+    <Card
+      title="Bucket list"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/bucket-list')}>
+          Open
+        </Button>
+      }
+    >
+      {loading ? (
+        <LoadingLine label="Loading…" />
+      ) : error ? (
+        <ErrorLine message={error} />
+      ) : items.length === 0 ? (
+        <p className="small faint">Nothing on the list yet.</p>
+      ) : (
+        <div className="stack stack--tight">
+          {items.map((item) => (
+            <div key={item.id} className="truncate small">
+              {String(item['title'] ?? '')}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function WatchlistWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const { items, loading, error } = useCollection('watchlistItems', {
+    filter: (item) => item['status'] !== 'watched',
+    limit: 5,
+  });
+
+  return (
+    <Card
+      title="Watchlist"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/watchlist')}>
+          Open
+        </Button>
+      }
+    >
+      {loading ? (
+        <LoadingLine label="Loading…" />
+      ) : error ? (
+        <ErrorLine message={error} />
+      ) : items.length === 0 ? (
+        <p className="small faint">Nothing queued up yet.</p>
+      ) : (
+        <div className="stack stack--tight">
+          {items.map((item) => (
+            <div key={item.id} className="truncate small">
+              {String(item['title'] ?? '')}
+            </div>
+          ))}
         </div>
       )}
     </Card>

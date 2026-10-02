@@ -20,6 +20,7 @@ import {
 import { recordHistory } from '../services/history.js';
 import { checkAchievements } from '../services/achievements.js';
 import { refreshMemberCount } from '../services/systems.js';
+import { notify } from '../services/notifications.js';
 import { publish } from '../realtime/hub.js';
 
 /**
@@ -143,6 +144,15 @@ recordsRouter.post(
     });
 
     afterWrite(context.scope, collection, record.id, 'created', record);
+    if (collection.name === 'boards') {
+      await notify({
+        userId: context.scope.userId,
+        category: 'boards',
+        kind: 'board.posted',
+        title: 'Someone added something to the shared board',
+        link: '/boards',
+      }).catch((error: unknown) => console.warn('[pluralnova] board notification failed:', error));
+    }
     await checkAchievements(context.scope);
     ok(res, record, 201);
   }),
