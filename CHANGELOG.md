@@ -27,6 +27,13 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Deleting a flag left it attached to everything it was ever put on.**
+  A flag and the records of what it is attached to are stored separately,
+  and deleting the flag itself never cleaned up the attachments pointing at
+  it. They stopped being shown, but kept accumulating in the database
+  forever with nothing to ever clear them out — the flag's own trash icon
+  now takes its attachments with it, and the one-time "delete for good"
+  action a flag has no screen for yet does too.
 - **Reordering a custom field could silently cross into a different
   group.** The "move up"/"move down" buttons on the field-management screen
   worked against the full flat list of fields rather than the fields in the

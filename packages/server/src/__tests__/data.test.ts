@@ -46,6 +46,46 @@ describe('records, settings, backup and sync', () => {
     expect(restored.body.data.deletedAt).toBeNull();
   });
 
+  it('deletes a flag’s assignments along with the flag, instead of leaving them orphaned', async () => {
+    const member = await client.request('POST', '/api/records/members', { token, body: { name: 'Flagbearer' } });
+    const flag = await client.request('POST', '/api/records/flags', { token, body: { name: 'Fictive' } });
+    const assignment = await client.request('POST', '/api/records/flagAssignments', {
+      token,
+      body: { flagId: flag.body.data.id, targetType: 'member', targetId: member.body.data.id },
+    });
+    expect(assignment.status).toBe(201);
+
+    await client.request('DELETE', `/api/records/flags/${flag.body.data.id}`, { token });
+
+    const goneAssignment = await client.request('GET', `/api/records/flagAssignments/${assignment.body.data.id}`, {
+      token,
+    });
+    expect(goneAssignment.status).toBe(404);
+  });
+
+  it('purges a flag’s assignments for good when the flag itself is purged for good', async () => {
+    const member = await client.request('POST', '/api/records/members', { token, body: { name: 'Flagbearer 2' } });
+    const flag = await client.request('POST', '/api/records/flags', { token, body: { name: 'Protector' } });
+    const flagId = flag.body.data.id;
+    await client.request('POST', '/api/records/flagAssignments', {
+      token,
+      body: { flagId, targetType: 'member', targetId: member.body.data.id },
+    });
+
+    await client.request('DELETE', `/api/records/flags/${flagId}`, { token });
+    const purged = await client.request('DELETE', `/api/records/flags/${flagId}/permanent?confirm=permanent`, {
+      token,
+    });
+    expect(purged.status).toBe(200);
+
+    const remaining = await client.request(
+      'GET',
+      `/api/records/flagAssignments?includeDeleted=true&filter.flagId=${flagId}`,
+      { token },
+    );
+    expect(remaining.body.data.items).toHaveLength(0);
+  });
+
   it('stores an exact-second duration on every collection with a timed session', async () => {
     const now = new Date().toISOString();
     for (const [collection, body] of [
