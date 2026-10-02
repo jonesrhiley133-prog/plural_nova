@@ -1,18 +1,14 @@
 /**
- * Message encryption.
+ * Message encryption — historical only.
  *
- * Real, or absent. An ECDH key pair is generated in the browser and the private
- * half never leaves it; the public half is published so others can derive the
- * same shared secret. Bodies are sealed with AES-GCM before they are sent, so
- * the server stores ciphertext it has no way to read.
- *
- * When the other side has published no key there is nothing to encrypt to. The
- * message is sent in the clear and the interface says so — a padlock over
- * plaintext would be worse than no padlock at all.
- *
- * Which is why the key is published on sign-in rather than the first time a
- * conversation is opened: a key that only appears once you reply means the
- * first thing anyone ever sends you is in the clear, permanently.
+ * Messages no longer seals anything new; every message sent today is plain
+ * text, and `sealMessage`/`publishMessageKey` have no caller left in the app.
+ * What stays real is reading what this was used for before: an ECDH key pair
+ * generated in the browser, its private half never leaving it, derives the
+ * same shared secret as whoever it talked to, and `openMessage` undoes the
+ * AES-GCM sealing a past version of this conversation used. Removing this
+ * module would make old conversations un-openable, which is a worse outcome
+ * than carrying a retired code path.
  */
 
 import { api } from './api.js';

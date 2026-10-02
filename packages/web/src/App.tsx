@@ -11,7 +11,6 @@ import { AppLockProvider } from './core/appLock.js';
 import { AppLockGate } from './app/AppLockGate.js';
 import { startSyncWatchers, syncEngine } from './core/sync.js';
 import { startRealtime } from './core/realtime.js';
-import { publishMessageKey } from './core/crypto.js';
 import { ErrorBoundary, SkeletonList } from './ui/feedback.js';
 import { Layout } from './app/Layout.js';
 import { Atmosphere } from './app/Atmosphere.js';
@@ -132,9 +131,6 @@ function AppRoutes(): JSX.Element {
     const stopSync = startSyncWatchers();
     const stopRealtime = startRealtime();
     void syncEngine.run();
-    // Published here rather than when a conversation is opened, so the first
-    // message anyone sends this account can already be encrypted.
-    void publishMessageKey();
     // A no-op after the first successful run, on any account that still has
     // fields in the old, per-member shape — safe to fire every login rather
     // than tracking whether it already happened.

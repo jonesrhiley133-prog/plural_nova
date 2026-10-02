@@ -235,29 +235,32 @@ describe('friends, flux and messaging', () => {
     expect(after.body.data.conversations[0].unreadCount).toBe(0);
   });
 
-  it('stores an encrypted body without a preview and marks it encrypted', async () => {
+  it('ignores a client-claimed encrypted flag — nothing seals a new message anymore', async () => {
     const created = await client.request('POST', '/api/messages/conversations', {
       token: alice.token,
       body: { handle: 'bob-system' },
     });
     const threadId = created.body.data.conversation.threadId;
 
+    // A stale client (or one lying about it) cannot make the server store or
+    // announce a message as encrypted — that is the server's call now, not
+    // whatever the request claims.
     await client.request('POST', `/api/messages/threads/${threadId}`, {
       token: alice.token,
-      body: { body: 'BASE64CIPHERTEXT', encrypted: true, encryptionKeyId: 'mky_test' },
+      body: { body: 'hello bob', encrypted: true, encryptionKeyId: 'mky_test' },
     });
 
     const result = await client.request('GET', `/api/messages/threads/${threadId}`, {
       token: bob.token,
     });
     const last = result.body.data.messages.at(-1);
-    expect(last.encrypted).toBe(true);
-    expect(last.body).toBe('BASE64CIPHERTEXT');
+    expect(last.encrypted).toBe(false);
+    expect(last.body).toBe('hello bob');
 
     const conversations = await client.request('GET', '/api/messages/conversations', {
       token: bob.token,
     });
-    expect(conversations.body.data.conversations[0].lastMessagePreview).toBe('');
+    expect(conversations.body.data.conversations[0].lastMessagePreview).toBe('hello bob');
   });
 
   it('publishes and fetches public keys so encryption is real, not decorative', async () => {

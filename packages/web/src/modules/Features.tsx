@@ -59,7 +59,7 @@ const AREAS = [
   {
     icon: 'social' as const,
     title: 'Social, if you want it',
-    body: 'A profile you control down to each {{member}}, friends, a feed you post to as the {{system}} or as one {{member}}, and private messages that are encrypted when both sides can be.',
+    body: 'A profile you control down to each {{member}}, friends, a feed you post to as the {{system}} or as one {{member}}, and private messages with your friends.',
     items: ['Constellations', 'Friends', 'Flux', 'Messages'],
     path: '/constellations',
   },

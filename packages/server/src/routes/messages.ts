@@ -27,9 +27,11 @@ import {
  *   • Order comes from a server-assigned `sequence` per thread, not from the
  *     sender's clock. A message written offline and replayed an hour later
  *     lands after what came before it, and the list renders oldest → newest.
- *   • Encryption is real or absent. The server holds public keys and ciphertext
- *     it cannot read; when the recipient has published no key, the message is
- *     sent in the clear and the UI says so rather than showing a padlock.
+ *   • Every new message is stored as plain text, encrypted/encryptionKeyId
+ *     forced to their unset defaults regardless of what a request claims.
+ *     The key endpoints below and the `encrypted`/`encryptionKeyId` columns
+ *     themselves stay, since older rows that predate this still carry real
+ *     ciphertext the client still knows how to open.
  */
 
 export const messagesRouter: Router = Router();
@@ -395,8 +397,6 @@ messagesRouter.post(
     const body = req.body as {
       body?: string;
       clientId?: string;
-      encrypted?: boolean;
-      encryptionKeyId?: string;
       attachments?: unknown[];
       asMemberId?: string | null;
       replyToId?: string | null;
@@ -445,8 +445,8 @@ messagesRouter.post(
           sequence,
           JSON.stringify(body.attachments ?? []),
           JSON.stringify([context.user.id]),
-          body.encrypted ? 1 : 0,
-          body.encryptionKeyId ?? '',
+          0,
+          '',
           body.clientId ?? '',
           body.replyToId ?? null,
           body.forwardedFrom ? JSON.stringify(body.forwardedFrom) : null,
@@ -463,7 +463,7 @@ messagesRouter.post(
       // list is only hidden, not gone (the row and the shared thread survive),
       // so it belongs back on screen the moment the conversation continues —
       // the same way it reappears in any other messaging app.
-      const preview = body.encrypted ? '' : text.slice(0, 120);
+      const preview = text.slice(0, 120);
       db()
         .prepare(
           `UPDATE "conversations" SET "lastMessageAt" = ?, "lastMessagePreview" = ?, "updatedAt" = ?, "deletedAt" = NULL
@@ -502,10 +502,9 @@ messagesRouter.post(
         category: 'messages',
         kind: 'message.new',
         title: `${counterpartSummary(context.user.id)['displayName']} sent a message`,
-        body: body.encrypted ? 'Encrypted message' : text.slice(0, 120),
+        body: text.slice(0, 120),
         link: `/social/messages/${threadId}`,
         actorUserId: context.user.id,
-        private: Boolean(body.encrypted),
       });
     }
 

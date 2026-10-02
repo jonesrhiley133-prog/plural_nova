@@ -25,6 +25,21 @@ different versions of PluralNova.
   a member's profile already did, so the two views can't disagree about
   what belongs together.
 
+### Changed
+
+- **Messages are no longer end-to-end encrypted.** Every new message sent
+  between accounts is now stored and delivered as plain text — the lock
+  icon, the "End-to-end encrypted" / "Not encrypted yet" status, and the
+  key-exchange step on opening a conversation are all gone, since none of
+  them meant anything once nothing is actually being sealed. Older messages
+  sent while encryption still existed are unaffected and still decrypt and
+  display normally; nothing about them, or the history itself, changed. A
+  long conversation in either Messages or In-Sys Chat also renders
+  noticeably lighter now — only the messages actually on screen (plus a
+  small buffer) are kept mounted while scrolling, the same way the member
+  list already worked, rather than every message in the conversation at
+  once.
+
 ### Fixed
 
 - **Deleting a flag left it attached to everything it was ever put on.**

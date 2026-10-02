@@ -10,10 +10,7 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 /**
  * Structural, not imported from either chat feature — `SystemChatMessage`
  * (core/systemChat.ts) and `Message` (core/messages.ts) both already
- * shape-match this. `encrypted` is optional rather than a `kind` check: it is
- * present (true or false) only for a message that could ever be encrypted at
- * all, i.e. a Messages conversation, and simply absent for In-Sys Chat, which
- * is what decides whether the lock icon renders at all.
+ * shape-match this.
  */
 export interface ChatBubbleMessage {
   id: string;
@@ -24,7 +21,6 @@ export interface ChatBubbleMessage {
   reactions: Record<string, string[]>;
   attachments: ChatAttachmentLike[];
   forwardedFrom: { senderLabel: string } | null;
-  encrypted?: boolean;
   /** Only ever set on a message this account sent — absent entirely where read receipts don't exist, such as System Chat. */
   readStatus?: 'sent' | 'read';
   pending?: boolean;
@@ -141,9 +137,6 @@ export function MessageBubble({
             ))}
             {message.body ? <p className="chat-bubble__text">{message.body}</p> : null}
             <span className="chat-bubble__meta">
-              {message.encrypted !== undefined ? (
-                <Icon name={message.encrypted ? 'lock' : 'unlock'} size={9} label={message.encrypted ? 'Encrypted' : 'Not encrypted'} />
-              ) : null}
               <span className="chat-bubble__time">{timeLabel}</span>
               {message.readStatus !== undefined ? (
                 <Icon

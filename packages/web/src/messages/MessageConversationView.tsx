@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { readableTextOn, resolveChatAppearance } from '@pluralnova/shared';
 import { useAuth } from '../core/auth.js';
 import { useDateFormat } from '../core/i18n.js';
@@ -19,6 +19,7 @@ import { PendingAttachmentChip, type ChatAttachmentLike } from '../chat/ChatAtta
 import { GifPickerDialog } from '../chat/GifPickerDialog.js';
 import { useVoiceRecorder, VoiceRecorderPanel } from '../chat/VoiceRecorder.js';
 import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
+import { useVirtualizedChat } from '../chat/useVirtualizedChat.js';
 import { MessagesInfoDialog } from './MessagesInfoDialog.js';
 
 // Files keeps today's broad reach — documents included — since that option is
@@ -68,34 +69,61 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
   const attachMenu = useActionMenu();
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const userScrolledUp = useRef(false);
+  const messagesByOldestFirst = conversation.messages;
+  const { scrollRef, virtualizer, userScrolledUp, handleScroll, scrollToBottom, scrollToId } = useVirtualizedChat(
+    messagesByOldestFirst,
+    { estimateSize: 76 },
+  );
 
   useEffect(() => {
     setReplyTo(null);
     setDraft('');
     setPendingAttachments([]);
     userScrolledUp.current = false;
-  }, [threadId]);
+  }, [threadId, userScrolledUp]);
 
   useEffect(() => {
     if (userScrolledUp.current) return;
-    bottomRef.current?.scrollIntoView({ block: 'end' });
-  }, [conversation.messages.length]);
+    scrollToBottom();
+  }, [messagesByOldestFirst.length, userScrolledUp, scrollToBottom]);
 
   useEffect(() => {
     conversation.markRead();
   }, [conversation]);
 
-  const messagesByOldestFirst = conversation.messages;
-  const byId = new Map(messagesByOldestFirst.map((message) => [message.id, message]));
+  const byId = useMemo(() => new Map(messagesByOldestFirst.map((message) => [message.id, message])), [messagesByOldestFirst]);
+
+  // Grouping (day headings, whether to repeat an avatar) depends on the
+  // previous message in the full, oldest-first order — computed once here,
+  // over every message, rather than from whatever the virtualizer currently
+  // has mounted, which is only ever a scrolled-to slice of the conversation.
+  const rows = useMemo(() => {
+    let lastDay = '';
+    let lastSenderKey = '';
+    return messagesByOldestFirst.map((message) => {
+      const day = dayKey(message.sentAt);
+      const senderKey = `${message.isMine}:${message.sender?.id ?? ''}`;
+      const showDayHeading = day !== lastDay;
+      const showAvatar = showDayHeading || senderKey !== lastSenderKey;
+      lastDay = day;
+      lastSenderKey = senderKey;
+      return { message, showDayHeading, showAvatar, quoted: message.replyToId ? byId.get(message.replyToId) ?? null : null };
+    });
+  }, [messagesByOldestFirst, byId]);
 
   const scrollToMessage = (id: string): void => {
-    const element = document.getElementById(`chat-message-${id}`);
-    if (!element) return;
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    element.classList.add('chat-message--highlight');
-    window.setTimeout(() => element.classList.remove('chat-message--highlight'), 1200);
+    scrollToId(id);
+    // The target row may not exist yet — jumping the scroll position only
+    // brings it into the virtualizer's rendered window; it mounts on the
+    // next render, which this briefly waits out before smooth-scrolling the
+    // last bit and applying the highlight, same as before virtualization.
+    window.setTimeout(() => {
+      const element = document.getElementById(`chat-message-${id}`);
+      if (!element) return;
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('chat-message--highlight');
+      window.setTimeout(() => element.classList.remove('chat-message--highlight'), 1200);
+    }, 50);
   };
 
   const send = async (): Promise<void> => {
@@ -196,46 +224,33 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
         />
         <div className="chat-conversation__title">
           <span className="chat-conversation__name">{thread?.title}</span>
-          <span className="chat-conversation__status">
-            {conversation.theirTyping
-              ? 'Typing…'
-              : !conversation.cryptoSupported
-                ? ''
-                : conversation.encryptionReady
-                  ? 'End-to-end encrypted'
-                  : 'Not encrypted yet'}
-          </span>
+          <span className="chat-conversation__status">{conversation.theirTyping ? 'Typing…' : ''}</span>
         </div>
         <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
       </header>
 
-      <div
-        className="chat-conversation__messages"
-        onScroll={(event) => {
-          const target = event.currentTarget;
-          userScrolledUp.current = target.scrollTop + target.clientHeight < target.scrollHeight - 80;
-        }}
-      >
-        {messagesByOldestFirst.length === 0 ? (
+      <div className="chat-conversation__messages" ref={scrollRef} onScroll={handleScroll}>
+        {rows.length === 0 ? (
           <EmptyState icon="chat" title="Say hello" body="Nothing here yet — the first message starts the conversation." />
         ) : (
-          (() => {
-            let lastDay = '';
-            let lastSenderKey = '';
-            return messagesByOldestFirst.map((message) => {
-              const day = dayKey(message.sentAt);
-              const senderKey = `${message.isMine}:${message.sender?.id ?? ''}`;
-              const showDayHeading = day !== lastDay;
-              const showAvatar = showDayHeading || senderKey !== lastSenderKey;
-              lastDay = day;
-              lastSenderKey = senderKey;
-              const quoted = message.replyToId ? byId.get(message.replyToId) ?? null : null;
-
+          <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const { message, showDayHeading, showAvatar, quoted } = rows[virtualRow.index]!;
               return (
                 <div
-                  key={message.id}
+                  key={virtualRow.key}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
                   id={`chat-message-${message.id}`}
                   className={`chat-message-row ${message.isMine ? 'chat-message-row--mine' : 'chat-message-row--theirs'}`}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    paddingBottom: 2,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
                 >
                   {showDayHeading ? <div className="chat-day-heading">{dates.date(message.sentAt)}</div> : null}
                   <MessageBubble
@@ -267,10 +282,9 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
                   />
                 </div>
               );
-            });
-          })()
+            })}
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       {replyTo ? (

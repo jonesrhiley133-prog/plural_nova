@@ -144,7 +144,6 @@ const TOPICS: Topic[] = [
     body: [
       'A Constellations profile is how other systems find you. It does not exist until you make one, and it is not discoverable until you say so.',
       'Messages are ordered by the server, so they always read oldest at the top and newest at the bottom — including one sent while a device was offline.',
-      'Where both sides have published a key, messages are encrypted in the browser and the server stores ciphertext it cannot read. Where they have not, the message is sent in the clear and the app says so rather than showing a padlock it has not earned.',
     ],
     link: { label: 'Open Constellations', path: '/constellations' },
   },
