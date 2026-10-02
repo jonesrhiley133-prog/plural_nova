@@ -12,6 +12,16 @@ different versions of PluralNova.
 
 ### Added
 
+- **Three small shared spaces for the whole system: Boards, a Bucket list,
+  and a Watchlist.** Boards covers five small, low-stakes kinds of post —
+  what you're currently obsessed with, today's vibe, inside jokes,
+  favourite memories, and a fridge-note board — all switchable from one
+  screen, since posting to one is really the same small action no matter
+  which board it's for. The Bucket list and Watchlist are their own simple
+  screens for things the system wants to do or watch together, each with
+  the status you'd expect (done or not; want-to-watch through watched,
+  with a star rating once it's seen). All three are reachable from Life in
+  the navigation.
 - **17 new words in the emotion library**, among them Cozy, Included,
   Energized, Relieved, Jealous, Bored, and Understimulated — findable
   straight away through the existing search and family filters, alongside

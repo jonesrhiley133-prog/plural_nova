@@ -95,6 +95,102 @@ export const reminders: CollectionDef = {
   ],
 };
 
+export const boards: CollectionDef = {
+  name: 'boards',
+  label: 'Boards',
+  singular: 'Board post',
+  icon: 'pin',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'body',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  description:
+    "Small shared boards the whole system posts to — a current obsession, today's vibe, an inside joke, a favourite memory, or a fridge note.",
+  fields: [
+    f.enumOf(
+      'boardType',
+      'Board',
+      [
+        { value: 'obsession', label: 'Currently obsessed with' },
+        { value: 'vibe', label: "Today's vibe" },
+        { value: 'insideJoke', label: 'Inside jokes' },
+        { value: 'memory', label: 'Favourite memories' },
+        { value: 'fridge', label: 'Fridge board' },
+      ],
+      { required: true, inList: true },
+    ),
+    f.ref('authorMemberId', 'From', 'members', { inList: true }),
+    f.long('body', 'Message', { required: true, searchable: true }),
+    f.image('imageUrl', 'Picture'),
+    f.color('color', 'Note colour'),
+    f.real('posX', 'Horizontal position', { hint: 'Fridge board only — where the note sits, 0 to 100.' }),
+    f.real('posY', 'Vertical position', { hint: 'Fridge board only — where the note sits, 0 to 100.' }),
+    f.real('rotation', 'Tilt', { hint: 'Fridge board only — a small rotation in degrees, for a scattered look.' }),
+  ],
+};
+
+export const bucketListItems: CollectionDef = {
+  name: 'bucketListItems',
+  label: 'Bucket list',
+  singular: 'Bucket list item',
+  icon: 'checkDouble',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'title',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  description: 'Things the whole system wants to do together someday.',
+  fields: [
+    f.text('title', 'Title', { required: true, inList: true, searchable: true }),
+    f.long('notes', 'Notes', { searchable: true }),
+    f.bool('completed', 'Done', { inList: true }),
+    f.datetime('completedAt', 'Completed'),
+    f.ref('addedByMemberId', 'Added by', 'members'),
+  ],
+};
+
+export const watchlistItems: CollectionDef = {
+  name: 'watchlistItems',
+  label: 'Watchlist',
+  singular: 'Watchlist item',
+  icon: 'play',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'title',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  description: 'Shows and movies the system wants to watch together.',
+  fields: [
+    f.text('title', 'Title', { required: true, inList: true, searchable: true }),
+    f.enumOf(
+      'mediaType',
+      'Type',
+      [
+        { value: 'movie', label: 'Movie' },
+        { value: 'show', label: 'Show' },
+        { value: 'other', label: 'Other' },
+      ],
+      { defaultValue: 'movie', inList: true },
+    ),
+    f.enumOf(
+      'status',
+      'Status',
+      [
+        { value: 'wantToWatch', label: 'Want to watch' },
+        { value: 'watching', label: 'Watching' },
+        { value: 'watched', label: 'Watched' },
+      ],
+      { defaultValue: 'wantToWatch', inList: true },
+    ),
+    f.int('rating', 'Rating', { min: 0, max: 5, stars: true }),
+    f.ref('addedByMemberId', 'Added by', 'members'),
+  ],
+};
+
 export const calendarFolders: CollectionDef = {
   name: 'calendarFolders',
   label: 'Calendar folders',
@@ -1063,6 +1159,9 @@ export const LIFE_COLLECTIONS = [
   notes,
   tasks,
   reminders,
+  boards,
+  bucketListItems,
+  watchlistItems,
   calendarFolders,
   calendarEvents,
   mediaItems,

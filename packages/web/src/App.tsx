@@ -49,6 +49,9 @@ const Journal = load(() => import('./modules/Journal.js'));
 const Notes = load(() => import('./modules/Notes.js'));
 const Tasks = load(() => import('./modules/Tasks.js'));
 const Reminders = load(() => import('./modules/Reminders.js'));
+const Boards = load(() => import('./modules/Boards.js'));
+const BucketList = load(() => import('./modules/BucketList.js'));
+const Watchlist = load(() => import('./modules/Watchlist.js'));
 const Calendar = load(() => import('./modules/Calendar.js'));
 const Media = load(() => import('./modules/Media.js'));
 const Flags = load(() => import('./modules/Flags.js'));
@@ -195,6 +198,9 @@ function AppRoutes(): JSX.Element {
           <Route path="notes" element={<Notes />} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="reminders" element={<Reminders />} />
+          <Route path="boards" element={<Boards />} />
+          <Route path="bucket-list" element={<BucketList />} />
+          <Route path="watchlist" element={<Watchlist />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="media" element={<Media />} />
           <Route path="flags" element={<Flags />} />
