@@ -63,6 +63,20 @@
   opacity: 0.6;
 }
 
+/*
+ * A second, user-controlled darkening layer over everything in this stack —
+ * the colour fields, the starfield, a photo — not only readable, but as dim
+ * or as vivid as someone wants. Zero by default, stacked on top of (not
+ * instead of) the fixed photo scrim above, so turning it up only ever adds
+ * to what is already there.
+ */
+.atmosphere__dim {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  opacity: var(--background-dim, 0);
+}
+
 .atmosphere__field {
   position: absolute;
   border-radius: 50%;

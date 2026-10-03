@@ -59,6 +59,12 @@ export function applyTheme(settings: ThemeSettings): ThemeTokens {
   (root.style as unknown as { zoom: string }).zoom = String(resolved.uiZoom / 100);
   root.style.colorScheme = resolved.base === 'light' ? 'light' : 'dark';
 
+  // The header's gradient keeps the same +/-7 spread it always had — one
+  // slider moves both stops together rather than flattening the fade.
+  root.style.setProperty('--header-opacity-top', `${Math.min(100, resolved.headerOpacity + 7)}%`);
+  root.style.setProperty('--header-opacity-bottom', `${Math.max(0, resolved.headerOpacity - 7)}%`);
+  root.style.setProperty('--background-dim', String(resolved.backgroundDim / 100));
+
   // The browser chrome follows the page, so an installed app does not show a
   // strip of the wrong colour above the interface.
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {

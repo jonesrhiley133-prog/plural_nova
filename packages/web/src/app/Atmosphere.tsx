@@ -177,6 +177,8 @@ export function Atmosphere(): JSX.Element | null {
             />
           ))
         : null}
+
+      <div className="atmosphere__dim" />
     </div>
   );
 }

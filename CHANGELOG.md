@@ -12,6 +12,17 @@ different versions of PluralNova.
 
 ### Added
 
+- **More depth to appearance: header opacity, a background dimmer, and two
+  more custom colours.** The bar at the top of the app now has its own
+  opacity setting, independent of card translucency, so it can let the
+  atmosphere show through while you scroll instead of staying a flat block
+  of colour. A new "Dim" control adds an adjustable darkening layer over
+  whatever is behind everything — the colour fields, the starfield, or a
+  background photo — whether or not a photo is set, separate from the
+  photo's own visibility. The custom colours list now also covers raised
+  card backgrounds and secondary text, for the two surfaces the existing
+  four colours didn't reach. Every new setting defaults to exactly the old,
+  fixed look, so nobody sees a change until they go looking for one.
 - **Alter personalisation, surfaced rather than invented.** A {{member}}'s
   profile colour and symbol — both already there, already driving the rest of
   the page — now show up labelled on their Overview tab as "Favourite

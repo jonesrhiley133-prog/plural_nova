@@ -195,7 +195,10 @@ function Appearance(): JSX.Element {
     void update({ ...preset.settings, presetId: preset.id, custom: null });
   };
 
-  const setCustomColor = (key: 'bg' | 'surface' | 'border' | 'text', value: string): void => {
+  const setCustomColor = (
+    key: 'bg' | 'surface' | 'surfaceRaised' | 'border' | 'text' | 'textMuted',
+    value: string,
+  ): void => {
     void update({ custom: { ...theme.custom, [key]: value }, presetId: null });
   };
 
@@ -416,8 +419,10 @@ function Appearance(): JSX.Element {
           [
             { key: 'bg', label: 'Page background' },
             { key: 'surface', label: 'Card background' },
+            { key: 'surfaceRaised', label: 'Raised card background' },
             { key: 'border', label: 'Border' },
             { key: 'text', label: 'Text' },
+            { key: 'textMuted', label: 'Secondary text' },
           ] as const
         ).map(({ key, label }) => (
           <div className="field" key={key}>
@@ -425,7 +430,7 @@ function Appearance(): JSX.Element {
             <ColorPicker
               value={theme.custom?.[key] ?? tokens[key]}
               onChange={(value) => setCustomColor(key, value)}
-              showContrastAgainst={key === 'text' ? tokens.bg : undefined}
+              showContrastAgainst={key === 'text' || key === 'textMuted' ? tokens.bg : undefined}
             />
           </div>
         ))}
@@ -459,6 +464,16 @@ function Appearance(): JSX.Element {
           />
         ) : null}
 
+        <NumberField
+          label="Header opacity"
+          value={theme.headerOpacity}
+          onChange={(value) => void update({ headerOpacity: value ?? 89 })}
+          min={30}
+          max={100}
+          suffix="%"
+          hint="How solid the bar at the top of the app is while you scroll past it."
+        />
+
         <SwitchRow
           label="Starfield"
           hint="A static field of stars behind everything. Off in performance mode regardless."
@@ -476,8 +491,8 @@ function Appearance(): JSX.Element {
       </Card>
 
       <Card
-        title="Background image"
-        subtitle="A photo behind everything, instead of (or under) the usual glow. A fixed safeguard behind it keeps text readable no matter how bright or busy the photo is."
+        title="Background"
+        subtitle="A photo behind everything, instead of (or under) the usual glow — and a dimmer for whatever is back there, photo or not."
       >
         <ImageField
           label="Photo"
@@ -485,6 +500,16 @@ function Appearance(): JSX.Element {
           onChange={(value) => void update({ backgroundImageUrl: value || null })}
           shape="banner"
           hint="Snap one, pick from your media library, or remove it to go back to the usual background."
+        />
+
+        <NumberField
+          label="Dim"
+          value={theme.backgroundDim}
+          onChange={(value) => void update({ backgroundDim: value ?? 0 })}
+          min={0}
+          max={80}
+          suffix="%"
+          hint="An extra darkening layer over the colour fields, the starfield, or the photo above — independent of how visible the photo itself is set to be."
         />
 
         {theme.backgroundImageUrl ? (
