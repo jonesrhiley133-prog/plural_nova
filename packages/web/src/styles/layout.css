@@ -27,8 +27,8 @@
   padding: var(--safe-top) var(--space-4) 0;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--bg) 96%, transparent),
-    color-mix(in srgb, var(--bg) 82%, transparent)
+    color-mix(in srgb, var(--bg) var(--header-opacity-top, 96%), transparent),
+    color-mix(in srgb, var(--bg) var(--header-opacity-bottom, 82%), transparent)
   );
   backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(calc(var(--blur-surface) * 1.2)) saturate(var(--glass-saturate));

@@ -2,8 +2,12 @@ import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { findNavItemByPath } from '@pluralnova/shared';
 import { useAuth, useSystemMode } from '../core/auth.js';
+import { ThemeScope, useAppearance, useSectionAttribute } from '../core/appearance.js';
+import { themeFor } from '@pluralnova/shared';
+import { GuestBanner } from './GuestBanner.js';
 import { useI18n } from '../core/i18n.js';
 import { useBadges } from '../core/badges.js';
+import { useFronting } from '../core/fronting.js';
 import { ErrorBoundary } from '../ui/feedback.js';
 import { Badge, IconButton } from '../ui/primitives.js';
 import { Atmosphere } from './Atmosphere.js';
@@ -37,6 +41,16 @@ export function Layout(): JSX.Element {
   const systemMode = useSystemMode();
   const { term } = useI18n();
   const badges = useBadges();
+  const section = useSectionAttribute();
+  const { state: appearance, musicTheme } = useAppearance();
+  const { state: frontState } = useFronting();
+  const frontingAlterId = frontState.fronting[0]?.id;
+  const alterTheme =
+    appearance.alterThemeScope === 'everywhere' && frontingAlterId ? themeFor(appearance, 'alter', frontingAlterId) : null;
+  const sectionTheme =
+    appearance.musicApplyScope === 'section' && section === 'music' && musicTheme
+      ? musicTheme
+      : themeFor(appearance, 'section', section);
 
   const current = findNavItemByPath(location.pathname);
   const title = current ? term(current.label) : 'PluralNova';
@@ -99,6 +113,8 @@ export function Layout(): JSX.Element {
             </div>
           </header>
 
+          {user?.isGuest ? <GuestBanner /> : null}
+
           <main
             id="main-content"
             className={`app-main${WIDE_LAYOUT_ROUTES.has(location.pathname) ? ' app-main--wide' : ''}`}
@@ -110,7 +126,11 @@ export function Layout(): JSX.Element {
                     happens to mount a different component tree — is a fresh
                     element for .app-main > * to animate in. */}
                 <div key={location.pathname} className="page-transition">
-                  <Outlet />
+                  <ThemeScope theme={sectionTheme}>
+                    <ThemeScope theme={alterTheme}>
+                      <Outlet />
+                    </ThemeScope>
+                  </ThemeScope>
                 </div>
               </BarTitleContext.Provider>
             </ErrorBoundary>
@@ -121,7 +141,9 @@ export function Layout(): JSX.Element {
       <QuickActions />
       <BottomNav />
       {systemMode ? <FrontingRitual /> : null}
-      <MusicPlayerBar />
+      <ThemeScope theme={appearance.musicApplyScope === 'player' ? musicTheme : null}>
+        <MusicPlayerBar />
+      </ThemeScope>
     </>
   );
 }

@@ -75,6 +75,214 @@ export const tasks: CollectionDef = {
   ],
 };
 
+export const reminders: CollectionDef = {
+  name: 'reminders',
+  label: 'Reminders',
+  singular: 'Reminder',
+  icon: 'notification',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'title',
+  sortField: 'remindAt',
+  sortDir: 'asc',
+  fields: [
+    f.text('title', 'Title', { required: true, inList: true, searchable: true }),
+    f.long('body', 'Message', { searchable: true, hint: 'What the notification says — left blank, it just shows the title.' }),
+    f.datetime('remindAt', 'Remind at', { required: true, inList: true }),
+    f.bool('remindSent', 'Sent'),
+    f.bool('forWholeSystem', 'For the whole system', { defaultValue: true }),
+  ],
+};
+
+export const boards: CollectionDef = {
+  name: 'boards',
+  label: 'Boards',
+  singular: 'Board post',
+  icon: 'pin',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'body',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  description:
+    "Small shared boards the whole system posts to — a current obsession, today's vibe, an inside joke, a favourite memory, or a fridge note.",
+  fields: [
+    f.enumOf(
+      'boardType',
+      'Board',
+      [
+        { value: 'obsession', label: 'Currently obsessed with' },
+        { value: 'vibe', label: "Today's vibe" },
+        { value: 'insideJoke', label: 'Inside jokes' },
+        { value: 'memory', label: 'Favourite memories' },
+        { value: 'fridge', label: 'Fridge board' },
+      ],
+      { required: true, inList: true },
+    ),
+    f.ref('authorMemberId', 'From', 'members', { inList: true }),
+    f.long('body', 'Message', { required: true, searchable: true }),
+    f.image('imageUrl', 'Picture'),
+    f.color('color', 'Note colour'),
+    f.real('posX', 'Horizontal position', { hint: 'Fridge board only — where the note sits, 0 to 100.' }),
+    f.real('posY', 'Vertical position', { hint: 'Fridge board only — where the note sits, 0 to 100.' }),
+    f.real('rotation', 'Tilt', { hint: 'Fridge board only — a small rotation in degrees, for a scattered look.' }),
+  ],
+};
+
+export const bucketListItems: CollectionDef = {
+  name: 'bucketListItems',
+  label: 'Bucket list',
+  singular: 'Bucket list item',
+  icon: 'checkDouble',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'title',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  description: 'Things the whole system wants to do together someday.',
+  fields: [
+    f.text('title', 'Title', { required: true, inList: true, searchable: true }),
+    f.long('notes', 'Notes', { searchable: true }),
+    f.bool('completed', 'Done', { inList: true }),
+    f.datetime('completedAt', 'Completed'),
+    f.ref('addedByMemberId', 'Added by', 'members'),
+  ],
+};
+
+export const watchlistItems: CollectionDef = {
+  name: 'watchlistItems',
+  label: 'Watchlist',
+  singular: 'Watchlist item',
+  icon: 'play',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'title',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  description: 'Shows and movies the system wants to watch together.',
+  fields: [
+    f.text('title', 'Title', { required: true, inList: true, searchable: true }),
+    f.enumOf(
+      'mediaType',
+      'Type',
+      [
+        { value: 'movie', label: 'Movie' },
+        { value: 'show', label: 'Show' },
+        { value: 'other', label: 'Other' },
+      ],
+      { defaultValue: 'movie', inList: true },
+    ),
+    f.enumOf(
+      'status',
+      'Status',
+      [
+        { value: 'wantToWatch', label: 'Want to watch' },
+        { value: 'watching', label: 'Watching' },
+        { value: 'watched', label: 'Watched' },
+      ],
+      { defaultValue: 'wantToWatch', inList: true },
+    ),
+    f.int('rating', 'Rating', { min: 0, max: 5, stars: true }),
+    f.ref('addedByMemberId', 'Added by', 'members'),
+  ],
+};
+
+export const memberNotes: CollectionDef = {
+  name: 'memberNotes',
+  label: 'Notes & compliments',
+  singular: 'Note',
+  icon: 'sparkle',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'body',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  description: 'Small notes alters leave for each other — a compliment, a greeting, a "thinking of you."',
+  fields: [
+    f.ref('fromMemberId', 'From', 'members', { inList: true }),
+    f.refs('toMemberIds', 'To', 'members', { hint: 'Leave empty for the whole system.' }),
+    f.enumOf(
+      'kind',
+      'Kind',
+      [
+        { value: 'note', label: 'Note' },
+        { value: 'compliment', label: 'Compliment' },
+        { value: 'greeting', label: 'Greeting' },
+        { value: 'recommendation', label: 'Recommendation' },
+        { value: 'wasHere', label: 'I was here' },
+        { value: 'surprise', label: 'Surprise, later' },
+      ],
+      { defaultValue: 'note', inList: true },
+    ),
+    f.long('body', 'Message', { required: true, searchable: true }),
+    f.text('sticker', 'Sticker', { maxLength: 8, hint: 'An emoji to decorate it with. Optional.' }),
+    f.datetime('remindAt', 'Reveal at', {
+      hint: 'Leave blank to show it right away — set a time to keep it a surprise until then, even from you.',
+    }),
+    f.bool('remindSent', 'Revealed'),
+    f.refs('seenByMemberIds', 'Seen by', 'members'),
+  ],
+};
+
+export const traditions: CollectionDef = {
+  name: 'traditions',
+  label: 'Traditions',
+  singular: 'Tradition',
+  icon: 'star',
+  area: 'life',
+  scope: 'system',
+  titleField: 'title',
+  sortField: 'anchorDate',
+  sortDir: 'asc',
+  description: 'Things the system does together on a rhythm — surfaced when due, never nagged about.',
+  fields: [
+    f.text('title', 'Title', { required: true, inList: true, searchable: true }),
+    f.long('description', 'Description', { searchable: true }),
+    f.enumOf(
+      'kind',
+      'Starter',
+      [
+        { value: 'movieNight', label: 'Movie night' },
+        { value: 'gameNight', label: 'Game night' },
+        { value: 'checkIn', label: 'Monthly check-in' },
+        { value: 'appreciationDay', label: 'Alter appreciation day' },
+        { value: 'memoryCollection', label: 'Weekly memory collection' },
+        { value: 'favoritesBoard', label: 'Monthly favourites board' },
+        { value: 'scrapbook', label: 'End-of-month scrapbook' },
+        { value: 'custom', label: 'Custom' },
+      ],
+      { defaultValue: 'custom', inList: true, hint: 'A starting point — the title and description are still yours to write.' },
+    ),
+    f.date('anchorDate', 'Starting from', { required: true, inList: true }),
+    f.bool('isRecurring', 'Repeats', { group: 'Repeating' }),
+    f.enumOf(
+      'recurrenceType',
+      'How often',
+      [
+        { value: 'daily', label: 'Daily' },
+        { value: 'weekly', label: 'Weekly' },
+        { value: 'monthly', label: 'Monthly' },
+        { value: 'yearly', label: 'Yearly' },
+      ],
+      { group: 'Repeating' },
+    ),
+    f.int('recurrenceInterval', 'Every', {
+      min: 1,
+      max: 365,
+      defaultValue: 1,
+      group: 'Repeating',
+      hint: '2 with "weekly" is every other week.',
+    }),
+    f.json('recurrenceWeekdays', 'On these days', { group: 'Repeating' }),
+    f.datetime('lastCelebratedAt', 'Last done'),
+  ],
+};
+
 export const calendarFolders: CollectionDef = {
   name: 'calendarFolders',
   label: 'Calendar folders',
@@ -346,6 +554,24 @@ export const bodySensations: CollectionDef = {
       { value: 'right', label: 'Right' },
       { value: 'centre', label: 'Centre' },
     ], { defaultValue: 'both' }),
+  ],
+};
+
+export const wellbeingGameLog: CollectionDef = {
+  name: 'wellbeingGameLog',
+  label: 'Wellbeing game log',
+  singular: 'Play',
+  icon: 'wellbeing',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'gameId',
+  sortField: 'playedAt',
+  sortDir: 'desc',
+  description: 'Which calming game was opened, and when — not a score, just enough for a played-today streak.',
+  fields: [
+    f.text('gameId', 'Game', { required: true, inList: true }),
+    f.datetime('playedAt', 'Played', { required: true, inList: true }),
   ],
 };
 
@@ -1042,6 +1268,12 @@ export const LIFE_COLLECTIONS = [
   noteFolders,
   notes,
   tasks,
+  reminders,
+  boards,
+  bucketListItems,
+  watchlistItems,
+  memberNotes,
+  traditions,
   calendarFolders,
   calendarEvents,
   mediaItems,
@@ -1050,6 +1282,7 @@ export const LIFE_COLLECTIONS = [
   customEmotions,
   favoriteEmotions,
   bodySensations,
+  wellbeingGameLog,
   wellnessEntries,
   sleepEntries,
   fitnessEntries,

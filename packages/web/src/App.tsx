@@ -6,11 +6,13 @@ import { DataProvider } from './core/data.js';
 import { I18nProvider } from './core/i18n.js';
 import { ThemeProvider, usePreAuthTheme } from './core/theme.js';
 import { ToastProvider } from './core/toast.js';
+import { AppearanceProvider } from './core/appearance.js';
 import { MusicPlayerProvider } from './core/musicPlayer.js';
 import { AppLockProvider } from './core/appLock.js';
 import { AppLockGate } from './app/AppLockGate.js';
 import { startSyncWatchers, syncEngine } from './core/sync.js';
 import { startRealtime } from './core/realtime.js';
+import { watchAndroidPushToken } from './core/push.js';
 import { ErrorBoundary, SkeletonList } from './ui/feedback.js';
 import { Layout } from './app/Layout.js';
 import { Atmosphere } from './app/Atmosphere.js';
@@ -47,6 +49,13 @@ const Timeline = load(() => import('./modules/Timeline.js'));
 const Journal = load(() => import('./modules/Journal.js'));
 const Notes = load(() => import('./modules/Notes.js'));
 const Tasks = load(() => import('./modules/Tasks.js'));
+const Reminders = load(() => import('./modules/Reminders.js'));
+const Boards = load(() => import('./modules/Boards.js'));
+const BucketList = load(() => import('./modules/BucketList.js'));
+const Watchlist = load(() => import('./modules/Watchlist.js'));
+const Compliments = load(() => import('./modules/Compliments.js'));
+const Traditions = load(() => import('./modules/Traditions.js'));
+const AstroPage = load(() => import('./modules/astro/AstroPage.js'));
 const Calendar = load(() => import('./modules/Calendar.js'));
 const Media = load(() => import('./modules/Media.js'));
 const Flags = load(() => import('./modules/Flags.js'));
@@ -131,6 +140,7 @@ function AppRoutes(): JSX.Element {
     if (status !== 'authenticated') return;
     const stopSync = startSyncWatchers();
     const stopRealtime = startRealtime();
+    const stopPushWatch = watchAndroidPushToken();
     void syncEngine.run();
     // A no-op after the first successful run, on any account that still has
     // fields in the old, per-member shape — safe to fire every login rather
@@ -139,6 +149,7 @@ function AppRoutes(): JSX.Element {
     return () => {
       stopSync();
       stopRealtime();
+      stopPushWatch();
     };
   }, [status, settings.mode]);
 
@@ -190,6 +201,14 @@ function AppRoutes(): JSX.Element {
           <Route path="journal" element={<Journal />} />
           <Route path="notes" element={<Notes />} />
           <Route path="tasks" element={<Tasks />} />
+          <Route path="reminders" element={<Reminders />} />
+          <Route path="boards" element={<Boards />} />
+          <Route path="bucket-list" element={<BucketList />} />
+          <Route path="watchlist" element={<Watchlist />} />
+          <Route path="compliments" element={<Compliments />} />
+          <Route path="traditions" element={<Traditions />} />
+          <Route path="astro" element={<AstroPage />} />
+          <Route path="astro/:section" element={<AstroPage />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="media" element={<Media />} />
           <Route path="flags" element={<Flags />} />
@@ -263,12 +282,14 @@ export function App(): JSX.Element {
               <ThemeProvider>
                 <DataProvider>
                   <MusicPlayerProvider>
-                    <AppLockProvider>
-                      <AppUpdate />
-                      <Suspense fallback={<ScreenFallback />}>
-                        <AppRoutes />
-                      </Suspense>
-                    </AppLockProvider>
+                    <AppearanceProvider>
+                      <AppLockProvider>
+                        <AppUpdate />
+                        <Suspense fallback={<ScreenFallback />}>
+                          <AppRoutes />
+                        </Suspense>
+                      </AppLockProvider>
+                    </AppearanceProvider>
                   </MusicPlayerProvider>
                 </DataProvider>
               </ThemeProvider>

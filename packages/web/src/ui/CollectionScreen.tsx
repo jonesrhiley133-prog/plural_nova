@@ -55,6 +55,8 @@ export interface RowHelpers {
   edit: () => void;
   remove: () => void;
   memberName: (id: string | null) => string | null;
+  /** A direct patch, for a row action that isn't "open the editor" — a status toggle, a "done" button. */
+  update: (patch: Record<string, unknown>) => Promise<unknown>;
 }
 
 export function CollectionScreen(props: CollectionScreenProps): JSX.Element {
@@ -155,6 +157,7 @@ export function CollectionScreen(props: CollectionScreenProps): JSX.Element {
     edit: () => editor.show(record),
     remove: () => confirm.show(record),
     memberName,
+    update: (patch) => update(record.id, patch),
   });
 
   const save = async (values: Record<string, unknown>): Promise<void> => {

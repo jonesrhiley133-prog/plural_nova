@@ -137,6 +137,8 @@ interface SessionResponse {
   recoveryCode?: string;
 }
 
+const GUEST_TOKEN_KEY = 'pluralnova.guestToken';
+
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [state, setState] = useState<AuthState>(() => {
     const cached = getToken() ? readCachedSession() : null;
@@ -177,6 +179,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     });
     syncEngine.schedule(300);
   }, []);
+
+  const isGuestRef = useRef(false);
+  isGuestRef.current = state.user?.isGuest === true;
 
   const refresh = useCallback(async () => {
     if (!getToken()) {
@@ -257,10 +262,35 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
 
   const startGuest = useCallback<AuthActions['startGuest']>(
     async (days) => {
+      // Resume a sandbox left earlier on this device, if the server still has it.
+      let saved: string | null = null;
+      try {
+        saved = localStorage.getItem(GUEST_TOKEN_KEY);
+      } catch {
+        saved = null;
+      }
+      if (saved) {
+        setToken(saved);
+        try {
+          const resumed = await api.get<{ user: PublicUser }>('/api/auth/me');
+          if (resumed.user.isGuest) {
+            await refresh();
+            return;
+          }
+        } catch {
+          // Expired or removed — fall through to a fresh demo.
+        }
+        setToken(null);
+        try {
+          localStorage.removeItem(GUEST_TOKEN_KEY);
+        } catch {
+          // Nothing to clean up.
+        }
+      }
       const session = await api.post<SessionResponse>('/api/auth/guest', { days });
       applySession(session);
     },
-    [applySession],
+    [applySession, refresh],
   );
 
   const claimGuest = useCallback<AuthActions['claimGuest']>(async (input) => {
@@ -273,10 +303,21 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   }, []);
 
   const signOut = useCallback(async () => {
-    try {
-      await api.post('/api/auth/logout');
-    } catch {
-      // Signing out locally still has to work when the server is unreachable.
+    if (isGuestRef.current) {
+      // Leaving Guest Mode keeps the sandbox: the session is stashed rather than
+      // revoked, so "Try Guest Mode" picks the same demo data up again.
+      try {
+        const token = getToken();
+        if (token) localStorage.setItem(GUEST_TOKEN_KEY, token);
+      } catch {
+        // Without storage the next guest visit simply starts a fresh demo.
+      }
+    } else {
+      try {
+        await api.post('/api/auth/logout');
+      } catch {
+        // Signing out locally still has to work when the server is unreachable.
+      }
     }
     setToken(null);
     writeCachedSession(null);

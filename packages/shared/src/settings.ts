@@ -1,5 +1,6 @@
 import { DEFAULT_MOBILE_TABS, DEFAULT_SINGLET_TABS } from './navigation.js';
 import { DEFAULT_THEME, type ThemePreset, type ThemeSettings } from './themes.js';
+import { DEFAULT_APPEARANCE, normaliseAppearance, type AppearanceState } from './appearance.js';
 import type { TermOverrides } from './terminology.js';
 import type { AppMode } from './types.js';
 
@@ -27,6 +28,10 @@ export const NOTIFICATION_CATEGORIES = [
   'memberActivity',
   'dataJobs',
   'assignmentDue',
+  'customReminders',
+  'birthdays',
+  'boards',
+  'alterNotes',
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -55,6 +60,10 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   memberActivity: 'Member activity',
   dataJobs: 'Imports and backups',
   assignmentDue: 'Assignment reminders',
+  customReminders: 'Reminders',
+  birthdays: 'Birthdays',
+  boards: 'Board posts',
+  alterNotes: 'Notes from alters',
 };
 
 export interface WidgetSetting {
@@ -82,6 +91,13 @@ export const DASHBOARD_WIDGETS = [
   { id: 'headspace', label: 'Headspace', systemOnly: true },
   { id: 'fronting-stats', label: 'Fronting statistics', systemOnly: true },
   { id: 'location', label: 'Location' },
+  { id: 'daily-message', label: 'Daily message' },
+  { id: 'memory-trail', label: 'Who was here today', systemOnly: true },
+  { id: 'boards-preview', label: 'Boards' },
+  { id: 'bucket-list', label: 'Bucket list' },
+  { id: 'watchlist', label: 'Watchlist' },
+  { id: 'theme-music', label: 'Theme music' },
+  { id: 'traditions', label: 'Traditions due' },
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id'];
@@ -189,6 +205,8 @@ export interface AppSettings {
   theme: ThemeSettings;
   /** Themes saved, duplicated or imported by this account, alongside the built-in presets. */
   customThemePresets: ThemePreset[];
+  /** Advanced appearance: global look, component overrides, saved themes, assignments, music pins, chat categories. */
+  appearance: AppearanceState;
   terminology: TermOverrides;
   locale: string;
   notifications: Record<NotificationCategory, NotificationChannelPrefs>;
@@ -213,6 +231,8 @@ export interface AppSettings {
   lowEndLogin: boolean;
   achievementsEnabled: boolean;
   achievementToasts: boolean;
+  /** The warm, occasional copy on a handful of notifications — a birthday, a board post. Off still leaves the notification itself working everywhere it has its own purpose beyond the tone. */
+  cozyMessages: boolean;
   /** Week starts on Monday (1) or Sunday (0). */
   weekStart: 0 | 1;
   timeFormat: '12h' | '24h';
@@ -248,6 +268,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     mode,
     theme: { ...DEFAULT_THEME },
     customThemePresets: [],
+    appearance: { ...DEFAULT_APPEARANCE },
     terminology: {},
     locale: 'en',
     notifications: defaultNotificationPrefs(),
@@ -274,6 +295,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     lowEndLogin: false,
     achievementsEnabled: true,
     achievementToasts: true,
+    cozyMessages: true,
     weekStart: 1,
     timeFormat: '12h',
     currency: 'USD',
@@ -325,6 +347,7 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
     ...stored,
     theme: { ...base.theme, ...(stored.theme ?? {}) },
     customThemePresets,
+    appearance: normaliseAppearance(stored.appearance),
     terminology: stored.terminology ?? {},
     notifications,
     quietHours: { ...base.quietHours, ...(stored.quietHours ?? {}) },

@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { dayKey, parseDateOnly, toDateOnlyString, type StoredRecord } from '@pluralnova/shared';
+import {
+  dayKey,
+  nextBirthdayOccurrence,
+  parseDateOnly,
+  toDateOnlyString,
+  type StoredRecord,
+} from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useAuth } from '../core/auth.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
+import { BirthdayCelebration } from '../app/BirthdayCelebration.js';
 import { Avatar, Button, Card, Chip, IconButton, ListRow, SegmentedControl, Tabs } from '../ui/primitives.js';
 import { EmptyState } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
@@ -290,19 +297,11 @@ function recurrenceUnitLabel(recurrenceType: string): string {
 }
 
 /** The next time a birthday comes around from today, and the age it brings. */
-function nextBirthdayOccurrence(birthday: string): { date: Date; age: number } | null {
-  const born = new Date(`${birthday}T00:00:00`);
-  if (Number.isNaN(born.getTime())) return null;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let year = today.getFullYear();
-  let next = new Date(year, born.getMonth(), born.getDate());
-  if (next < today) {
-    year += 1;
-    next = new Date(year, born.getMonth(), born.getDate());
-  }
-  return { date: next, age: year - born.getFullYear() };
+/** A precise day-count reads better as a countdown than a fuzzy "in 1 month" would. */
+function birthdayCountdown(daysAway: number): string {
+  if (daysAway <= 0) return 'Today!';
+  if (daysAway === 1) return 'Tomorrow';
+  return `In ${daysAway} days`;
 }
 
 /** Reads a birthday written any of the everyday ways, into the YYYY-MM-DD this field stores. */
@@ -1097,11 +1096,13 @@ function BirthdaysPanel({
   members: StoredRecord[];
   onSave: (id: string, patch: Record<string, unknown>) => Promise<unknown>;
 }): JSX.Element {
-  const dates = useDateFormat();
   const dialog = useDialog<StoredRecord>();
   const importDialog = useDialog();
+  const celebrate = useDialog<StoredRecord>();
 
   const upcoming = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     return members
       .map((member) => ({
         member,
@@ -1111,6 +1112,10 @@ function BirthdaysPanel({
         (entry): entry is { member: StoredRecord; occurrence: { date: Date; age: number } } =>
           Boolean(entry.occurrence),
       )
+      .map((entry) => ({
+        ...entry,
+        daysAway: Math.round((entry.occurrence.date.getTime() - today.getTime()) / 86_400_000),
+      }))
       .sort((a, b) => a.occurrence.date.getTime() - b.occurrence.date.getTime());
   }, [members]);
 
@@ -1138,10 +1143,10 @@ function BirthdaysPanel({
         />
       ) : (
         <div className="list">
-          {upcoming.map(({ member, occurrence }) => (
+          {upcoming.map(({ member, occurrence, daysAway }) => (
             <ListRow
               key={member.id}
-              onClick={() => dialog.show(member)}
+              onClick={() => (daysAway <= 0 ? celebrate.show(member) : dialog.show(member))}
               leading={
                 <Avatar
                   name={String(member['name'])}
@@ -1168,7 +1173,7 @@ function BirthdaysPanel({
                     {occurrence.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · Turning{' '}
                     {occurrence.age}
                   </span>
-                  <span className="faint">{dates.relative(occurrence.date.toISOString())}</span>
+                  <span className="faint">{birthdayCountdown(daysAway)}</span>
                 </>
               }
               trailing={<Icon name="chevronRight" size={14} />}
@@ -1179,6 +1184,7 @@ function BirthdaysPanel({
 
       <BirthdayDialog dialog={dialog} members={members} onSave={onSave} />
       <BirthdayImportDialog dialog={importDialog} members={members} onSave={onSave} />
+      <BirthdayCelebration dialog={celebrate} onUpdateMember={onSave} />
     </Card>
   );
 }

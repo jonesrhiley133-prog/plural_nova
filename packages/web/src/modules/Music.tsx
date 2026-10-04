@@ -4,7 +4,7 @@ import { ApiRequestError, api } from '../core/api.js';
 import { useCollection } from '../core/data.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
-import { useMusicPlayer, type MusicTrack } from '../core/musicPlayer.js';
+import { fromLibraryTrack, useMusicPlayer, type MusicTrack } from '../core/musicPlayer.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, IconButton, SegmentedControl } from '../ui/primitives.js';
 import { FileButton, SearchField, TextField, useDebounced } from '../ui/forms.js';
@@ -45,17 +45,6 @@ function fromProviderTrack(track: ProviderTrack): MusicTrack {
     artworkUrl: track.artworkUrl,
     url: track.previewUrl,
     isFullLength: false,
-  };
-}
-
-function fromLibraryTrack(track: StoredRecord): MusicTrack {
-  return {
-    id: String(track.id),
-    title: String(track['title'] ?? 'Untitled'),
-    artist: String(track['artist'] ?? ''),
-    artworkUrl: String(track['artworkUrl'] ?? ''),
-    url: String(track['previewUrl'] ?? ''),
-    isFullLength: track['provider'] === 'upload',
   };
 }
 
@@ -324,6 +313,11 @@ export default function Music(): JSX.Element {
                               <Icon name="star" size={11} label="Favourite" />
                             </span>
                           ) : null}
+                          {track['isTheme'] === true ? (
+                            <span style={{ color: 'var(--accent)' }}>
+                              <Icon name="pin" size={11} label="Theme song" />
+                            </span>
+                          ) : null}
                         </span>
                       </span>
                       <span className="list-row__trailing">
@@ -351,6 +345,13 @@ export default function Music(): JSX.Element {
                           variant="ghost"
                           size="sm"
                           onClick={() => void tracks.update(track.id, { favorite: track['favorite'] !== true })}
+                        />
+                        <IconButton
+                          icon="pin"
+                          label={track['isTheme'] === true ? `Unset ${String(track['title'])} as theme` : `Set ${String(track['title'])} as theme`}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void tracks.update(track.id, { isTheme: track['isTheme'] !== true })}
                         />
                         <IconButton
                           icon="trash"

@@ -36,3 +36,11 @@ No external secrets needed — the app generates everything (DB, push keys) on f
 - Component styles in `components.css`, layout in `layout.css`, motion in `motion.css`.
 - Theming engine rewrites CSS custom properties at runtime (dark, AMOLED, light, high-contrast, custom palettes).
 - Icons: thin-line SVG via `packages/web/src/ui/Icon.tsx`.
+
+## Astro (astrology section)
+
+- Engine lives in `packages/shared/src/astro/` and is exported as the `Astro` namespace. It is pure TypeScript (low-precision Schlyter orbital elements), no network or AI service. The chat is rule-based (`astro/chat.ts`).
+- Birth data are `members` fields (`birthTime`, `birthPlace`, `birthLatitude/Longitude`, `birthUtcOffset`, `astroVisibility`), all `sensitive`; visibility defaults to `private`. `canViewAstro` is the single privacy rule.
+- Never guess: Rising sign/houses need time + UTC offset + coordinates; birthday-only profiles only state signs that cannot change during that day.
+- Reflections/tarot save to the `astroEntries` / `tarotReadings` collections. UI is `packages/web/src/modules/astro/` (routes `/astro` and `/astro/:section`).
+- After editing shared, rebuild it (see Dev workflow) — the web app imports `dist`.

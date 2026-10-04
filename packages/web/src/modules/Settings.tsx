@@ -10,8 +10,6 @@ import {
   THEME_PRESETS,
   UI_ZOOM_PRESETS,
   ALL_NAV_ITEMS,
-  ALWAYS_VISIBLE_NAV_IDS,
-  categoriesForMode,
   createCustomPreset,
   sanitizeImportedPreset,
   type NotificationCategory,
@@ -31,6 +29,7 @@ import { disablePush, enablePush, isInstalled, pushStatus, pushSupported, sendTe
 import { syncEngine } from '../core/sync.js';
 import { offlineStorageProblem, storageEstimate } from '../core/localdb.js';
 import { PageHeader } from '../app/PageHeader.js';
+import { ModuleVisibilityCard } from '../app/ModuleVisibility.js';
 import CustomFieldDefinitions from './CustomFieldDefinitions.js';
 import { Avatar, Button, Card, Chip, IconButton, ListRow, SegmentedControl, Stat } from '../ui/primitives.js';
 import { ImageField, NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
@@ -39,6 +38,7 @@ import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { DescriptiveNote, ErrorLine, LoadingLine } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
 import { Markdown } from '../ui/Markdown.js';
+import { AppearanceEditor } from './appearance/AppearanceEditor.js';
 
 /**
  * Settings.
@@ -109,7 +109,7 @@ export default function Settings(): JSX.Element {
         </nav>
 
         <div className="stack">
-          {active === 'appearance' ? <Appearance /> : null}
+          {active === 'appearance' ? <AppearanceEditor basics={<Appearance />} /> : null}
           {active === 'terminology' ? <Terminology /> : null}
           {active === 'notifications' ? <Notifications /> : null}
           {active === 'privacy' ? <Privacy /> : null}
@@ -196,7 +196,10 @@ function Appearance(): JSX.Element {
     void update({ ...preset.settings, presetId: preset.id, custom: null });
   };
 
-  const setCustomColor = (key: 'bg' | 'surface' | 'border' | 'text', value: string): void => {
+  const setCustomColor = (
+    key: 'bg' | 'surface' | 'surfaceRaised' | 'border' | 'text' | 'textMuted',
+    value: string,
+  ): void => {
     void update({ custom: { ...theme.custom, [key]: value }, presetId: null });
   };
 
@@ -417,8 +420,10 @@ function Appearance(): JSX.Element {
           [
             { key: 'bg', label: 'Page background' },
             { key: 'surface', label: 'Card background' },
+            { key: 'surfaceRaised', label: 'Raised card background' },
             { key: 'border', label: 'Border' },
             { key: 'text', label: 'Text' },
+            { key: 'textMuted', label: 'Secondary text' },
           ] as const
         ).map(({ key, label }) => (
           <div className="field" key={key}>
@@ -426,7 +431,7 @@ function Appearance(): JSX.Element {
             <ColorPicker
               value={theme.custom?.[key] ?? tokens[key]}
               onChange={(value) => setCustomColor(key, value)}
-              showContrastAgainst={key === 'text' ? tokens.bg : undefined}
+              showContrastAgainst={key === 'text' || key === 'textMuted' ? tokens.bg : undefined}
             />
           </div>
         ))}
@@ -460,17 +465,35 @@ function Appearance(): JSX.Element {
           />
         ) : null}
 
+        <NumberField
+          label="Header opacity"
+          value={theme.headerOpacity}
+          onChange={(value) => void update({ headerOpacity: value ?? 89 })}
+          min={30}
+          max={100}
+          suffix="%"
+          hint="How solid the bar at the top of the app is while you scroll past it."
+        />
+
         <SwitchRow
           label="Starfield"
           hint="A static field of stars behind everything. Off in performance mode regardless."
           checked={theme.showStarfield}
           onChange={(value) => void update({ showStarfield: value })}
         />
+
+        <SwitchRow
+          label="Shooting stars"
+          hint="An occasional streak across the starfield. Off with reduced motion or performance mode, and needs the starfield on."
+          checked={theme.showShootingStars}
+          disabled={!theme.showStarfield}
+          onChange={(value) => void update({ showShootingStars: value })}
+        />
       </Card>
 
       <Card
-        title="Background image"
-        subtitle="A photo behind everything, instead of (or under) the usual glow. A fixed safeguard behind it keeps text readable no matter how bright or busy the photo is."
+        title="Background"
+        subtitle="A photo behind everything, instead of (or under) the usual glow — and a dimmer for whatever is back there, photo or not."
       >
         <ImageField
           label="Photo"
@@ -478,6 +501,16 @@ function Appearance(): JSX.Element {
           onChange={(value) => void update({ backgroundImageUrl: value || null })}
           shape="banner"
           hint="Snap one, pick from your media library, or remove it to go back to the usual background."
+        />
+
+        <NumberField
+          label="Dim"
+          value={theme.backgroundDim}
+          onChange={(value) => void update({ backgroundDim: value ?? 0 })}
+          min={0}
+          max={80}
+          suffix="%"
+          hint="An extra darkening layer over the colour fields, the starfield, or the photo above — independent of how visible the photo itself is set to be."
         />
 
         {theme.backgroundImageUrl ? (
@@ -751,6 +784,14 @@ function Notifications(): JSX.Element {
             />
           </div>
         ) : null}
+        <SwitchRow
+          label="Warm, occasional extras"
+          hint="A handful of notifications — a birthday, a board post — use softer wording than the rest. Off keeps the ones that still mean something without it (fronting, reminders) and drops the rest."
+          checked={settings.cozyMessages}
+          onChange={(value) => {
+            update({ cozyMessages: value });
+          }}
+        />
       </Card>
 
       <Card title="What you are told about" subtitle="Each category, on each channel">
@@ -1302,31 +1343,7 @@ function Navigation(): JSX.Element {
         ))}
       </Card>
 
-      <Card title="Sidebar &amp; menu" subtitle="Turn off anything you never use — nothing about it is deleted">
-        {categoriesForMode(settings.mode).map((category) => (
-          <div key={category.id} style={{ marginBottom: 'var(--space-3)' }}>
-            <p className="tiny faint" style={{ marginBottom: 'var(--space-1)' }}>
-              {term(category.label)}
-            </p>
-            {category.items
-              .filter((item) => !ALWAYS_VISIBLE_NAV_IDS.includes(item.id))
-              .map((item) => (
-                <SwitchRow
-                  key={item.id}
-                  label={term(item.label)}
-                  checked={!settings.hiddenModules.includes(item.id)}
-                  onChange={(visible) =>
-                    update({
-                      hiddenModules: visible
-                        ? settings.hiddenModules.filter((id) => id !== item.id)
-                        : [...settings.hiddenModules, item.id],
-                    })
-                  }
-                />
-              ))}
-          </div>
-        ))}
-      </Card>
+      <ModuleVisibilityCard />
     </>
   );
 }

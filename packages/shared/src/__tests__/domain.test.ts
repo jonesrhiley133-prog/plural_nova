@@ -9,6 +9,7 @@ import {
   EN,
   EMOTIONS,
   EMOTION_FAMILIES,
+  searchEmotions,
   LOCALES,
   NAVIGATION,
   TERMS,
@@ -106,6 +107,17 @@ describe('emotions', () => {
   it('has no duplicate names or ids', () => {
     expect(new Set(EMOTIONS.map((e) => e.id)).size).toBe(EMOTIONS.length);
     expect(new Set(EMOTIONS.map((e) => e.name)).size).toBe(EMOTIONS.length);
+  });
+
+  it('finds every word added for the cozy-features vocabulary expansion', () => {
+    const added = [
+      'Cozy', 'Included', 'Restless', 'Jealous', 'Suspicious', 'Energized', 'Distracted',
+      'Bored', 'Relieved', 'Understimulated', 'Appreciated', 'Confused', 'Vulnerable',
+      'Cautious', 'Mischievous', 'Mentally tired', 'Physically tired',
+    ];
+    for (const name of added) {
+      expect(searchEmotions(name).some((e) => e.name === name), `missing "${name}"`).toBe(true);
+    }
   });
 });
 

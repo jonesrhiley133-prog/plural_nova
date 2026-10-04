@@ -88,12 +88,23 @@ export interface ThemeSettings {
   custom: Partial<ThemeTokens> | null;
   presetId: string | null;
   showStarfield: boolean;
+  /** An occasional streak across the starfield. Off by default — the one atmosphere layer with continuous motion, so it earns its own switch. */
+  showShootingStars: boolean;
   /** A photo behind everything, in place of (or under) the usual atmosphere. Null means none. */
   backgroundImageUrl: string | null;
   /** 0–100; how strongly the image shows through. A fixed scrim behind the content keeps text readable regardless. */
   backgroundOpacity: number;
   /** 0–40px; softens a busy photo so it does not fight with foreground text. */
   backgroundBlur: number;
+  /** 30–100; how solid the sticky bar at the top of the app is. Lower lets the atmosphere show through it while scrolling. */
+  headerOpacity: number;
+  /**
+   * 0–80; an extra darkening layer over the whole atmosphere — the colour
+   * fields, the starfield, or a background photo — independent of how
+   * visible the photo itself is set to be. Zero by default, so nobody sees a
+   * change until they ask for one.
+   */
+  backgroundDim: number;
 }
 
 export const DEFAULT_ACCENT = '#7aa2f7';
@@ -123,9 +134,15 @@ export const DEFAULT_THEME: ThemeSettings = {
   custom: null,
   presetId: 'nebula',
   showStarfield: false,
+  showShootingStars: false,
   backgroundImageUrl: null,
   backgroundOpacity: 35,
   backgroundBlur: 10,
+  // 89, not a round 90: the header's own gradient used to be a fixed 96%
+  // down to 82%, and +/-7 from 89 reproduces those two numbers exactly — so
+  // the default header looks pixel-identical to before this was a setting.
+  headerOpacity: 89,
+  backgroundDim: 0,
 };
 
 const DARK: ThemeTokens = {
@@ -629,6 +646,8 @@ export function normaliseThemeSettings(input: Partial<ThemeSettings> | null | un
   merged.surfaceOpacity = Math.min(100, Math.max(20, Math.round(merged.surfaceOpacity ?? 82)));
   merged.backgroundOpacity = Math.min(100, Math.max(5, Math.round(merged.backgroundOpacity ?? 35)));
   merged.backgroundBlur = Math.min(40, Math.max(0, Math.round(merged.backgroundBlur ?? 10)));
+  merged.headerOpacity = Math.min(100, Math.max(30, Math.round(merged.headerOpacity ?? 89)));
+  merged.backgroundDim = Math.min(80, Math.max(0, Math.round(merged.backgroundDim ?? 0)));
   if (typeof merged.backgroundImageUrl !== 'string' || !merged.backgroundImageUrl.trim()) {
     merged.backgroundImageUrl = null;
   }

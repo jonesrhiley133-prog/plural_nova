@@ -748,6 +748,7 @@ export function FileButton({
         onChange={handle}
         className="visually-hidden"
         tabIndex={-1}
+        aria-label={label}
       />
       <Button variant={variant} icon="upload" onClick={() => input.current?.click()}>
         {label}

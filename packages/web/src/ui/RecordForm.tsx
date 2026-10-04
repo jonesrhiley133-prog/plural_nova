@@ -88,7 +88,12 @@ function initialValues(
       values[field.name] = field.kind === 'tags' || field.kind === 'refs' ? [] : '';
     }
   }
-  void definition;
+  // memberId isn't a declared field — it's rendered by the dedicated
+  // MemberPicker below — so it needs its own seeding from the same sources.
+  if (definition.memberScoped) {
+    const existing = record?.['memberId'];
+    values['memberId'] = existing !== undefined && existing !== null ? existing : (initial?.['memberId'] ?? null);
+  }
   return values;
 }
 

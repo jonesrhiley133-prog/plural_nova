@@ -36,6 +36,12 @@ export default function Journal(): JSX.Element {
   const [memberFilter, setMemberFilter] = useState<string | null | undefined>(undefined);
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // A shortcut from elsewhere (the birthday celebration's "Add a memory")
+  // can open the composer pre-filled, rather than this screen needing its
+  // own separate memory-entry concept.
+  const prefillMemberId = params.get('memberId');
+  const prefillTag = params.get('tag');
+
   // "My entries" always means this account's own writing, whichever member
   // that is right now — so switching who is fronting doesn't strand the
   // filter on someone who used to be active.
@@ -261,7 +267,11 @@ export default function Journal(): JSX.Element {
         <RecordForm
           collection="journalEntries"
           record={editor.value}
-          initial={{ entryDate: new Date().toISOString() }}
+          initial={{
+            entryDate: new Date().toISOString(),
+            ...(!editor.value && prefillMemberId ? { memberId: prefillMemberId } : {}),
+            ...(!editor.value && prefillTag ? { tags: [prefillTag] } : {}),
+          }}
           omit={['attachmentIds', 'moodScore']}
           onSubmit={async (values) => {
             if (editor.value) {

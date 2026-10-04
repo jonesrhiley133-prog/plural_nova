@@ -1,18 +1,30 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { customFieldValues, emotionIdsOf, formatDuration, type StoredRecord } from '@pluralnova/shared';
+import {
+  customFieldValues,
+  emotionIdsOf,
+  formatDuration,
+  isBirthdayToday,
+  type StoredRecord,
+} from '@pluralnova/shared';
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
+import { useActiveMemberId } from '../core/auth.js';
 import { FRONT_STATUS_META, useFronting } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
+import { BirthdayCelebration } from '../app/BirthdayCelebration.js';
 import { Avatar, Button, Card, Chip, FieldList, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { AstroSummaryCard } from './astro/AstroSummary.js';
 import { MemberEditorForm } from '../ui/MemberEditorForm.js';
 import { SwitchRow } from '../ui/forms.js';
 import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
+import { GiveBadgePicker, MemberBadgeRow, createBadge, parseBadges } from '../ui/MemberBadges.js';
 import { Icon } from '../ui/Icon.js';
+import { ThemeScope, useAssignedTheme } from '../core/appearance.js';
+import { ThemePicker } from './appearance/ThemePicker.js';
 import { Markdown } from '../ui/Markdown.js';
 
 /**
@@ -45,6 +57,7 @@ export default function MemberProfile(): JSX.Element {
   const { t, term } = useI18n();
   const dates = useDateFormat();
   const toast = useToast();
+  const activeMemberId = useActiveMemberId();
 
   const member = useRecord('members', id);
   const { update, remove, loading } = useCollection('members');
@@ -52,10 +65,19 @@ export default function MemberProfile(): JSX.Element {
   const [tab, setTab] = useState<Tab>('overview');
   const editor = useDialog();
   const confirm = useDialog();
+  const celebrate = useDialog<StoredRecord>();
+  const alterTheme = useAssignedTheme('alter', id);
 
   const flags = useCollection('flags');
   const flagAssignments = useCollection('flagAssignments', {
     filter: (record) => record['targetType'] === 'member' && record['targetId'] === id,
+  });
+  // Their latest "today's vibe" board post, reused here as a "currently
+  // feeling" line rather than a field of its own — the board already is the
+  // record of this, just read from a different angle.
+  const vibePosts = useCollection('boards', {
+    filter: (record) => record['boardType'] === 'vibe' && record['authorMemberId'] === id,
+    limit: 1,
   });
   const flagById = useMemo(() => new Map(flags.items.map((flag) => [flag.id, flag])), [flags.items]);
   const attachedFlags = useMemo(
@@ -84,6 +106,8 @@ export default function MemberProfile(): JSX.Element {
   const color = (member['color'] as string) || 'var(--accent)';
   const meta = FRONT_STATUS_META[String(member['frontStatus'])] ?? FRONT_STATUS_META['nearby']!;
   const alreadyFronting = isFrontingAlready(member.id);
+  const isBirthday = member['birthday'] ? isBirthdayToday(String(member['birthday'])) : false;
+  const latestVibe = vibePosts.items[0];
 
   // Instant: applied to the shared fronting state before the request that
   // tells the server about it resolves, so this never shows a loading state.
@@ -94,6 +118,7 @@ export default function MemberProfile(): JSX.Element {
   const flagsVisible = member['flagDisplayEnabled'] !== false && attachedFlags.length > 0;
 
   return (
+    <ThemeScope theme={alterTheme}>
     <div className="member-tint" style={{ ['--member-color' as never]: color }}>
       <Card flush style={{ marginBottom: 'var(--space-4)', overflow: 'visible' }}>
         <div className="banner" style={{ ['--member-color' as never]: color, borderRadius: 'var(--radius) var(--radius) 0 0' }}>
@@ -109,6 +134,7 @@ export default function MemberProfile(): JSX.Element {
               name={String(member['name'])}
               src={(member['avatarUrl'] as string) ?? null}
               color={color}
+              icon={(member['icon'] as string) ?? null}
               size={88}
               round
               ring={alreadyFronting}
@@ -139,6 +165,12 @@ export default function MemberProfile(): JSX.Element {
                 />
               </div>
             </div>
+
+            {latestVibe ? (
+              <p className="small muted" style={{ marginTop: 'var(--space-2)' }}>
+                Currently feeling: "{String(latestVibe['body'])}"
+              </p>
+            ) : null}
 
             {flagsVisible ? (
               <div className="row" style={{ marginTop: 'var(--space-3)' }}>
@@ -176,6 +208,11 @@ export default function MemberProfile(): JSX.Element {
         options={TABS.map((option) => ({ value: option, label: term(tabLabel(option)) }))}
       />
 
+      {tab === 'overview' ? (
+        <Card title="Profile theme" subtitle="Banner, accent, buttons and cards on this profile — and, if you choose, everywhere they are fronting">
+          <ThemePicker target="alter" id={member.id} label="Assigned theme" />
+        </Card>
+      ) : null}
       {tab === 'overview' ? <Overview member={member} /> : null}
       {tab === 'identity' ? <Identity member={member} /> : null}
       {tab === 'about' ? <About member={member} onChange={update} /> : null}
@@ -210,7 +247,10 @@ export default function MemberProfile(): JSX.Element {
           navigate('/members');
         }}
       />
+
+      <BirthdayCelebration dialog={celebrate} onUpdateMember={update} />
     </div>
+    </ThemeScope>
   );
 
   function tabLabel(value: Tab): string {
@@ -230,8 +270,64 @@ export default function MemberProfile(): JSX.Element {
   }
 
   function Overview({ member }: { member: StoredRecord }): JSX.Element {
+    const badges = parseBadges(member['customBadges']);
+
+    const addSticker = async (emoji: string, label: string): Promise<void> => {
+      const badge = createBadge(emoji, label, activeMemberId ?? null);
+      await update(member.id, { customBadges: [...badges, badge] });
+      toast.success(`Added ${label.toLowerCase()}`);
+    };
+
     return (
       <div className="stack">
+        {isBirthday ? (
+          <Card style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 'var(--size-lg)' }}>🎉 It's {String(member['name'])}'s birthday!</p>
+            <Button variant="primary" size="sm" style={{ marginTop: 'var(--space-2)' }} onClick={() => celebrate.show(member)}>
+              Celebrate
+            </Button>
+          </Card>
+        ) : null}
+
+        <AstroSummaryCard member={member} />
+
+        {member['color'] || member['icon'] ? (
+          <div className="row" style={{ gap: 'var(--space-5)' }}>
+            {member['color'] ? (
+              <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: 'inline-block',
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: String(member['color']),
+                    border: '1px solid var(--border)',
+                  }}
+                />
+                <span className="small muted">Favourite colour</span>
+              </span>
+            ) : null}
+            {member['icon'] ? (
+              <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
+                <span aria-hidden="true" style={{ fontSize: 'var(--size-lg)', lineHeight: 1 }}>
+                  {String(member['icon'])}
+                </span>
+                <span className="small muted">Favourite emoji</span>
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
+        <Card title="Badges" subtitle={badges.length > 0 ? undefined : 'Pick a sticker for their profile'}>
+          <MemberBadgeRow badges={badges} />
+          <p className="tiny faint" style={{ marginTop: badges.length > 0 ? 'var(--space-3)' : 0 }}>
+            Tap one to add it
+          </p>
+          <GiveBadgePicker onGive={(emoji, label) => void addSticker(emoji, label)} />
+        </Card>
+
         {member['bio'] ? (
           <Card title="Biography">
             <Markdown text={String(member['bio'])} />

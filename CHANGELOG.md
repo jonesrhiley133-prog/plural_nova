@@ -12,6 +12,105 @@ different versions of PluralNova.
 
 ### Added
 
+- **More depth to appearance: header opacity, a background dimmer, and two
+  more custom colours.** The bar at the top of the app now has its own
+  opacity setting, independent of card translucency, so it can let the
+  atmosphere show through while you scroll instead of staying a flat block
+  of colour. A new "Dim" control adds an adjustable darkening layer over
+  whatever is behind everything — the colour fields, the starfield, or a
+  background photo — whether or not a photo is set, separate from the
+  photo's own visibility. The custom colours list now also covers raised
+  card backgrounds and secondary text, for the two surfaces the existing
+  four colours didn't reach. Every new setting defaults to exactly the old,
+  fixed look, so nobody sees a change until they go looking for one.
+- **Alter personalisation, surfaced rather than invented.** A {{member}}'s
+  profile colour and symbol — both already there, already driving the rest of
+  the page — now show up labelled on their Overview tab as "Favourite
+  colour"/"Favourite emoji", and a chosen symbol now also appears as their
+  avatar's own face when there's no photo. Badges (gifts given at a birthday)
+  are now a self-serve sticker picker on every profile, not only a birthday
+  one, sharing the exact same component and data shape. A {{member}}'s latest
+  "today's vibe" board post now shows on their profile header as "currently
+  feeling" — read from the board that already holds it, not a new field. An
+  opt-in "Add starter Favourites fields" button on the custom fields screen
+  seeds five free-text prompts (constellation, activity, food, song, quote)
+  for systems that want them, and never runs on its own.
+- **An optional shooting star, every so often, behind everything.** Off by
+  default and dependent on the starfield already being on, it adds three
+  slow, staggered streaks to the existing atmosphere layer rather than a
+  showy new effect — and like the rest of the app's motion, it stops
+  completely with reduced motion or performance mode.
+- **Eight new Wellbeing games**, alongside the three that were already there:
+  memory matching, a connect-the-stars constellation, an emotion word-and-face
+  match, a four-card mood-prompt pull, a small procedurally-generated maze, a
+  freeform doodle canvas, spot-the-difference, and a daily trivia question.
+  None are timed, scored, or compared between {{members}} — playing one is
+  quietly logged so a "played something" streak can count toward achievements
+  the same way a mood log or a {{journal}} entry already does.
+- **Traditions: things the {{system}} does on a rhythm, surfaced when due and
+  never nagged about.** A movie night, a monthly check-in, an end-of-month
+  scrapbook — pick a starter or write your own, say how often it comes
+  around (daily, weekly, monthly, yearly, with the same interval and
+  weekday controls Calendar events already have), and a "We did it!" button
+  marks it done. A Dashboard widget lists what's due right now; nothing
+  here ever sends a notification, since the whole point is that it stays
+  optional.
+- **A birthday is now an occasion, not just a date on the calendar.** On the
+  day itself, the Birthdays panel and that {{member}}'s profile both offer
+  a small celebration: a warm card, a place for anyone to give a curated
+  emoji gift (shown afterward on their profile), a guestbook for birthday
+  messages, and a shortcut into a pre-filled {{journal}} entry for "add a
+  memory." Gifts and guestbook messages both stay real records — the
+  guestbook reuses Compliments' own visibility rules, so what's written
+  there follows the same "who can actually see this" logic rather than a
+  separate one invented for the occasion.
+- **Compliments: a place to leave something for a specific alter, or the
+  whole system.** Reached from Life, it covers notes, compliments,
+  greetings, recommendations, "I was here" markers, and messages you can
+  schedule to stay hidden — from everyone, including whoever wrote it —
+  until the time you set, so a surprise actually stays one. Who a note is
+  addressed to is enforced on the server, not just hidden in the
+  interface: a note meant for one alter, or left with nobody picked
+  (meaning the whole system), only ever appears to the people it's for.
+- **A theme song on the Dashboard.** Any track already in Music — uploaded
+  or saved from search — can be pinned as a theme from its row in the
+  library. A pinned track shows in a new Theme music Dashboard widget with
+  its own play button: whichever alter is active sees their own theme if
+  they have one, or the system's theme otherwise.
+- **Features can now hide what you don't use.** The same per-page and
+  per-category switches Settings → Navigation has always had now also live
+  on the Features page, right where everything in the app is listed. It's
+  the same setting either way, so a page turned off from one of those
+  places stays off when you check from the other.
+- **Five new Dashboard widgets, a daily message, and a setting for the warmer
+  touches.** A Daily message widget shows one line the whole system sees
+  that day, with a button for a quick, unrelated fortune. Who was here
+  today shows who's logged fronting so far today. Boards, Bucket list and
+  Watchlist each get a small preview widget linking back to the full
+  screen. Settings → Notifications gets a new "Warm, occasional extras"
+  switch — off keeps birthday and board-post notifications from firing at
+  all (they're decoration, not something to miss), and keeps fronting
+  notifications firing with their plain wording instead of "Welcome back."
+- **Three small shared spaces for the whole system: Boards, a Bucket list,
+  and a Watchlist.** Boards covers five small, low-stakes kinds of post —
+  what you're currently obsessed with, today's vibe, inside jokes,
+  favourite memories, and a fridge-note board — all switchable from one
+  screen, since posting to one is really the same small action no matter
+  which board it's for. The Bucket list and Watchlist are their own simple
+  screens for things the system wants to do or watch together, each with
+  the status you'd expect (done or not; want-to-watch through watched,
+  with a star rating once it's seen). All three are reachable from Life in
+  the navigation.
+- **17 new words in the emotion library**, among them Cozy, Included,
+  Energized, Relieved, Jealous, Bored, and Understimulated — findable
+  straight away through the existing search and family filters, alongside
+  the 212 already there. Nothing existing was renamed, so anything already
+  logged still points at the same word it always did.
+- **A new Reminders screen for a notification at a time you choose.** A
+  title, an optional message, and a time — delivered through the same
+  reminder sweep that already handles tasks, events, assignments and
+  shifts, and through whichever channels Settings → Notifications has on
+  for its own "Reminders" category. Reached from Life in the navigation.
 - **The theme can now use a photo for its background.** Settings → Appearance
   gets a new Background image card, using the same upload-or-choose-existing
   flow as every other photo in the app. A fixed scrim sits behind the content
@@ -65,6 +164,39 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Birthdays never actually notified anyone.** The Calendar's own empty
+  state promised "to be reminded when it comes around," but nothing was
+  wired up to do that — it now checks once a day and lets the whole
+  {{system}} know when someone's birthday has arrived, through whichever
+  channels Settings → Notifications has on for its own "Birthdays"
+  category. The Birthdays panel also now shows a plain day-count ("In 12
+  days", "Tomorrow", "Today!") next to each one, instead of only the fuzzy
+  "in about a month" a general-purpose relative date gives once something
+  is more than a few weeks out.
+- **The chat composer's own input row had no safe-area padding in Direct
+  Messages, and in System Chat whenever there were fewer than two alters
+  to choose from.** A sibling row below it already reserved that space, so
+  the gap only ever showed up where that row doesn't render — which is
+  every Direct Message conversation, since it has no "send as" row at all.
+  The composer now reserves it directly, the same way every other
+  fixed-to-the-bottom element in the app already does.
+- **A hidden file input behind every "add a photo" control had no
+  accessible name**, which an automated WCAG scan only surfaced once a
+  page (Settings → Appearance's new background-image upload) rendered one
+  without a dialog to open first. The control and its label were never
+  actually connected — the visible button next to it is a separate element
+  with its own label, so a screen reader had nothing to say about the
+  input itself. Fixed in the one shared component every photo upload in
+  the app already goes through.
+- **The Android app could report notifications as "on" for a device they
+  could no longer actually reach.** Firebase can rotate a device's push
+  token on its own — a security-driven refresh on Google's side, not only
+  when the app asks for one — and nothing told the server when that
+  happened, so it kept sending to a token that no longer worked. The app
+  now compares the token it is currently using against the one last given
+  to the server every time it checks (including every time the app is
+  reopened) and silently re-registers on a mismatch, instead of only ever
+  checking once and trusting that forever.
 - **Opening a dialog from inside another dialog — picking a photo from the
   Flux composer, say — could close both at once, or close the wrong one, on
   Escape.** Every open dialog listens for Escape independently, and with two

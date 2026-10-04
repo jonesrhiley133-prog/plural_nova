@@ -5,6 +5,7 @@ export * from './collections/index.js';
 export * from './emotions.js';
 export * from './terminology.js';
 export * from './themes.js';
+export * from './appearance.js';
 export * from './color.js';
 export * from './achievements.js';
 export * from './navigation.js';
@@ -14,7 +15,9 @@ export * from './validation.js';
 export * from './analytics.js';
 export * from './strings.js';
 export * from './demo.js';
+export * from './demoExtra.js';
 export * from './customFields.js';
+export * from './cozyMessages.js';
 
 export const APP_NAME = 'PluralNova';
 /**
@@ -25,6 +28,7 @@ export const APP_NAME = 'PluralNova';
  * once — the Android versionCode is derived from the npm version, and a
  * mismatch would have the app reporting a version it is not.
  */
-export const APP_VERSION = '1.0.40';
+export const APP_VERSION = '1.0.52';
 /** Bumped whenever the wire shape of the API changes incompatibly. */
 export const API_VERSION = 1;
+export * as Astro from './astro/index.js';

@@ -138,6 +138,26 @@
   animation: breathe calc(5200ms / max(var(--motion), 0.001)) ease-in-out infinite;
 }
 
+/*
+ * A birthday celebration's stars: a slow pulse, not a confetti burst — the
+ * occasion is warmer than the rest of the app, not louder.
+ */
+@keyframes celebration-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.celebration-sparkles__star {
+  animation: celebration-twinkle calc(2400ms / max(var(--motion), 0.001)) ease-in-out infinite;
+}
+
 /* ── Off ───────────────────────────────────────────────────────────────────
  * At --motion 0 every duration above already computes to 0ms, so the states
  * still apply and simply arrive instantly. The infinite loops are the
@@ -145,13 +165,16 @@
  * are named and switched off.
  */
 @media (prefers-reduced-motion: reduce) {
-  .avatar__ring {
+  .avatar__ring,
+  .celebration-sparkles__star {
     animation: none;
   }
 }
 
 :root[data-reduced-motion='true'] .avatar__ring,
-:root[data-effects='performance'] .avatar__ring {
+:root[data-reduced-motion='true'] .celebration-sparkles__star,
+:root[data-effects='performance'] .avatar__ring,
+:root[data-effects='performance'] .celebration-sparkles__star {
   animation: none;
 }
 

@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import type { StoredRecord } from '@pluralnova/shared';
 
 /**
  * The music player.
@@ -256,4 +257,19 @@ export function useMusicPlayer(): MusicPlayerContextValue {
   const context = useContext(MusicPlayerContext);
   if (!context) throw new Error('useMusicPlayer must be used inside <MusicPlayerProvider>.');
   return context;
+}
+
+/** A saved `musicTracks` row, as something this player can play. Lives here
+ *  rather than in the Music module so anything that plays a library track —
+ *  the Music page, a Dashboard widget — can import it without pulling in a
+ *  whole feature screen. */
+export function fromLibraryTrack(track: StoredRecord): MusicTrack {
+  return {
+    id: String(track.id),
+    title: String(track['title'] ?? 'Untitled'),
+    artist: String(track['artist'] ?? ''),
+    artworkUrl: String(track['artworkUrl'] ?? ''),
+    url: String(track['previewUrl'] ?? ''),
+    isFullLength: track['provider'] === 'upload',
+  };
 }

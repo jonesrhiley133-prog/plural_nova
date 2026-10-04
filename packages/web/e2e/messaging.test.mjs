@@ -5,14 +5,10 @@ import { BASE, claimHandle, openBrowser, signUp } from './helpers.mjs';
 /**
  * Two systems, two browsers.
  *
- * The claim this feature makes is that the server cannot read what is sent
- * through it, and the whole point of the design is that a padlock shown over
- * plaintext would be worse than no padlock at all. That is only checkable from
- * outside: both sides, and then a look at what the server actually holds.
- *
- * It has been wrong once. Keys used to be published the first time a
- * conversation was opened, so the first messages between any two systems went
- * out in the clear while the header said "Encrypted end to end".
+ * Messages between two accounts are plain text end to end now — stored that
+ * way, shown that way, with nothing claiming otherwise. That is only
+ * checkable from outside: both sides, and then a look at what the server
+ * actually holds.
  */
 
 const SENT = ['first thing i said', 'second thing i said', 'third thing i said'];
@@ -98,7 +94,7 @@ describe('messaging between two systems', () => {
     assert.ok(receiver[0] < receiver[1] && receiver[1] < receiver[2], 'they arrived newest first');
   });
 
-  it('stores ciphertext the server cannot read', async () => {
+  it('stores messages as plain, readable text', async () => {
     const stored = await beacon.page.evaluate(async () => {
       const auth = { authorization: `Bearer ${localStorage.getItem('pluralnova.token')}` };
       const list = await (await fetch('/api/messages/conversations', { headers: auth })).json();
@@ -113,22 +109,21 @@ describe('messaging between two systems', () => {
 
     assert.ok(stored && stored.length >= SENT.length, `no stored messages found: ${JSON.stringify(stored)}`);
     for (const message of stored) {
-      assert.equal(message.encrypted, true, `a message was stored in the clear: ${message.body}`);
-      assert.ok(
-        !SENT.some((line) => message.body.includes(line)),
-        `the stored body is readable: ${message.body}`,
-      );
+      assert.equal(message.encrypted, false, `a message was unexpectedly marked encrypted: ${message.body}`);
+    }
+    for (const line of SENT) {
+      assert.ok(stored.some((message) => message.body.includes(line)), `"${line}" was not stored as plain text`);
     }
   });
 
-  it('shows a padlock on every message, and decrypts them for the reader', async () => {
+  it('shows no encryption indicator anywhere on the messages', async () => {
     const body = await beacon.page.locator('.chat-conversation__messages').textContent();
-    for (const line of SENT) assert.ok(body.includes(line), `"${line}" did not decrypt`);
+    for (const line of SENT) assert.ok(body.includes(line), `"${line}" did not render`);
 
-    const padlocks = await beacon.page.locator('[aria-label="Encrypted"]').count();
-    const open = await beacon.page.locator('[aria-label="Not encrypted"]').count();
-    assert.equal(open, 0, 'a message went out in the clear');
-    assert.ok(padlocks >= SENT.length, `only ${padlocks} of ${SENT.length} messages are marked encrypted`);
+    const locked = await beacon.page.locator('[aria-label="Encrypted"]').count();
+    const unlocked = await beacon.page.locator('[aria-label="Not encrypted"]').count();
+    assert.equal(locked, 0, 'a message showed as encrypted, which no longer exists');
+    assert.equal(unlocked, 0, 'a message showed an encryption status at all, which no longer exists');
   });
 
   it('delivers a reply without the other side reloading', async () => {

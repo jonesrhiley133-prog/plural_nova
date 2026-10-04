@@ -1,21 +1,28 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+  DAILY_MESSAGES,
   DASHBOARD_WIDGETS,
+  FORTUNES,
   dayKey,
   formatDuration,
   formatDurationPrecise,
   getEmotion,
+  now,
+  pickDaily,
+  pickRandom,
+  traditionDue,
   type StoredRecord,
   type WidgetSetting,
 } from '@pluralnova/shared';
 import { useActiveMemberId, useAuth, useSystemMode } from '../core/auth.js';
-import { useCollection, useQuery, useRecord } from '../core/data.js';
+import { useCollection, useQuery, useRecord, useRecordMap } from '../core/data.js';
 import { useI18n, useDateFormat } from '../core/i18n.js';
 import { useOptimisticSettings } from '../core/settings.js';
 import { useBadges } from '../core/badges.js';
 import { useFronting } from '../core/fronting.js';
 import { useLiveSession } from '../core/liveSession.js';
+import { fromLibraryTrack, useMusicPlayer } from '../core/musicPlayer.js';
 import { useToast } from '../core/toast.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Avatar, Button, Card, Chip, IconButton, ListRow, Stat } from '../ui/primitives.js';
@@ -152,6 +159,20 @@ function Widget({ id }: { id: string }): JSX.Element | null {
       return <FrontingStatsWidget />;
     case 'location':
       return <LocationWidget />;
+    case 'daily-message':
+      return <DailyMessageWidget />;
+    case 'memory-trail':
+      return <MemoryTrailWidget />;
+    case 'boards-preview':
+      return <BoardsPreviewWidget />;
+    case 'bucket-list':
+      return <BucketListWidget />;
+    case 'watchlist':
+      return <WatchlistWidget />;
+    case 'theme-music':
+      return <ThemeMusicWidget />;
+    case 'traditions':
+      return <TraditionsWidget />;
     default:
       return null;
   }
@@ -1016,6 +1037,297 @@ function LocationWidget(): JSX.Element {
             {String(latest['name'])}
           </div>
           <div className="tiny faint">{dates.relative(String(latest['visitedAt']))}</div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function DailyMessageWidget(): JSX.Element {
+  const [fortune, setFortune] = useState<string | null>(null);
+
+  return (
+    <Card
+      title="Daily message"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => setFortune(pickRandom(FORTUNES))}>
+          Fortune
+        </Button>
+      }
+    >
+      <p className="small">{pickDaily(DAILY_MESSAGES)}</p>
+      {fortune ? <p className="small faint" style={{ marginTop: 'var(--space-2)' }}>{fortune}</p> : null}
+    </Card>
+  );
+}
+
+function MemoryTrailWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const events = useCollection('frontEvents', { limit: 50 });
+  const members = useRecordMap('members');
+  const today = dayKey(new Date().toISOString());
+
+  const hereToday = useMemo(() => {
+    const ids = new Set<string>();
+    for (const event of events.items) {
+      if (dayKey(String(event['startedAt'])) !== today) continue;
+      if (typeof event['memberId'] === 'string') ids.add(event['memberId']);
+      for (const id of (event['coFronterIds'] as string[] | undefined) ?? []) ids.add(id);
+    }
+    return [...ids].map((id) => members.get(id)).filter((member): member is StoredRecord => Boolean(member));
+  }, [events.items, members, today]);
+
+  return (
+    <Card
+      title="Who was here today"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/fronting')}>
+          Open
+        </Button>
+      }
+    >
+      {events.loading ? (
+        <LoadingLine label="Loading…" />
+      ) : events.error ? (
+        <ErrorLine message={events.error} />
+      ) : hereToday.length === 0 ? (
+        <p className="small faint">Nobody's logged fronting yet today.</p>
+      ) : (
+        <div className="row">
+          {hereToday.map((member) => (
+            <Avatar
+              key={member.id}
+              name={String(member['name'])}
+              src={(member['avatarUrl'] as string) ?? null}
+              color={(member['color'] as string) ?? null}
+              size={32}
+              round
+            />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function BoardsPreviewWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const dates = useDateFormat();
+  const members = useRecordMap('members');
+  const posts = useCollection('boards', { limit: 4 });
+
+  return (
+    <Card
+      title="Boards"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/boards')}>
+          Open
+        </Button>
+      }
+    >
+      {posts.loading ? (
+        <LoadingLine label="Loading…" />
+      ) : posts.error ? (
+        <ErrorLine message={posts.error} />
+      ) : posts.items.length === 0 ? (
+        <p className="small faint">Nothing posted yet. The obsession board is waiting.</p>
+      ) : (
+        <div className="stack stack--tight">
+          {posts.items.map((post) => (
+            <Link key={post.id} to="/boards" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div className="truncate small">{String(post['body'] ?? '')}</div>
+              <div className="tiny faint">
+                {String(members.get(post['authorMemberId'] as string)?.['name'] ?? 'Someone')} ·{' '}
+                {dates.relative(String(post['createdAt']))}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function BucketListWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const { items, loading, error } = useCollection('bucketListItems', {
+    filter: (item) => item['completed'] !== true,
+    limit: 5,
+  });
+
+  return (
+    <Card
+      title="Bucket list"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/bucket-list')}>
+          Open
+        </Button>
+      }
+    >
+      {loading ? (
+        <LoadingLine label="Loading…" />
+      ) : error ? (
+        <ErrorLine message={error} />
+      ) : items.length === 0 ? (
+        <p className="small faint">Nothing on the list yet.</p>
+      ) : (
+        <div className="stack stack--tight">
+          {items.map((item) => (
+            <div key={item.id} className="truncate small">
+              {String(item['title'] ?? '')}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function WatchlistWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const { items, loading, error } = useCollection('watchlistItems', {
+    filter: (item) => item['status'] !== 'watched',
+    limit: 5,
+  });
+
+  return (
+    <Card
+      title="Watchlist"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/watchlist')}>
+          Open
+        </Button>
+      }
+    >
+      {loading ? (
+        <LoadingLine label="Loading…" />
+      ) : error ? (
+        <ErrorLine message={error} />
+      ) : items.length === 0 ? (
+        <p className="small faint">Nothing queued up yet.</p>
+      ) : (
+        <div className="stack stack--tight">
+          {items.map((item) => (
+            <div key={item.id} className="truncate small">
+              {String(item['title'] ?? '')}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ThemeMusicWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const activeMemberId = useActiveMemberId();
+  const player = useMusicPlayer();
+  const tracks = useCollection('musicTracks', { filter: (track) => track['isTheme'] === true });
+
+  // An alter's own theme wins; a system-wide theme (no member set) is the
+  // fallback everyone else sees.
+  const track =
+    tracks.items.find((item) => item['memberId'] === activeMemberId) ??
+    tracks.items.find((item) => !item['memberId']) ??
+    null;
+  const isCurrent = track ? player.current?.id === String(track.id) : false;
+
+  return (
+    <Card
+      title="Theme music"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/music')}>
+          Open
+        </Button>
+      }
+    >
+      {tracks.loading ? (
+        <LoadingLine label="Loading…" />
+      ) : tracks.error ? (
+        <ErrorLine message={tracks.error} />
+      ) : !track ? (
+        <p className="small faint">No theme pinned yet. Pin a track in Music to play it here.</p>
+      ) : (
+        <div className="list-row" style={{ padding: 0 }}>
+          <Avatar name={String(track['title'])} src={(track['artworkUrl'] as string) || null} size={38} />
+          <span className="list-row__body">
+            <span className="list-row__title truncate">{String(track['title'])}</span>
+            <span className="list-row__meta">{String(track['artist'] ?? '')}</span>
+          </span>
+          <span className="list-row__trailing">
+            <IconButton
+              icon={isCurrent && player.playing ? 'pause' : 'play'}
+              label={isCurrent && player.playing ? 'Pause' : `Play ${String(track['title'])}`}
+              variant="ghost"
+              size="sm"
+              onClick={() => (isCurrent ? player.toggle() : player.play(fromLibraryTrack(track)))}
+            />
+          </span>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function TraditionsWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const traditions = useCollection('traditions');
+
+  const due = useMemo(
+    () =>
+      traditions.items
+        .filter(
+          (record) =>
+            traditionDue({
+              anchorDate: String(record['anchorDate'] ?? ''),
+              isRecurring: record['isRecurring'] === true,
+              recurrenceType: (record['recurrenceType'] as string) ?? null,
+              recurrenceInterval: (record['recurrenceInterval'] as number) ?? null,
+              recurrenceWeekdays: (record['recurrenceWeekdays'] as number[]) ?? null,
+              lastCelebratedAt: (record['lastCelebratedAt'] as string) ?? null,
+            }).isDueNow,
+        )
+        .slice(0, 5),
+    [traditions.items],
+  );
+
+  return (
+    <Card
+      title="Traditions due"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/traditions')}>
+          Open
+        </Button>
+      }
+    >
+      {traditions.loading ? (
+        <LoadingLine label="Loading…" />
+      ) : traditions.error ? (
+        <ErrorLine message={traditions.error} />
+      ) : due.length === 0 ? (
+        <p className="small faint">Nothing due right now.</p>
+      ) : (
+        <div className="list">
+          {due.map((record) => (
+            <div key={record.id} className="list-row" style={{ padding: 0 }}>
+              <span className="list-row__body">
+                <span className="list-row__title truncate">{String(record['title'] ?? '')}</span>
+              </span>
+              <span className="list-row__trailing">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    void traditions.update(record.id, { lastCelebratedAt: now() });
+                    toast.success('We did it!');
+                  }}
+                >
+                  We did it!
+                </Button>
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </Card>

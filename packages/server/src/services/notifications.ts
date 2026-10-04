@@ -42,10 +42,19 @@ export interface NotifyInput {
   private?: boolean;
 }
 
+/**
+ * Notifications that exist purely for warmth, not for anything else a user
+ * might rely on — unlike `front.started` or `task.reminder`, nothing is lost
+ * by turning these off, so they get their own, narrower switch instead of
+ * sharing a category with a notification that still matters without it.
+ */
+const COZY_KINDS = new Set(['birthday.annual', 'board.posted', 'note.received']);
+
 export async function notify(input: NotifyInput): Promise<StoredRecord | null> {
   const user = findUserById(input.userId);
   if (!user) return null;
   const settings = readSettings(user);
+  if (COZY_KINDS.has(input.kind) && settings.cozyMessages === false) return null;
 
   const showInApp = notificationAllowed(settings, input.category, 'inApp');
   const sendAsPush = notificationAllowed(settings, input.category, 'push');

@@ -49,7 +49,7 @@ function androidBridge(): AndroidPushBridge | null {
   return bridge && typeof bridge.getFcmToken === 'function' ? bridge : null;
 }
 
-function androidPushStatus(bridge: AndroidPushBridge): PushStatus {
+async function androidPushStatus(bridge: AndroidPushBridge): Promise<PushStatus> {
   if (bridge.notificationsAllowed && !bridge.notificationsAllowed()) {
     return {
       state: 'denied',
@@ -57,9 +57,24 @@ function androidPushStatus(bridge: AndroidPushBridge): PushStatus {
       canAsk: false,
     };
   }
-  return localStorage.getItem(FCM_TOKEN_KEY)
-    ? { state: 'subscribed', message: 'Notifications are on for this device.', canAsk: false }
-    : { state: 'default', message: 'Notifications are not turned on yet.', canAsk: true };
+
+  const registered = localStorage.getItem(FCM_TOKEN_KEY);
+  if (!registered) return { state: 'default', message: 'Notifications are not turned on yet.', canAsk: true };
+
+  /*
+   * Firebase can rotate this device's token on its own — a security-driven
+   * refresh on Google's side, not only when this page asks for one — and the
+   * native side has no route back into this page's session to tell it when
+   * that happens (see PushMessagingService.kt's onNewToken). The bridge's own
+   * getFcmToken always returns whatever is current, though, so comparing it
+   * against what was last registered on every status check catches a
+   * rotation the moment anything asks — Settings, an app resume — rather
+   * than reporting "on" for a device the server can no longer reach.
+   */
+  const current = bridge.getFcmToken?.();
+  if (current && current !== registered) return enableAndroidPush(bridge, deviceLabel());
+
+  return { state: 'subscribed', message: 'Notifications are on for this device.', canAsk: false };
 }
 
 async function enableAndroidPush(bridge: AndroidPushBridge, label: string): Promise<PushStatus> {
@@ -221,6 +236,23 @@ export async function disablePush(): Promise<void> {
 
 export async function sendTestNotification(): Promise<void> {
   await api.post('/api/devices/test');
+}
+
+/**
+ * Catches a rotated FCM token the moment this device is plausibly looking at
+ * it again, rather than only whenever someone happens to reopen Settings. A
+ * no-op on anything but the Android app — the browser Push API has no
+ * equivalent silent-rotation problem, so there is nothing here for it to
+ * reconcile.
+ */
+export function watchAndroidPushToken(): () => void {
+  const bridge = androidBridge();
+  if (!bridge) return () => {};
+  const onVisible = (): void => {
+    if (document.visibilityState === 'visible') void androidPushStatus(bridge);
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  return () => document.removeEventListener('visibilitychange', onVisible);
 }
 
 /** A human-readable name for this browser/OS — also reused to label this device when it registers for anything else that needs a stable device identity, such as message encryption keys. */

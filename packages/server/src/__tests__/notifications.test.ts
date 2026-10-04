@@ -112,3 +112,52 @@ describe('the in-app and push channels are independent', () => {
     }
   });
 });
+
+describe('cozy messages', () => {
+  let client: TestClient;
+  let user: { token: string; userId: string };
+
+  beforeAll(async () => {
+    client = await createTestApp();
+    user = await registerUser(client, { email: 'cozy@example.com', displayName: 'Cozy' });
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('drops a cozy-only notification when the setting is off, but leaves an ordinary one alone', async () => {
+    await client.request('PUT', '/api/auth/settings', { token: user.token, body: { cozyMessages: false } });
+
+    const cozy = await notify({
+      userId: user.userId,
+      category: 'birthdays',
+      kind: 'birthday.annual',
+      title: "Someone's birthday is today!",
+      link: '/calendar',
+    });
+    expect(cozy).toBeNull();
+
+    const ordinary = await notify({
+      userId: user.userId,
+      category: 'fronting',
+      kind: 'front.started',
+      title: 'Someone is fronting',
+      link: '/fronting',
+    });
+    expect(ordinary).not.toBeNull();
+
+    await client.request('PUT', '/api/auth/settings', { token: user.token, body: { cozyMessages: true } });
+  });
+
+  it('notifies when a board post is created, through the generic records route', async () => {
+    const created = await client.request('POST', '/api/records/boards', {
+      token: user.token,
+      body: { boardType: 'vibe', body: 'feeling alright today' },
+    });
+    expect(created.status).toBe(201);
+
+    const list = await client.request('GET', '/api/notifications', { token: user.token });
+    const found = list.body.data.notifications.find((n: { kind: string }) => n.kind === 'board.posted');
+    expect(found).toBeTruthy();
+    expect(found.link).toBe('/boards');
+  });
+});

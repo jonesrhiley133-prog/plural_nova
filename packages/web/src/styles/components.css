@@ -63,6 +63,20 @@
   opacity: 0.6;
 }
 
+/*
+ * A second, user-controlled darkening layer over everything in this stack —
+ * the colour fields, the starfield, a photo — not only readable, but as dim
+ * or as vivid as someone wants. Zero by default, stacked on top of (not
+ * instead of) the fixed photo scrim above, so turning it up only ever adds
+ * to what is already there.
+ */
+.atmosphere__dim {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  opacity: var(--background-dim, 0);
+}
+
 .atmosphere__field {
   position: absolute;
   border-radius: 50%;
@@ -130,6 +144,96 @@
   inset: 0;
   opacity: var(--starfield-opacity);
   transition: opacity var(--duration-slow) var(--ease);
+}
+
+/*
+ * An occasional streak across the starfield — three independent cycles of
+ * different lengths so no two ever read as the same event repeating. Opt-in
+ * and off by default: unlike the rest of this layer, which is a single paint
+ * the compositor just holds still, this one actually moves continuously.
+ */
+.atmosphere__shooting-stars {
+  position: absolute;
+  inset: 0;
+}
+
+.atmosphere__shooting-star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #ecf2ff;
+  opacity: 0;
+  animation: atmosphere-shoot calc(13000ms / max(var(--motion), 0.001)) linear infinite;
+}
+
+.atmosphere__shooting-star::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 86px;
+  height: 1px;
+  background: linear-gradient(to left, rgba(236, 242, 255, 0.8), transparent);
+  transform-origin: left center;
+}
+
+.atmosphere__shooting-star:nth-child(1) {
+  top: 10%;
+  left: 75%;
+}
+.atmosphere__shooting-star:nth-child(1)::before {
+  transform: translateY(-50%) rotate(26deg);
+}
+
+.atmosphere__shooting-star:nth-child(2) {
+  top: 30%;
+  left: 38%;
+  animation-delay: 5500ms;
+  animation-duration: calc(16500ms / max(var(--motion), 0.001));
+}
+.atmosphere__shooting-star:nth-child(2)::before {
+  transform: translateY(-50%) rotate(20deg);
+}
+
+.atmosphere__shooting-star:nth-child(3) {
+  top: 6%;
+  left: 55%;
+  animation-delay: 9800ms;
+  animation-duration: calc(19000ms / max(var(--motion), 0.001));
+}
+.atmosphere__shooting-star:nth-child(3)::before {
+  transform: translateY(-50%) rotate(33deg);
+}
+
+@keyframes atmosphere-shoot {
+  0%,
+  92% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  93% {
+    opacity: 1;
+  }
+  97% {
+    opacity: 1;
+    transform: translate(-220px, 130px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-220px, 130px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atmosphere__shooting-star {
+    animation: none;
+  }
+}
+
+:root[data-reduced-motion='true'] .atmosphere__shooting-star,
+:root[data-effects='performance'] .atmosphere__shooting-star {
+  animation: none;
 }
 
 /*
@@ -1164,6 +1268,289 @@
   border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, transparent), transparent 72%);
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.badge-picker__option {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 50%;
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.badge-picker__option:hover,
+.badge-picker__option:focus-visible {
+  background: var(--surface-sunken);
+  transform: scale(1.15);
+}
+
+.celebration-sparkles {
+  position: relative;
+  height: 44px;
+  margin: 0 auto var(--space-2);
+  max-width: 280px;
+  color: var(--accent);
+}
+
+.celebration-sparkles__star {
+  position: absolute;
+  top: 0;
+}
+
+.celebration-sparkles__star:nth-child(1) { left: 2%; top: 60%; animation-delay: 0ms; }
+.celebration-sparkles__star:nth-child(2) { left: 16%; top: 10%; animation-delay: 260ms; }
+.celebration-sparkles__star:nth-child(3) { left: 32%; top: 45%; animation-delay: 520ms; }
+.celebration-sparkles__star:nth-child(4) { left: 48%; top: 5%; animation-delay: 780ms; }
+.celebration-sparkles__star:nth-child(5) { left: 64%; top: 40%; animation-delay: 1040ms; }
+.celebration-sparkles__star:nth-child(6) { left: 80%; top: 15%; animation-delay: 1300ms; }
+.celebration-sparkles__star:nth-child(7) { left: 94%; top: 55%; animation-delay: 1560ms; }
+
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.memory-card {
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--border);
+  background: var(--surface-sunken);
+  font-size: var(--size-xl);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease),
+    background var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
+}
+
+.memory-card:hover {
+  transform: scale(1.04);
+}
+
+.memory-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.memory-card--shown {
+  background: var(--surface-raised);
+  border-color: var(--accent);
+}
+
+.constellation-board {
+  width: 100%;
+  max-width: 340px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.constellation-star {
+  fill: var(--surface-sunken);
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+  cursor: pointer;
+  transition:
+    fill var(--duration-fast) var(--ease),
+    stroke var(--duration-fast) var(--ease);
+}
+
+.constellation-star:hover {
+  stroke: var(--accent);
+}
+
+.constellation-star:focus-visible {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.constellation-star--lit {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.constellation-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.emotion-match-tile {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--border);
+  background: var(--surface-raised);
+  font-size: var(--size-md);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    background var(--duration-fast) var(--ease),
+    opacity var(--duration-fast) var(--ease);
+}
+
+.emotion-match-tile:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.emotion-match-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.emotion-match-tile--selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.emotion-match-tile--matched {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.mood-card {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--border);
+  background: radial-gradient(
+    circle at 35% 28%,
+    color-mix(in srgb, var(--accent) 22%, var(--surface-raised)),
+    var(--surface-sunken)
+  );
+  font-size: var(--size-sm);
+  line-height: 1.35;
+  text-align: center;
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.mood-card:hover:not(:disabled) {
+  transform: scale(1.03);
+}
+
+.mood-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mood-card:disabled {
+  cursor: default;
+}
+
+.maze-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--maze-size), 1fr);
+  width: min(100%, 320px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.maze-cell {
+  aspect-ratio: 1;
+  padding: 0;
+  background: var(--surface-sunken);
+  border-style: solid;
+  border-color: var(--border-strong);
+  border-width: 0;
+  font-size: var(--size-sm);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.maze-cell:hover {
+  background: var(--surface-raised);
+}
+
+.maze-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.doodle-canvas {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  margin: 0 auto;
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--border);
+  background: var(--surface-sunken);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.doodle-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
+}
+
+.doodle-swatch:hover {
+  transform: scale(1.1);
+}
+
+.doodle-swatch[aria-pressed='true'] {
+  border-color: var(--border-strong);
+}
+
+.doodle-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.spot-scene-wrap {
+  position: relative;
+  width: min(100%, 280px);
+}
+
+.spot-scene {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+.spot-hotspot {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.spot-hotspot:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.spot-hotspot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.spot-hotspot--found {
+  border-color: var(--positive);
+  background: color-mix(in srgb, var(--positive) 20%, transparent);
 }
 
 /* ── Lists ──────────────────────────────────────────────────────────────── */
