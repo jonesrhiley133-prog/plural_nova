@@ -6,6 +6,7 @@ import { DataProvider } from './core/data.js';
 import { I18nProvider } from './core/i18n.js';
 import { ThemeProvider, usePreAuthTheme } from './core/theme.js';
 import { ToastProvider } from './core/toast.js';
+import { AppearanceProvider } from './core/appearance.js';
 import { MusicPlayerProvider } from './core/musicPlayer.js';
 import { AppLockProvider } from './core/appLock.js';
 import { AppLockGate } from './app/AppLockGate.js';
@@ -281,12 +282,14 @@ export function App(): JSX.Element {
               <ThemeProvider>
                 <DataProvider>
                   <MusicPlayerProvider>
-                    <AppLockProvider>
-                      <AppUpdate />
-                      <Suspense fallback={<ScreenFallback />}>
-                        <AppRoutes />
-                      </Suspense>
-                    </AppLockProvider>
+                    <AppearanceProvider>
+                      <AppLockProvider>
+                        <AppUpdate />
+                        <Suspense fallback={<ScreenFallback />}>
+                          <AppRoutes />
+                        </Suspense>
+                      </AppLockProvider>
+                    </AppearanceProvider>
                   </MusicPlayerProvider>
                 </DataProvider>
               </ThemeProvider>

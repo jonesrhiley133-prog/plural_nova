@@ -38,6 +38,7 @@ import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { DescriptiveNote, ErrorLine, LoadingLine } from '../ui/feedback.js';
 import { Icon } from '../ui/Icon.js';
 import { Markdown } from '../ui/Markdown.js';
+import { AppearanceEditor } from './appearance/AppearanceEditor.js';
 
 /**
  * Settings.
@@ -108,7 +109,7 @@ export default function Settings(): JSX.Element {
         </nav>
 
         <div className="stack">
-          {active === 'appearance' ? <Appearance /> : null}
+          {active === 'appearance' ? <AppearanceEditor basics={<Appearance />} /> : null}
           {active === 'terminology' ? <Terminology /> : null}
           {active === 'notifications' ? <Notifications /> : null}
           {active === 'privacy' ? <Privacy /> : null}

@@ -1,5 +1,6 @@
 import { DEFAULT_MOBILE_TABS, DEFAULT_SINGLET_TABS } from './navigation.js';
 import { DEFAULT_THEME, type ThemePreset, type ThemeSettings } from './themes.js';
+import { DEFAULT_APPEARANCE, normaliseAppearance, type AppearanceState } from './appearance.js';
 import type { TermOverrides } from './terminology.js';
 import type { AppMode } from './types.js';
 
@@ -204,6 +205,8 @@ export interface AppSettings {
   theme: ThemeSettings;
   /** Themes saved, duplicated or imported by this account, alongside the built-in presets. */
   customThemePresets: ThemePreset[];
+  /** Advanced appearance: global look, component overrides, saved themes, assignments, music pins, chat categories. */
+  appearance: AppearanceState;
   terminology: TermOverrides;
   locale: string;
   notifications: Record<NotificationCategory, NotificationChannelPrefs>;
@@ -265,6 +268,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     mode,
     theme: { ...DEFAULT_THEME },
     customThemePresets: [],
+    appearance: { ...DEFAULT_APPEARANCE },
     terminology: {},
     locale: 'en',
     notifications: defaultNotificationPrefs(),
@@ -343,6 +347,7 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
     ...stored,
     theme: { ...base.theme, ...(stored.theme ?? {}) },
     customThemePresets,
+    appearance: normaliseAppearance(stored.appearance),
     terminology: stored.terminology ?? {},
     notifications,
     quietHours: { ...base.quietHours, ...(stored.quietHours ?? {}) },

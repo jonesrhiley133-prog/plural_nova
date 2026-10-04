@@ -23,6 +23,8 @@ import { SwitchRow } from '../ui/forms.js';
 import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
 import { GiveBadgePicker, MemberBadgeRow, createBadge, parseBadges } from '../ui/MemberBadges.js';
 import { Icon } from '../ui/Icon.js';
+import { ThemeScope, useAssignedTheme } from '../core/appearance.js';
+import { ThemePicker } from './appearance/ThemePicker.js';
 import { Markdown } from '../ui/Markdown.js';
 
 /**
@@ -64,6 +66,7 @@ export default function MemberProfile(): JSX.Element {
   const editor = useDialog();
   const confirm = useDialog();
   const celebrate = useDialog<StoredRecord>();
+  const alterTheme = useAssignedTheme('alter', id);
 
   const flags = useCollection('flags');
   const flagAssignments = useCollection('flagAssignments', {
@@ -115,6 +118,7 @@ export default function MemberProfile(): JSX.Element {
   const flagsVisible = member['flagDisplayEnabled'] !== false && attachedFlags.length > 0;
 
   return (
+    <ThemeScope theme={alterTheme}>
     <div className="member-tint" style={{ ['--member-color' as never]: color }}>
       <Card flush style={{ marginBottom: 'var(--space-4)', overflow: 'visible' }}>
         <div className="banner" style={{ ['--member-color' as never]: color, borderRadius: 'var(--radius) var(--radius) 0 0' }}>
@@ -204,6 +208,11 @@ export default function MemberProfile(): JSX.Element {
         options={TABS.map((option) => ({ value: option, label: term(tabLabel(option)) }))}
       />
 
+      {tab === 'overview' ? (
+        <Card title="Profile theme" subtitle="Banner, accent, buttons and cards on this profile — and, if you choose, everywhere they are fronting">
+          <ThemePicker target="alter" id={member.id} label="Assigned theme" />
+        </Card>
+      ) : null}
       {tab === 'overview' ? <Overview member={member} /> : null}
       {tab === 'identity' ? <Identity member={member} /> : null}
       {tab === 'about' ? <About member={member} onChange={update} /> : null}
@@ -241,6 +250,7 @@ export default function MemberProfile(): JSX.Element {
 
       <BirthdayCelebration dialog={celebrate} onUpdateMember={update} />
     </div>
+    </ThemeScope>
   );
 
   function tabLabel(value: Tab): string {
