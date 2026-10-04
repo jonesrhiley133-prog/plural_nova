@@ -85,7 +85,7 @@ export default function Settings(): JSX.Element {
       <ProfileHeader />
 
       <div className="split">
-        <nav aria-label="Settings sections">
+        <nav aria-label="Settings sections" className="settings-nav">
           <Card flush>
             <div className="list">
               {sections.map((candidate) => (

@@ -23,6 +23,7 @@ import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
 import { useVirtualizedChat } from '../chat/useVirtualizedChat.js';
 import { SendAsStrip } from './SendAsStrip.js';
 import { SystemChatInfoDialog } from './SystemChatInfoDialog.js';
+import { ChatIcon, readChatIcon } from './ChatIcon.js';
 
 // Files keeps today's broad reach — documents included — since that option is
 // deliberately the one that still opens the system file picker. Gallery and
@@ -202,6 +203,7 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
 
   const thread = conversation.thread;
   const isGroupLike = thread?.kind === 'group' || thread?.kind === 'system';
+  const chatIcon = thread ? readChatIcon(thread.settings) : null;
 
   const appearance = resolveChatAppearance(settings.chatAppearance, thread?.settings ?? null);
   const appearanceStyle = {
@@ -228,7 +230,9 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
     <div className="chat-conversation" style={appearanceStyle} data-spacing={appearance.spacing}>
       <header className="chat-conversation__header">
         <IconButton icon="chevronLeft" label="Back to conversations" variant="ghost" className="chat-conversation__back" onClick={onBack} />
-        {isGroupLike ? (
+        {chatIcon ? (
+          <ChatIcon icon={chatIcon} size={34} />
+        ) : isGroupLike ? (
           <AvatarStack
             people={(thread?.participants ?? []).map((person) => ({
               name: person.name,

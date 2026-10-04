@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { DEFAULT_CHAT_CATEGORIES } from '@pluralnova/shared';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
+import { useAppearance } from '../core/appearance.js';
 import {
   useSystemChatThreads,
   updateSystemChatThread,
@@ -14,6 +17,7 @@ import { ActionMenu, ConfirmDialog, useActionMenu, useDialog } from '../ui/overl
 import { Icon } from '../ui/Icon.js';
 import { ActiveChatterSwitcher } from './ActiveChatterSwitcher.js';
 import { NewSystemChatDialog } from './NewSystemChatDialog.js';
+import { ChatIcon, readChatIcon } from './ChatIcon.js';
 
 /**
  * In-Sys Chat's conversation list. Unlike Messages, there is no tab to
@@ -29,8 +33,10 @@ interface SystemChatHomeProps {
 }
 
 export function SystemChatHome({ activeChatterId, onOpenConversation, onClose }: SystemChatHomeProps): JSX.Element {
+  const navigate = useNavigate();
   const dates = useDateFormat();
   const toast = useToast();
+  const appearance = useAppearance();
 
   const [query, setQuery] = useState('');
   const [newChatOpen, setNewChatOpen] = useState(false);
@@ -38,10 +44,35 @@ export function SystemChatHome({ activeChatterId, onOpenConversation, onClose }:
 
   const { threads, loading, error, reload } = useSystemChatThreads();
 
+  const allCategories = useMemo(
+    () => [...DEFAULT_CHAT_CATEGORIES, ...appearance.state.chatCategories],
+    [appearance.state.chatCategories],
+  );
+  const categoryLabel = (id: string): string => allCategories.find((c) => c.id === id)?.label ?? id;
+
   const needle = query.trim().toLowerCase();
   const filtered = needle ? threads.filter((thread) => thread.title.toLowerCase().includes(needle)) : threads;
   const pinned = filtered.filter((thread) => thread.pinned);
   const rest = filtered.filter((thread) => !thread.pinned);
+
+  // Group non-pinned threads by their chat category.
+  const categoryGroups = useMemo(() => {
+    const groups = new Map<string, SystemChatThreadSummary[]>();
+    for (const thread of rest) {
+      const cat = (thread.settings['category'] as string) ?? 'none';
+      if (!groups.has(cat)) groups.set(cat, []);
+      groups.get(cat)!.push(thread);
+    }
+    // Sort: known categories in their defined order, then 'none' last.
+    const ordered = [...groups.entries()].sort(([a], [b]) => {
+      if (a === 'none' && b !== 'none') return 1;
+      if (b === 'none' && a !== 'none') return -1;
+      const ai = allCategories.findIndex((c) => c.id === a);
+      const bi = allCategories.findIndex((c) => c.id === b);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+    return ordered;
+  }, [rest, allCategories]);
 
   const togglePin = (thread: SystemChatThreadSummary): void => {
     void updateSystemChatThread(thread.id, { pinned: !thread.pinned })
@@ -61,6 +92,7 @@ export function SystemChatHome({ activeChatterId, onOpenConversation, onClose }:
         <IconButton icon="chevronLeft" label="Back to PluralNova" variant="ghost" onClick={onClose} />
         <ActiveChatterSwitcher />
         <h1 className="chat-home__title">In-Sys Chat</h1>
+        <IconButton icon="group" label="New group" variant="ghost" onClick={() => navigate('/system/chat/new')} />
         <IconButton icon="create" label="New chat" variant="ghost" onClick={() => setNewChatOpen(true)} />
       </header>
 
@@ -98,7 +130,7 @@ export function SystemChatHome({ activeChatterId, onOpenConversation, onClose }:
             <>
               {pinned.length > 0 ? (
                 <ChatSection
-                  title="✦ Important ✦"
+                  title="✦ Pinned"
                   threads={pinned}
                   dates={dates}
                   onOpen={onOpenConversation}
@@ -107,15 +139,18 @@ export function SystemChatHome({ activeChatterId, onOpenConversation, onClose }:
                   onDelete={deleteDialog.show}
                 />
               ) : null}
-              <ChatSection
-                title={pinned.length > 0 ? 'Uncategorized' : undefined}
-                threads={rest}
-                dates={dates}
-                onOpen={onOpenConversation}
-                onTogglePin={togglePin}
-                onToggleMute={toggleMute}
-                onDelete={deleteDialog.show}
-              />
+              {categoryGroups.map(([catId, groupThreads]) => (
+                <ChatSection
+                  key={catId}
+                  title={catId === 'none' ? 'Uncategorized' : categoryLabel(catId)}
+                  threads={groupThreads}
+                  dates={dates}
+                  onOpen={onOpenConversation}
+                  onTogglePin={togglePin}
+                  onToggleMute={toggleMute}
+                  onDelete={deleteDialog.show}
+                />
+              ))}
             </>
           )}
         </AsyncContent>
@@ -198,19 +233,24 @@ function ConversationRow({
   onDelete: (thread: SystemChatThreadSummary) => void;
 }): JSX.Element {
   const isGroupLike = thread.kind === 'group' || thread.kind === 'system';
+  const chatIcon = readChatIcon(thread.settings);
   const menu = useActionMenu();
 
   return (
     <div className="chat-conversation-row">
       <button type="button" className="chat-conversation-row__main" onClick={() => onOpen(thread.id)}>
-        <Avatar
-          name={thread.title || '?'}
-          src={thread.person?.avatarUrl ?? null}
-          color={thread.person?.color ?? (isGroupLike ? 'var(--accent)' : null)}
-          icon={isGroupLike ? 'group' : (thread.person?.icon ?? null)}
-          size={44}
-          round
-        />
+        {chatIcon ? (
+          <ChatIcon icon={chatIcon} size={44} />
+        ) : (
+          <Avatar
+            name={thread.title || '?'}
+            src={thread.person?.avatarUrl ?? null}
+            color={thread.person?.color ?? (isGroupLike ? 'var(--accent)' : null)}
+            icon={isGroupLike ? 'group' : (thread.person?.icon ?? null)}
+            size={44}
+            round
+          />
+        )}
         <span className="chat-conversation-row__body">
           <span className="chat-conversation-row__top">
             <span className="chat-conversation-row__title truncate">{thread.title || 'Untitled'}</span>
