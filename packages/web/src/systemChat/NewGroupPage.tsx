@@ -223,7 +223,7 @@ export default function NewGroupPage(): JSX.Element {
             {selected.length > 0 ? (
               <div className="row" style={{ flexWrap: 'wrap' }}>
                 {roster.filter((m) => selected.includes(m.id)).map((m) => (
-                  <Chip key={m.id} interactive onClick={() => toggle(m.id)}>
+                  <Chip key={m.id} onClick={() => toggle(m.id)}>
                     <Avatar name={String(m['name'])} src={(m['avatarUrl'] as string) ?? null} color={(m['color'] as string) ?? null} size={18} round /> {String(m['name'])} ✕
                   </Chip>
                 ))}
@@ -260,7 +260,7 @@ export default function NewGroupPage(): JSX.Element {
             <div className="row" style={{ flexWrap: 'wrap' }}>
               <span className="tiny faint">Pinned themes:</span>
               {pinned.map((t) => (
-                <Chip key={t.id} interactive onClick={() => setThemeId(t.id)}>★ {t.name}</Chip>
+                <Chip key={t.id} onClick={() => setThemeId(t.id)}>★ {t.name}</Chip>
               ))}
             </div>
           ) : null}
