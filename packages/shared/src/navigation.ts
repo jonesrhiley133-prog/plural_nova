@@ -88,6 +88,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'watchlist', path: '/watchlist', label: 'Watchlist', icon: 'play' },
       { id: 'compliments', path: '/compliments', label: 'Compliments', icon: 'sparkle' },
       { id: 'traditions', path: '/traditions', label: 'Traditions', icon: 'star' },
+      { id: 'astro', path: '/astro', label: 'Astro', icon: 'sparkle', description: 'Horoscopes, birth charts, moon phases and tarot for every alter.', keywords: ['astrology', 'horoscope', 'zodiac', 'tarot', 'moon', 'birth chart'] },
       { id: 'notes', path: '/notes', label: 'Notes', icon: 'note', quickAction: true },
       { id: 'contacts', path: '/contacts', label: 'Contacts', icon: 'contact' },
       { id: 'emergency', path: '/emergency', label: 'Emergency contacts', icon: 'emergency' },

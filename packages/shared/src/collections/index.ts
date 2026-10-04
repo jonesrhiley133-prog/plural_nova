@@ -6,6 +6,7 @@ import { CREATIVE_COLLECTIONS } from './creative.js';
 import { WORK_COLLECTIONS } from './work.js';
 import { SOCIAL_COLLECTIONS } from './social.js';
 import { SCHOOL_COLLECTIONS } from './school.js';
+import { ASTRO_COLLECTIONS } from './astro.js';
 
 export * from './schema.js';
 export * from './core.js';
@@ -15,6 +16,7 @@ export * from './creative.js';
 export * from './work.js';
 export * from './social.js';
 export * from './school.js';
+export * from './astro.js';
 
 /** Every collection PluralNova stores, in one list. */
 export const COLLECTIONS: readonly CollectionDef[] = [
@@ -25,6 +27,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
   ...WORK_COLLECTIONS,
   ...SOCIAL_COLLECTIONS,
   ...SCHOOL_COLLECTIONS,
+  ...ASTRO_COLLECTIONS,
 ];
 
 const BY_NAME = new Map(COLLECTIONS.map((c) => [c.name, c]));

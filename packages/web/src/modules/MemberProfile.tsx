@@ -17,6 +17,7 @@ import { BirthdayCelebration } from '../app/BirthdayCelebration.js';
 import { Avatar, Button, Card, Chip, FieldList, IconButton, Stat, Status, Tabs } from '../ui/primitives.js';
 import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { AstroSummaryCard } from './astro/AstroSummary.js';
 import { MemberEditorForm } from '../ui/MemberEditorForm.js';
 import { SwitchRow } from '../ui/forms.js';
 import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
@@ -277,6 +278,8 @@ export default function MemberProfile(): JSX.Element {
             </Button>
           </Card>
         ) : null}
+
+        <AstroSummaryCard member={member} />
 
         {member['color'] || member['icon'] ? (
           <div className="row" style={{ gap: 'var(--space-5)' }}>

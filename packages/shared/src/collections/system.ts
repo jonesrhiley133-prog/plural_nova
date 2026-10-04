@@ -85,6 +85,21 @@ export const members: CollectionDef = {
     f.tags('identityLabels', 'Identity labels', { group: 'Identity' }),
     f.date('birthday', 'Birthday', { group: 'Identity' }),
     /** Which year's birthday notification has already gone out — set by the server, never edited by hand. */
+    /*
+     * Astrology inputs. Birth time and place unlock the rising sign and the full natal
+     * chart; none of it is guessed. All of it is sensitive and private by default.
+     */
+    f.time('birthTime', 'Birth time', { group: 'Astrology', sensitive: true, hint: 'Local time at the birthplace. Unlocks the Rising sign and full chart.' }),
+    f.text('birthPlace', 'Birthplace', { group: 'Astrology', sensitive: true, hint: 'City, country.' }),
+    f.real('birthLatitude', 'Birth latitude', { group: 'Astrology', sensitive: true, min: -90, max: 90 }),
+    f.real('birthLongitude', 'Birth longitude', { group: 'Astrology', sensitive: true, min: -180, max: 180, hint: 'East is positive, west is negative.' }),
+    f.real('birthUtcOffset', 'UTC offset at birth', { group: 'Astrology', sensitive: true, min: -12, max: 14, hint: 'Hours from UTC at the time and place of birth, including daylight saving (e.g. -5, 5.5).' }),
+    f.enumOf('astroVisibility', 'Astrology visibility', [
+      { value: 'private', label: '🔒 Private to this alter' },
+      { value: 'system', label: '👥 Visible to the system' },
+      { value: 'shareable', label: '🌐 Shareable' },
+      { value: 'hidden', label: '🚫 Hide astrology information' },
+    ], { group: 'Astrology', defaultValue: 'private', hint: 'Birth information never becomes visible to others just because it was entered.' }),
     f.int('lastBirthdayNotifiedYear', 'Last birthday notified', { group: 'Identity' }),
     f.image('avatarUrl', 'Avatar', { group: 'Appearance' }),
     f.image('bannerUrl', 'Banner', { group: 'Appearance' }),

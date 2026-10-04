@@ -29,3 +29,4 @@ export const APP_NAME = 'PluralNova';
 export const APP_VERSION = '1.0.52';
 /** Bumped whenever the wire shape of the API changes incompatibly. */
 export const API_VERSION = 1;
+export * as Astro from './astro/index.js';
