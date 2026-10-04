@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Astro } from '@pluralnova/shared';
 import { PageHeader } from '../../app/PageHeader.js';
@@ -21,6 +21,9 @@ import Chat from './panels/Chat.js';
 import SystemHub from './panels/SystemHub.js';
 import AstroCalendar from './panels/AstroCalendar.js';
 import './astro.css';
+
+/** Preserved across re-mounts so clicking a tab doesn't snap the bar back to the start. */
+let astroTabScroll = 0;
 
 const SECTIONS = [
   { id: 'today', label: "Today's Sky", icon: '🌌' },
@@ -59,8 +62,18 @@ export default function AstroPage(): JSX.Element {
   const [editing, setEditing] = useState(false);
   const calm = useCalm();
   const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
+  const tabRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { window.scrollTo?.({ top: 0 }); }, [section]);
+
+  // Restore the tab bar's horizontal scroll on mount, save it on unmount —
+  // the Layout keys content by pathname, so every tab click remounts this
+  // component and the scrollLeft would otherwise reset to 0.
+  useEffect(() => {
+    if (tabRef.current) tabRef.current.scrollLeft = astroTabScroll;
+    const el = tabRef.current;
+    return () => { if (el) astroTabScroll = el.scrollLeft; };
+  }, []);
 
   if (ctx.loading) return <SkeletonList rows={4} />;
   const subject = ctx.selected;
@@ -114,7 +127,7 @@ export default function AstroPage(): JSX.Element {
         {subject.canView && subject.profile.sun ? <span>{Astro.signInfo(subject.profile.sun).glyph} {subject.profile.sun}</span> : null}
       </div>
 
-      <nav className="astro-tabs" aria-label="Astro sections">
+      <nav className="astro-tabs" aria-label="Astro sections" ref={tabRef}>
         {SECTIONS.map((s) => (
           <button key={s.id} aria-current={current!.id === s.id ? 'page' : undefined} onClick={() => navigate(`/astro/${s.id}${search}`)}>{s.icon} {s.label}</button>
         ))}

@@ -56,6 +56,7 @@ const Watchlist = load(() => import('./modules/Watchlist.js'));
 const Compliments = load(() => import('./modules/Compliments.js'));
 const Traditions = load(() => import('./modules/Traditions.js'));
 const AstroPage = load(() => import('./modules/astro/AstroPage.js'));
+const NewGroupPage = load(() => import('./systemChat/NewGroupPage.js'));
 const Calendar = load(() => import('./modules/Calendar.js'));
 const Media = load(() => import('./modules/Media.js'));
 const Flags = load(() => import('./modules/Flags.js'));
@@ -177,6 +178,7 @@ function AppRoutes(): JSX.Element {
             and Messages are genuinely separate features under this shared
             visual treatment — two route trees, not one generic chat page. */}
         <Route path="system/chat" element={<SystemOnly><SystemChatPage /></SystemOnly>} />
+        <Route path="system/chat/new" element={<SystemOnly><NewGroupPage /></SystemOnly>} />
         <Route path="system/chat/:threadId" element={<SystemOnly><SystemChatPage /></SystemOnly>} />
         <Route path="social/messages" element={<MessagesPage />} />
         <Route path="social/messages/:threadId" element={<MessagesPage />} />

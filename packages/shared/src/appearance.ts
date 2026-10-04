@@ -134,6 +134,7 @@ export const APPEARANCE_ELEMENTS: readonly AppearanceElement[] = [
   { id: 'schoolLife', label: 'School Life', selector: S('school') },
   { id: 'birthdayCards', label: 'Birthday cards', selector: '.birthday-card, .birthday-banner' },
   { id: 'frontingDisplay', label: 'Fronting display', selector: '.front-person, .front-row' },
+  { id: 'astroCards', label: 'Astro cards', selector: `${S('astro')}, .astro-card` },
 ] as const;
 
 /** Sections a theme can be assigned to, matched against `data-section`. */

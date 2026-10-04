@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import {
@@ -29,6 +30,7 @@ interface SystemChatHomeProps {
 }
 
 export function SystemChatHome({ activeChatterId, onOpenConversation, onClose }: SystemChatHomeProps): JSX.Element {
+  const navigate = useNavigate();
   const dates = useDateFormat();
   const toast = useToast();
 
@@ -61,6 +63,7 @@ export function SystemChatHome({ activeChatterId, onOpenConversation, onClose }:
         <IconButton icon="chevronLeft" label="Back to PluralNova" variant="ghost" onClick={onClose} />
         <ActiveChatterSwitcher />
         <h1 className="chat-home__title">In-Sys Chat</h1>
+        <IconButton icon="group" label="New group" variant="ghost" onClick={() => navigate('/system/chat/new')} />
         <IconButton icon="create" label="New chat" variant="ghost" onClick={() => setNewChatOpen(true)} />
       </header>
 

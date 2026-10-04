@@ -98,6 +98,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'watchlist', label: 'Watchlist' },
   { id: 'theme-music', label: 'Theme music' },
   { id: 'traditions', label: 'Traditions due' },
+  { id: 'astro-today', label: 'Astro today' },
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id'];
@@ -215,6 +216,8 @@ export interface AppSettings {
   inAppNotificationsEnabled: boolean;
   quietHours: { enabled: boolean; from: string; to: string };
   widgets: WidgetSetting[];
+  /** Dashboard grid column count: 'auto' lets the grid flow, a number pins it. */
+  dashboardColumns: 'auto' | number;
   mobileTabs: string[];
   privacy: PrivacyDefaults;
   /** App-wide lock, separate from the vault and from per-alter profile PINs. */
@@ -276,6 +279,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     inAppNotificationsEnabled: true,
     quietHours: { enabled: false, from: '22:00', to: '07:00' },
     widgets: defaultWidgets(mode),
+    dashboardColumns: 'auto',
     mobileTabs: [...(mode === 'system' ? DEFAULT_MOBILE_TABS : DEFAULT_SINGLET_TABS)],
     privacy: {
       defaultVisibility: 'private',
@@ -360,6 +364,7 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
         ? stored.gradingScale
         : base.gradingScale,
     widgets: widgets.sort((a, b) => a.order - b.order),
+    dashboardColumns: stored.dashboardColumns === 'auto' || typeof stored.dashboardColumns === 'number' ? stored.dashboardColumns : 'auto',
     mobileTabs:
       Array.isArray(stored.mobileTabs) && stored.mobileTabs.length >= 3
         ? stored.mobileTabs.slice(0, 5)
