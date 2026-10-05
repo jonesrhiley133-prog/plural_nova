@@ -689,6 +689,7 @@ function EmotionSheet({
                   >
                     <Avatar
                       name={String(member['name'])}
+                      src={(member['avatarUrl'] as string) || null}
                       color={(member['color'] as string) ?? null}
                       size={16}
                       round

@@ -283,8 +283,8 @@
 }
 
 .chat-picker-row__avatar {
-  width: 38px;
-  flex-shrink: 0;
+  display: inline-flex;
+  flex: none;
 }
 
 .chat-picker-row__body {
@@ -825,9 +825,21 @@
   font: inherit;
 }
 
-.chatter-popover__option span:first-of-type {
+.chatter-popover__option .avatar {
+  flex: none;
+}
+
+.chatter-popover__option .truncate {
   flex: 1;
   min-width: 0;
+  text-align: left;
+}
+
+@media (max-width: 480px) {
+  .chatter-popover {
+    min-width: 0;
+    max-width: calc(100vw - 24px);
+  }
 }
 
 .chatter-popover__option:hover,

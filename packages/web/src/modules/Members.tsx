@@ -866,13 +866,13 @@ function MemberBannerRow({
           />
         </span>
         <span className="member-banner-row__body">
-          <span className="list-row__title truncate">{String(member['name'])}</span>
+          <span className="list-row__title member-banner-row__name">{String(member['name'])}</span>
           <span className="list-row__meta">
             {member['pronouns'] ? <span className="faint">{String(member['pronouns'])}</span> : null}
             <Status label={term(meta.label)} glyph={meta.glyph} color={meta.color} />
           </span>
           {roles.length > 0 ? (
-            <span className="row" style={{ marginTop: 2, gap: 'var(--space-1)' }}>
+            <span className="member-banner-row__roles">
               {roles.map((role) => (
                 <Chip key={role} color={color}>
                   {role}

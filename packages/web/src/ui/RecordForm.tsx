@@ -38,6 +38,8 @@ import { useDialogHeaderActions } from './overlays.js';
  * headspace canvas — build their own; this covers the many that do not.
  */
 
+import { LabelledRowsField } from './LabelledRowsField.js';
+
 export interface RecordFormProps {
   collection: string;
   record?: StoredRecord | null;
@@ -85,7 +87,7 @@ function initialValues(
     } else if (field.defaultValue !== undefined && field.defaultValue !== null) {
       values[field.name] = field.defaultValue;
     } else {
-      values[field.name] = field.kind === 'tags' || field.kind === 'refs' ? [] : '';
+      values[field.name] = field.kind === 'tags' || field.kind === 'refs' ? [] : field.kind === 'json' ? null : '';
     }
   }
   // memberId isn't a declared field — it's rendered by the dedicated
@@ -563,8 +565,43 @@ export function RecordField({
         />
       );
     case 'json':
-      // Structured fields that have a purpose-built editor elsewhere are left
-      // out of the generic form rather than shown as raw JSON.
+      // Labelled rows have a simple shared editor; any other structured field
+      // with a purpose-built editor elsewhere is left out rather than shown as raw JSON.
+      if (field.name === 'milestones') {
+        // One step per line; a step that already exists keeps its done flag when the text is unchanged.
+        const steps = Array.isArray(value) ? (value as { label: string; done: boolean }[]) : [];
+        return (
+          <TextField
+            {...common}
+            multiline
+            rows={4}
+            placeholder={'One step per line'}
+            value={steps.map((step) => step.label).join('\n')}
+            onChange={(text) =>
+              onChange(
+                text
+                  .split('\n')
+                  .filter((line) => line.trim())
+                  .map((line) => ({
+                    label: line.trim(),
+                    done: steps.find((step) => step.label === line.trim())?.done === true,
+                  })),
+              )
+            }
+          />
+        );
+      }
+      if (field.name === 'customInfo' || field.name === 'customSections') {
+        return (
+          <LabelledRowsField
+            label={field.label}
+            {...(field.hint ? { hint: field.hint } : {})}
+            value={value}
+            onChange={onChange}
+            multiline={field.name === 'customSections'}
+          />
+        );
+      }
       return null;
     default:
       void collection;

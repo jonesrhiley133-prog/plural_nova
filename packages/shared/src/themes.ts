@@ -64,7 +64,33 @@ export interface ThemeTokens {
   nebulaDeep: string;
 }
 
-export type FontChoice = 'lexend' | 'system' | 'serif';
+/** A preset id from `FONT_PRESETS`, or `custom:<id>` for an uploaded font. */
+export type FontChoice = string;
+
+export interface CustomFont {
+  id: string;
+  name: string;
+  /** The font file itself as a data URL, so it saves and syncs with the settings. */
+  dataUrl: string;
+}
+
+/** Readable typefaces that already ship with common devices, each with its own fallbacks. */
+export const FONT_PRESETS: { id: string; label: string; stack: string | null }[] = [
+  { id: 'lexend', label: 'Lexend — the default', stack: null },
+  { id: 'system', label: "System default — your device's own font", stack: 'var(--font-system)' },
+  { id: 'serif', label: 'Serif', stack: 'var(--font-serif)' },
+  { id: 'humanist', label: 'Humanist — Trebuchet', stack: "'Trebuchet MS', 'Segoe UI', Candara, var(--font-system)" },
+  { id: 'verdana', label: 'Verdana — wide and clear', stack: "Verdana, Geneva, Tahoma, var(--font-system)" },
+  { id: 'rounded', label: 'Rounded — soft and friendly', stack: "ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Quicksand, Nunito, var(--font-system)" },
+  { id: 'geometric', label: 'Geometric — Avenir / Century Gothic', stack: "Avenir, 'Avenir Next', 'Century Gothic', Futura, var(--font-system)" },
+  { id: 'classic', label: 'Classic — Georgia', stack: "Georgia, 'Times New Roman', var(--font-serif)" },
+  { id: 'bookish', label: 'Bookish — Palatino', stack: "'Palatino Linotype', Palatino, 'Book Antiqua', var(--font-serif)" },
+  { id: 'gill', label: 'Gill Sans — elegant', stack: "'Gill Sans', 'Gill Sans MT', Calibri, var(--font-system)" },
+  { id: 'mono', label: 'Monospace — terminal', stack: "ui-monospace, 'SF Mono', Menlo, Consolas, 'Courier New', monospace" },
+  { id: 'casual', label: 'Casual — handwritten feel', stack: "'Comic Sans MS', 'Chalkboard SE', 'Segoe Print', var(--font-system)" },
+];
+
+export const CUSTOM_FONT_PREFIX = 'custom:';
 
 export interface ThemeSettings {
   base: ThemeBase;
@@ -72,6 +98,8 @@ export interface ThemeSettings {
   surfaceStyle: SurfaceStyle;
   effects: EffectLevel;
   fontFamily: FontChoice;
+  /** Fonts the user uploaded. Always has a fallback applied when used. */
+  customFonts: CustomFont[];
   /** 0–100; how translucent glass surfaces are. */
   surfaceOpacity: number;
   highContrast: boolean;
@@ -126,6 +154,7 @@ export const DEFAULT_THEME: ThemeSettings = {
   surfaceStyle: 'solid',
   effects: 'balanced',
   fontFamily: 'lexend',
+  customFonts: [],
   surfaceOpacity: 100,
   highContrast: false,
   reducedMotion: false,
@@ -655,7 +684,16 @@ export function normaliseThemeSettings(input: Partial<ThemeSettings> | null | un
   if (!['dark', 'amoled', 'light'].includes(merged.base)) merged.base = 'dark';
   if (!['glass', 'solid', 'clear'].includes(merged.surfaceStyle)) merged.surfaceStyle = 'glass';
   if (!['full', 'balanced', 'performance'].includes(merged.effects)) merged.effects = 'full';
-  if (!['lexend', 'system', 'serif'].includes(merged.fontFamily)) merged.fontFamily = 'lexend';
+  merged.customFonts = Array.isArray(merged.customFonts)
+    ? merged.customFonts.filter(
+        (font): font is CustomFont =>
+          Boolean(font) && typeof font.id === 'string' && typeof font.name === 'string' && typeof font.dataUrl === 'string',
+      )
+    : [];
+  const knownFont =
+    FONT_PRESETS.some((font) => font.id === merged.fontFamily) ||
+    merged.customFonts.some((font) => merged.fontFamily === `${CUSTOM_FONT_PREFIX}${font.id}`);
+  if (!knownFont) merged.fontFamily = 'lexend';
   return merged;
 }
 
