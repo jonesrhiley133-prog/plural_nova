@@ -27,8 +27,7 @@
   border: 1px solid var(--border);
 }
 .profile-page__head { display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap; margin-top: calc(var(--space-6) * -1.6); padding: 0 var(--space-4); }
-.profile-page__head .avatar { border: 4px solid var(--surface); }
-.profile-page__head .avatar--image { border-color: var(--surface); }
+.profile-page__head .avatar:not(.avatar--image) { border: 4px solid var(--surface); }
 .profile-page__name { margin: 0; font-size: var(--size-xl, 1.5rem); overflow-wrap: anywhere; }
 .profile-page__sub { margin: 2px 0 0; color: var(--text-muted); overflow-wrap: anywhere; }
 .profile-page__actions { margin-left: auto; display: flex; gap: var(--space-2); flex-wrap: wrap; }
@@ -39,7 +38,7 @@
 .profile-card-tile:hover { border-color: var(--accent); }
 .profile-card-tile__banner { height: 64px; background: linear-gradient(135deg, var(--accent-soft), var(--surface-sunken)) center / cover no-repeat; }
 .profile-card-tile__body { display: flex; gap: 10px; align-items: center; padding: 0 var(--space-3) var(--space-3); margin-top: -26px; min-width: 0; }
-.profile-card-tile__body .avatar { border: 3px solid var(--surface); }
+.profile-card-tile__body .avatar:not(.avatar--image) { border: 3px solid var(--surface); }
 .profile-card-tile__text { min-width: 0; padding-top: 26px; }
 .profile-card-tile__text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 560px) {

@@ -144,7 +144,7 @@ export default function MemberProfile(): JSX.Element {
           <div className="banner-profile__body">
             <div className="row row--between" style={{ alignItems: 'flex-start' }}>
               <div style={{ minWidth: 0 }}>
-                <h1 style={{ fontSize: 'var(--size-xl)' }}>{String(member['name'])}</h1>
+                <h1 style={{ fontSize: 'var(--size-xl)', overflowWrap: 'anywhere' }}>{String(member['name'])}</h1>
                 <div className="row" style={{ marginTop: 'var(--space-1)' }}>
                   {member['pronouns'] ? <span className="muted">{String(member['pronouns'])}</span> : null}
                   <Status label={term(meta.label)} glyph={meta.glyph} color={meta.color} />

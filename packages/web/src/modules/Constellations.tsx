@@ -358,7 +358,9 @@ function ProfileEditor({
       />
       <SwitchRow
         label={term('Show how many {{members}} there are')}
-        checked={draft.showMemberCount === true}
+        {...(draft.showMemberList === true ? {} : { hint: term('Off while the {{member}} list is hidden — hiding the list hides the count too.') })}
+        checked={draft.showMemberList === true && draft.showMemberCount === true}
+        disabled={draft.showMemberList !== true}
         onChange={(value) => set('showMemberCount', value)}
       />
       <SwitchRow
@@ -369,7 +371,9 @@ function ProfileEditor({
       />
       <SwitchRow
         label={term('Show who is {{fronting}}')}
-        checked={draft.showCurrentFronter === true}
+        {...(draft.showMemberList === true ? {} : { hint: term('Off while the {{member}} list is hidden — it would name {{members}}.') })}
+        checked={draft.showMemberList === true && draft.showCurrentFronter === true}
+        disabled={draft.showMemberList !== true}
         onChange={(value) => set('showCurrentFronter', value)}
       />
       <SwitchRow

@@ -72,6 +72,10 @@ export const tasks: CollectionDef = {
     f.tags('tags', 'Tags'),
     f.bool('archived', 'Archived'),
     f.bool('forWholeSystem', 'For the whole system', { defaultValue: true }),
+    f.refs('assigneeIds', 'Assigned to', 'members', { hint: 'Who is doing this. Leave empty for anyone.' }),
+    f.int('estimateMinutes', 'Estimate (minutes)', { min: 0 }),
+    f.date('startDate', 'Start date'),
+    f.color('color', 'Colour'),
   ],
 };
 
@@ -149,6 +153,16 @@ export const bucketListItems: CollectionDef = {
     f.bool('completed', 'Done', { inList: true }),
     f.datetime('completedAt', 'Completed'),
     f.ref('addedByMemberId', 'Added by', 'members'),
+    f.text('category', 'Category', { inList: true, searchable: true, hint: 'Travel, food, learning, a place, a person…' }),
+    f.enumOf('priority', 'Priority', OPTIONS.priority, { defaultValue: 'normal' }),
+    f.int('progress', 'Progress (%)', { min: 0, max: 100, defaultValue: 0, inList: true }),
+    f.date('targetDate', 'Aim to do it by', { inList: true }),
+    f.json('milestones', 'Steps along the way', { hint: 'Items with a label and a done flag.' }),
+    f.image('imageUrl', 'Picture'),
+    f.refs('memberIds', 'Who wants this', 'members'),
+    f.tags('tags', 'Tags'),
+    f.bool('favorite', 'Favourite'),
+    f.text('location', 'Where'),
   ],
 };
 
@@ -172,6 +186,9 @@ export const watchlistItems: CollectionDef = {
       [
         { value: 'movie', label: 'Movie' },
         { value: 'show', label: 'Show' },
+        { value: 'anime', label: 'Anime' },
+        { value: 'cartoon', label: 'Cartoon' },
+        { value: 'documentary', label: 'Documentary' },
         { value: 'other', label: 'Other' },
       ],
       { defaultValue: 'movie', inList: true },
@@ -183,11 +200,27 @@ export const watchlistItems: CollectionDef = {
         { value: 'wantToWatch', label: 'Want to watch' },
         { value: 'watching', label: 'Watching' },
         { value: 'watched', label: 'Watched' },
+        { value: 'onHold', label: 'On hold' },
+        { value: 'dropped', label: 'Dropped' },
       ],
       { defaultValue: 'wantToWatch', inList: true },
     ),
     f.int('rating', 'Rating', { min: 0, max: 5, stars: true }),
     f.ref('addedByMemberId', 'Added by', 'members'),
+    f.bool('favorite', 'Favourite'),
+    f.long('notes', 'Notes', { searchable: true }),
+    f.tags('tags', 'Tags'),
+    f.text('genre', 'Genre', { searchable: true }),
+    f.text('platform', 'Where to watch'),
+    f.int('year', 'Year', { min: 1880, max: 2200 }),
+    f.int('currentSeason', 'Season', { min: 0, group: 'Progress' }),
+    f.int('currentEpisode', 'Episode', { min: 0, group: 'Progress' }),
+    f.int('totalEpisodes', 'Total episodes', { min: 0, group: 'Progress' }),
+    f.date('startedOn', 'Started', { group: 'Progress' }),
+    f.date('finishedOn', 'Finished', { group: 'Progress' }),
+    f.refs('watchedWithIds', 'Watched with', 'members'),
+    f.image('coverImageUrl', 'Poster'),
+    f.url('url', 'Link'),
   ],
 };
 
@@ -226,6 +259,13 @@ export const memberNotes: CollectionDef = {
     }),
     f.bool('remindSent', 'Revealed'),
     f.refs('seenByMemberIds', 'Seen by', 'members'),
+    f.bool('favorite', 'Favourite'),
+    f.text('category', 'Category', { searchable: true, hint: 'Kindness, creativity, bravery, a thank-you…' }),
+    f.tags('tags', 'Tags'),
+    f.long('notes', 'Private note', { hint: 'Context for yourself — where it came from, why it mattered.' }),
+    f.date('receivedOn', 'Date', { hint: 'When it was said or written, if not today.' }),
+    f.text('fromName', 'From (someone outside)', { hint: 'A friend, a partner, a stranger — when it is not one of you.' }),
+    f.image('imageUrl', 'Picture'),
   ],
 };
 
@@ -280,6 +320,17 @@ export const traditions: CollectionDef = {
     }),
     f.json('recurrenceWeekdays', 'On these days', { group: 'Repeating' }),
     f.datetime('lastCelebratedAt', 'Last done'),
+    f.text('category', 'Category', { searchable: true, inList: true, hint: 'Seasonal, weekly, comfort, celebration…' }),
+    f.long('history', 'History', { searchable: true, hint: 'Where it started and how it has changed.' }),
+    f.long('notes', 'Notes', { searchable: true }),
+    f.refs('participantIds', 'Who takes part', 'members'),
+    f.text('location', 'Where'),
+    f.image('coverImageUrl', 'Picture'),
+    f.tags('tags', 'Tags'),
+    f.int('timesCelebrated', 'Times done', { min: 0, defaultValue: 0 }),
+    f.json('log', 'Memories', { hint: 'Entries with a date and a note, one per time it was done.' }),
+    f.bool('favorite', 'Favourite'),
+    f.bool('archived', 'Archived'),
   ],
 };
 
@@ -1265,7 +1316,43 @@ export const vaultItems: CollectionDef = {
   ],
 };
 
+export const HEALTH_DATA_TYPES = ['steps', 'distance', 'exercise', 'calories', 'heartRate', 'sleep'] as const;
+
+/**
+ * A device health provider the user chose to connect. Only what the person
+ * explicitly granted is recorded here; no reading ever happens for a type
+ * that is not in `grantedTypes`.
+ */
+export const healthConnections: CollectionDef = {
+  name: 'healthConnections',
+  label: 'Connected health apps',
+  singular: 'Health connection',
+  icon: 'fitness',
+  area: 'life',
+  scope: 'user',
+  titleField: 'provider',
+  sortField: 'createdAt',
+  sortDir: 'desc',
+  neverPublic: true,
+  description: 'Health data providers PluralNova may read from, and exactly which data you allowed.',
+  fields: [
+    f.text('provider', 'Provider', { required: true, inList: true }),
+    f.enumOf('status', 'Status', [
+      { value: 'connected', label: 'Connected' },
+      { value: 'revoked', label: 'Disconnected' },
+      { value: 'error', label: 'Needs attention' },
+    ], { defaultValue: 'connected', inList: true }),
+    f.tags('grantedTypes', 'Permissions granted'),
+    f.datetime('connectedAt', 'Connected'),
+    f.datetime('lastSyncAt', 'Last sync'),
+    f.int('lastSyncCount', 'Records imported last time', { min: 0 }),
+    f.int('totalImported', 'Records imported in total', { min: 0, defaultValue: 0 }),
+    f.text('lastError', 'Last problem'),
+  ],
+};
+
 export const LIFE_COLLECTIONS = [
+  healthConnections,
   playbackHistory,
   contactInteractions,
   noteFolders,

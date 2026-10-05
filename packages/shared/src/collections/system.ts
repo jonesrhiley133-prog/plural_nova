@@ -414,6 +414,11 @@ export const journalEntries: CollectionDef = {
     }),
     f.bool('pinned', 'Pinned'),
     f.bool('inVault', 'Keep in vault', { hint: 'Moves this entry behind the vault lock.' }),
+    f.tags('emotions', 'Emotions', { hint: 'Name what you felt — as many as fit.' }),
+    f.tags('sensations', 'Sensations', { hint: 'What the body said: tight chest, buzzing, heavy…' }),
+    f.refs('frontingMemberIds', 'Fronting at the time', 'members', { hint: 'Who was around when this was written.' }),
+    f.int('energy', 'Energy', { min: 1, max: 5 }),
+    f.image('coverImageUrl', 'Cover image'),
 
     /*
      * An entry can have more than one author. A co-written entry is ordinary
@@ -693,6 +698,10 @@ export const bulletinPosts: CollectionDef = {
     f.bool('pinned', 'Pinned', { inList: true }),
     f.bool('archived', 'Archived'),
     f.json('reactions', 'Reactions'),
+    f.text('category', 'Category', { inList: true, searchable: true, hint: 'A board section: chores, events, house rules…' }),
+    f.image('coverImageUrl', 'Cover image'),
+    f.color('color', 'Note colour'),
+    f.datetime('expiresAt', 'Take down on', { hint: 'Moves to the archive automatically after this.' }),
   ],
 };
 

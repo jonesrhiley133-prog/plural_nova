@@ -113,9 +113,10 @@ socialRouter.put(
       systemType: String(body['systemType'] ?? ''),
       pronouns: String(body['pronouns'] ?? ''),
       isPublic: body['isPublic'] ? 1 : 0,
-      showMemberCount: body['showMemberCount'] ? 1 : 0,
       showMemberList: body['showMemberList'] ? 1 : 0,
-      showCurrentFronter: body['showCurrentFronter'] ? 1 : 0,
+      // Dependent on the list: a hidden list means no count and no fronter names either.
+      showMemberCount: body['showMemberList'] && body['showMemberCount'] ? 1 : 0,
+      showCurrentFronter: body['showMemberList'] && body['showCurrentFronter'] ? 1 : 0,
       acceptFriendRequests: body['acceptFriendRequests'] === false ? 0 : 1,
       acceptMessageRequests: body['acceptMessageRequests'] === false ? 0 : 1,
       memberSort: String(body['memberSort'] ?? 'orbit'),
@@ -212,14 +213,19 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
     acceptsMessages: profile['acceptMessageRequests'] === true,
   };
 
-  if (profile['showMemberCount'] === true || isOwner) {
+  // Hiding the member list is the master switch: with it off, nothing that
+  // names or counts members — the list, the count, who is fronting — reaches
+  // anyone but the account itself, whatever the other toggles say.
+  const listShown = profile['showMemberList'] === true || isOwner;
+
+  if (listShown && (profile['showMemberCount'] === true || isOwner)) {
     const row = db()
       .prepare('SELECT COUNT(*) AS n FROM "members" WHERE "userId" = ? AND "deletedAt" IS NULL')
       .get(ownerId) as { n: number };
     view['memberCount'] = row.n;
   }
 
-  if (profile['showMemberList'] === true || isOwner) {
+  if (listShown) {
     const members = listRecords('members', scope, { limit: 200 }).items;
     view['members'] = members
       .filter((member) => {
@@ -244,7 +250,7 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
       });
   }
 
-  if (profile['showCurrentFronter'] === true || isOwner) {
+  if (listShown && (profile['showCurrentFronter'] === true || isOwner)) {
     const fronting = listRecords('frontEvents', scope, { filters: { endedAt: null }, limit: 10 }).items;
     view['currentlyFronting'] = fronting
       .map((event) => {
@@ -923,6 +929,21 @@ socialRouter.get(
       comments: rows
         .map((row) => deserialize(requireCollection('comments'), row))
         .filter((comment) => !isBlockedEitherWay(context.user.id, comment['userId'] as string))
+        .map((comment) => {
+          const mine = comment['userId'] === context.user.id;
+          if (mine || !comment['memberId']) return comment;
+          // Someone else's comment is attributed to an alter only while their
+          // member list is public and that alter has not opted out.
+          const member = getRecord(
+            'members',
+            { userId: comment['userId'] as string, systemId: (comment['systemId'] as string) ?? null },
+            comment['memberId'] as string,
+          );
+          const privacy = (member?.['privacy'] ?? {}) as Record<string, unknown>;
+          const visible =
+            member && profileOf(comment['userId'] as string)?.['showMemberList'] === true && privacy['showOnProfile'] !== false;
+          return visible ? comment : { ...comment, memberId: null, authorKind: 'system' };
+        })
         .map((comment) => ({
           ...comment,
           author: counterpartSummary(comment['userId'] as string),

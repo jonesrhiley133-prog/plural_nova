@@ -932,6 +932,7 @@
    * as it has existed. The image rounds itself instead, which is the only
    * thing the clipping was actually for.
    */
+  box-sizing: border-box;
   background: var(--surface-sunken);
   border: var(--border-width) solid var(--border);
   color: var(--text-muted);
@@ -951,10 +952,12 @@
   overflow: hidden;
   aspect-ratio: 1 / 1;
 }
+.avatar--image {
+  border: none;
+  padding: 0;
+}
 .avatar--image .avatar__image {
   display: block;
-  min-width: 100%;
-  min-height: 100%;
 }
 .avatar { aspect-ratio: 1 / 1; }
 
@@ -1000,7 +1003,6 @@
 
 .avatar-stack .avatar + .avatar {
   margin-left: -10px;
-  box-shadow: 0 0 0 2px var(--bg);
 }
 
 /* ── Banners ────────────────────────────────────────────────────────────── */
@@ -1047,11 +1049,11 @@
 .banner-profile__avatar {
   position: relative;
   z-index: 2;
-  display: inline-block;
+  display: inline-flex;
   border-radius: 999px;
   margin-top: calc(var(--avatar-size, 88px) / -2);
   margin-left: var(--space-4);
-  box-shadow: 0 0 0 3px var(--bg);
+  line-height: 0;
 }
 
 .banner-profile__body {
@@ -1086,6 +1088,7 @@
   gap: var(--space-3);
   min-height: 96px;
   padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  isolation: isolate;
   overflow: hidden;
   background: linear-gradient(
     135deg,
@@ -1110,11 +1113,15 @@
 .member-banner-row__scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--bg) 80%, transparent) 10%,
-    transparent 75%
-  );
+  /* Strong behind the text (left), easing off to show the banner on the right. */
+  background:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--bg) 88%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 70%, transparent) 55%,
+      color-mix(in srgb, var(--bg) 25%, transparent) 100%
+    ),
+    linear-gradient(to top, color-mix(in srgb, var(--bg) 55%, transparent), transparent 70%);
 }
 
 .member-banner-row__hit {
@@ -1141,15 +1148,38 @@
  * nothing at all.
  */
 .member-banner-row__avatar {
+  position: relative;
+  z-index: 2;
   flex-shrink: 0;
+  display: inline-flex;
+  line-height: 0;
+  pointer-events: none;
 }
 
 .member-banner-row__body {
+  position: relative;
+  z-index: 2;
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* Taps fall through to the full-row button beneath. */
+  pointer-events: none;
+  color: var(--text);
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--bg) 90%, transparent);
+}
+
+.member-banner-row__name {
+  overflow-wrap: anywhere;
+  font-weight: var(--weight-semibold);
+}
+
+.member-banner-row__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: 2px;
 }
 
 .member-banner-row__trailing {

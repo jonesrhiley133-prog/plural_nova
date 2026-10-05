@@ -33,6 +33,19 @@ export const fics: CollectionDef = {
     f.long('notes', 'Notes', { searchable: true }),
     f.bool('favorite', 'Favourite'),
     f.text('importSource', 'Imported from'),
+    f.text('series', 'Series'),
+    f.enumOf('contentRating', 'Content rating', [
+      { value: 'general', label: 'General' },
+      { value: 'teen', label: 'Teen' },
+      { value: 'mature', label: 'Mature' },
+      { value: 'explicit', label: 'Explicit' },
+    ]),
+    f.tags('ships', 'Relationships'),
+    f.tags('warnings', 'Content notes'),
+    f.date('startedOn', 'Started reading'),
+    f.date('finishedOn', 'Finished'),
+    f.refs('readerIds', 'Read by', 'members'),
+    f.image('coverImageUrl', 'Cover'),
   ],
 };
 

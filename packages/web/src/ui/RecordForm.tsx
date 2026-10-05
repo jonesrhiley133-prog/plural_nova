@@ -567,6 +567,30 @@ export function RecordField({
     case 'json':
       // Labelled rows have a simple shared editor; any other structured field
       // with a purpose-built editor elsewhere is left out rather than shown as raw JSON.
+      if (field.name === 'milestones') {
+        // One step per line; a step that already exists keeps its done flag when the text is unchanged.
+        const steps = Array.isArray(value) ? (value as { label: string; done: boolean }[]) : [];
+        return (
+          <TextField
+            {...common}
+            multiline
+            rows={4}
+            placeholder={'One step per line'}
+            value={steps.map((step) => step.label).join('\n')}
+            onChange={(text) =>
+              onChange(
+                text
+                  .split('\n')
+                  .filter((line) => line.trim())
+                  .map((line) => ({
+                    label: line.trim(),
+                    done: steps.find((step) => step.label === line.trim())?.done === true,
+                  })),
+              )
+            }
+          />
+        );
+      }
       if (field.name === 'customInfo' || field.name === 'customSections') {
         return (
           <LabelledRowsField
