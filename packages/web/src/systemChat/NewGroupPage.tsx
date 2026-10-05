@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { DEFAULT_CHAT_CATEGORIES, allThemes, newId, pinnedThemes } from '@pluralnova/shared';
 import { api } from '../core/api.js';
 import { useAppearance } from '../core/appearance.js';
+import { useAuth } from '../core/auth.js';
 import { useCollection } from '../core/data.js';
 import { useToast } from '../core/toast.js';
 import { uploadBackground } from '../modules/appearance/imageUpload.js';
@@ -28,6 +29,7 @@ export default function NewGroupPage(): JSX.Element {
   const location = useLocation();
   const appearance = useAppearance();
   const members = useCollection('members');
+  const activeMemberId = useAuth().user?.activeMemberId ?? null;
   const preselected = (location.state as { members?: string[] } | null)?.members ?? [];
 
   const [name, setName] = useState('');
@@ -87,7 +89,7 @@ export default function NewGroupPage(): JSX.Element {
         kind: 'group',
         name: name.trim(),
         // Empty means "everyone in the system", including alters added later.
-        participantMemberIds: everyone ? [] : selected,
+        participantMemberIds: everyone ? [] : [...new Set([...selected, ...(activeMemberId ? [activeMemberId] : [])])],
         pinned: false,
         muted: notifications === 'none',
         archived: false,

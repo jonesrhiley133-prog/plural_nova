@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import {
+  CUSTOM_FONT_PREFIX,
+  FONT_PRESETS,
   buildTheme,
   normaliseThemeSettings,
   type ThemeSettings,
@@ -48,6 +50,7 @@ export function applyTheme(settings: ThemeSettings): ThemeTokens {
   root.dataset['surface'] = resolved.surfaceStyle;
   root.dataset['effects'] = resolved.effects;
   root.dataset['font'] = resolved.fontFamily;
+  applyFont(resolved);
   root.dataset['reducedMotion'] = String(resolved.reducedMotion);
   root.style.setProperty('--text-scale', String(resolved.textScale / 100));
   // `zoom` rather than `transform: scale` — transform creates a new
@@ -89,6 +92,26 @@ export function applyTheme(settings: ThemeSettings): ThemeTokens {
   }
 
   return tokens;
+}
+
+/** Sets the font stack and (re)injects the @font-face rules for uploaded fonts. */
+function applyFont(resolved: ThemeSettings): void {
+  const root = document.documentElement;
+  let style = document.getElementById('pn-custom-fonts') as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'pn-custom-fonts';
+    document.head.appendChild(style);
+  }
+  style.textContent = resolved.customFonts
+    .map((font) => `@font-face{font-family:"pn-custom-${font.id}";src:url("${font.dataUrl}");font-display:swap;}`)
+    .join('\n');
+
+  const custom = resolved.customFonts.find((font) => resolved.fontFamily === `${CUSTOM_FONT_PREFIX}${font.id}`);
+  const preset = FONT_PRESETS.find((font) => font.id === resolved.fontFamily);
+  if (custom) root.style.setProperty('--font-sans', `"pn-custom-${custom.id}", 'Lexend', var(--font-system)`);
+  else if (preset?.stack) root.style.setProperty('--font-sans', preset.stack);
+  else root.style.removeProperty('--font-sans');
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }): JSX.Element {

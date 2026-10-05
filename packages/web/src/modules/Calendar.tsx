@@ -1491,6 +1491,7 @@ function BirthdayImportDialog({
               />
               <Avatar
                 name={String(row.member['name'])}
+                src={(row.member['avatarUrl'] as string) || null}
                 color={(row.member['color'] as string) ?? null}
                 size={30}
                 round

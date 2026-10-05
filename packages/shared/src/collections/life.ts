@@ -940,6 +940,9 @@ export const contacts: CollectionDef = {
     f.long('notes', 'Notes', { searchable: true, sensitive: true }),
     f.tags('tags', 'Tags'),
     f.image('avatarUrl', 'Photo'),
+    f.image('bannerUrl', 'Banner'),
+    f.long('bio', 'About them', { searchable: true }),
+    f.json('customInfo', 'Custom information', { hint: 'Free-form labelled rows shown on their profile.' }),
 
     /*
      * A name in parts as well as whole. The single field above stays the one

@@ -629,6 +629,7 @@ function RelationshipsTab({ member }: { member: StoredRecord }): JSX.Element {
             <div key={relationship.id} className="list-row">
               <Avatar
                 name={String(other?.['name'] ?? 'Someone')}
+                src={(other?.['avatarUrl'] as string) || null}
                 color={(other?.['color'] as string) ?? null}
                 icon={(other?.['icon'] as string) ?? null}
                 size={30}

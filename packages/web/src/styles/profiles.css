@@ -1,0 +1,48 @@
+/* ── Polls hub ──────────────────────────────────────────────────────────── */
+.polls-hub { display: flex; flex-direction: column; gap: var(--space-5); max-width: 1200px; margin: 0 auto; width: 100%; }
+.polls-hub__head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap; }
+.polls-hub__title { margin: 0; font-size: var(--size-2xl, 1.9rem); letter-spacing: -0.01em; }
+.polls-hub__subtitle { margin: 4px 0 0; color: var(--text-muted); }
+.polls-hub__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.polls-hub__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.polls-hub__toolbar { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.polls-hub__toolbar > :first-child { flex: 1 1 260px; min-width: 0; }
+.polls-hub__tabs { display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: center; justify-content: space-between; overflow-x: auto; }
+.polls-hub__content {
+  min-height: 320px; padding: var(--space-5);
+  border: 1px solid var(--border); border-radius: var(--radius-lg, var(--radius));
+  background: var(--surface);
+}
+.voter-trigger { display: inline-flex; align-items: center; gap: 8px; max-width: 220px; }
+@media (max-width: 720px) {
+  .polls-hub__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .polls-hub__content { padding: var(--space-3); }
+}
+
+/* ── Profile pages (contacts, subsystems) ───────────────────────────────── */
+.profile-page { display: flex; flex-direction: column; gap: var(--space-4); max-width: 960px; margin: 0 auto; width: 100%; }
+.profile-page__banner {
+  height: clamp(110px, 22vw, 220px); border-radius: var(--radius-lg, var(--radius));
+  background: linear-gradient(135deg, var(--accent-soft), var(--surface-sunken)) center / cover no-repeat;
+  border: 1px solid var(--border);
+}
+.profile-page__head { display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap; margin-top: calc(var(--space-6) * -1.6); padding: 0 var(--space-4); }
+.profile-page__head .avatar { border: 4px solid var(--surface); }
+.profile-page__head .avatar--image { border-color: var(--surface); }
+.profile-page__name { margin: 0; font-size: var(--size-xl, 1.5rem); overflow-wrap: anywhere; }
+.profile-page__sub { margin: 2px 0 0; color: var(--text-muted); overflow-wrap: anywhere; }
+.profile-page__actions { margin-left: auto; display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.profile-page__bio { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.profile-page__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-3); }
+.profile-card-tile { display: flex; flex-direction: column; gap: 10px; text-align: left; padding: 0; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+.profile-card-tile:hover { border-color: var(--accent); }
+.profile-card-tile__banner { height: 64px; background: linear-gradient(135deg, var(--accent-soft), var(--surface-sunken)) center / cover no-repeat; }
+.profile-card-tile__body { display: flex; gap: 10px; align-items: center; padding: 0 var(--space-3) var(--space-3); margin-top: -26px; min-width: 0; }
+.profile-card-tile__body .avatar { border: 3px solid var(--surface); }
+.profile-card-tile__text { min-width: 0; padding-top: 26px; }
+.profile-card-tile__text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) {
+  .profile-page__head { padding: 0 var(--space-2); }
+  .profile-page__actions { margin-left: 0; width: 100%; }
+}

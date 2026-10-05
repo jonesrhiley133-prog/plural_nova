@@ -201,7 +201,7 @@ export function useSystemChatThreads(): {
     void load();
     return realtime.on((event) => {
       if (event.type === 'systemChat.new' || event.type === 'systemChat.thread.new') void load();
-      if (event.type === 'record.changed' && event.collection === 'systemChatMessages') void load();
+      if (event.type === 'record.changed' && (event.collection === 'systemChatMessages' || event.collection === 'systemChatThreads')) void load();
       if (event.type === 'reaction.new' && event.kind === 'system') void load();
     });
   }, [load, activeChatterId]);

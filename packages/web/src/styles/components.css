@@ -944,6 +944,20 @@
   border-radius: 50%;
 }
 
+/* A real picture owns the whole box: no border ring or sunken backdrop around it. */
+.avatar--image {
+  border-color: transparent;
+  background: transparent;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+}
+.avatar--image .avatar__image {
+  display: block;
+  min-width: 100%;
+  min-height: 100%;
+}
+.avatar { aspect-ratio: 1 / 1; }
+
 /* A grid tile sizes itself (a square card, a responsive column); the fixed
  * `--avatar-size` pixel value a badge or a list row wants would not track
  * that, so this overrides it to fill whatever box the avatar is placed in. */

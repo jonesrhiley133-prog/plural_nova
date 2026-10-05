@@ -391,7 +391,7 @@ export function Avatar({
 
   return (
     <span
-      className={`avatar${round ? ' avatar--round' : ''}${fill ? ' avatar--fill' : ''}`}
+      className={`avatar${round ? ' avatar--round' : ''}${fill ? ' avatar--fill' : ''}${src ? ' avatar--image' : ''}`}
       style={
         {
           '--avatar-size': `${size}px`,
@@ -404,7 +404,14 @@ export function Avatar({
       title={name}
     >
       {src ? (
-        <img className="avatar__image" src={src} alt="" loading="lazy" decoding="async" />
+        <img
+          className="avatar__image"
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+        />
       ) : (
         <span aria-hidden="true">{icon || initials || '·'}</span>
       )}

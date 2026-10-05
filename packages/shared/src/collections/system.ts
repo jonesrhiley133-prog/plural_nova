@@ -310,6 +310,19 @@ export const subsystems: CollectionDef = {
     }),
     f.int('sortOrder', 'Order', { defaultValue: 0 }),
     f.tags('tags', 'Tags'),
+    f.image('avatarUrl', 'Picture'),
+    f.image('bannerUrl', 'Banner'),
+    f.enumOf(
+      'privacy',
+      'Who can see this',
+      [
+        { value: 'system', label: 'Whole system' },
+        { value: 'private', label: 'Only me' },
+      ],
+      { defaultValue: 'system' },
+    ),
+    f.json('customInfo', 'Custom information', { hint: 'Free-form labelled rows shown on the profile.' }),
+    f.json('customSections', 'Custom sections', { hint: 'Headed blocks of text of your own.' }),
   ],
 };
 

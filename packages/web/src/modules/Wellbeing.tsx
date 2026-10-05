@@ -321,6 +321,7 @@ function HowWeFeelCard({
                 <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
                   <Avatar
                     name={String(member['name'])}
+                    src={(member['avatarUrl'] as string) || null}
                     color={(member['color'] as string) ?? null}
                     size={24}
                     round

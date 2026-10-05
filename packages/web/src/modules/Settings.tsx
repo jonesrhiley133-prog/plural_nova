@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ACCENT_PRESETS,
+  CUSTOM_FONT_PREFIX,
+  FONT_PRESETS,
   BASE_TOKENS,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY_LABELS,
@@ -32,7 +34,7 @@ import { PageHeader } from '../app/PageHeader.js';
 import { ModuleVisibilityCard } from '../app/ModuleVisibility.js';
 import CustomFieldDefinitions from './CustomFieldDefinitions.js';
 import { Avatar, Button, Card, Chip, IconButton, ListRow, SegmentedControl, Stat } from '../ui/primitives.js';
-import { ImageField, NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
+import { FileButton, ImageField, NumberField, SelectField, SwitchRow, TextField } from '../ui/forms.js';
 import { ColorPicker, ColorSwatch } from '../ui/ColorPicker.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { DescriptiveNote, ErrorLine, LoadingLine } from '../ui/feedback.js';
@@ -541,14 +543,49 @@ function Appearance(): JSX.Element {
           label="Font"
           value={theme.fontFamily}
           options={[
-            { value: 'lexend', label: 'Lexend — the default' },
-            { value: 'system', label: "System default — your device's own font" },
-            { value: 'serif', label: 'Serif' },
+            ...FONT_PRESETS.map((font) => ({ value: font.id, label: font.label })),
+            ...theme.customFonts.map((font) => ({ value: `${CUSTOM_FONT_PREFIX}${font.id}`, label: `${font.name} — uploaded` })),
           ]}
-          onChange={(value) => void update({ fontFamily: value as 'lexend' | 'system' | 'serif' })}
+          onChange={(value) => void update({ fontFamily: value })}
           placeholder="Lexend"
-          hint="Lexend is designed to be easier to read; it ships with the app rather than being fetched from anywhere."
+          hint="Lexend ships with the app. The others use fonts already on your device, with a safe fallback if one is missing."
         />
+        <div className="row" style={{ marginTop: 'var(--space-3)' }}>
+          <FileButton
+            label="Upload a font"
+            accept=".woff2,.woff,.ttf,.otf,font/*"
+            onFile={(file) => {
+              if (file.size > 1_500_000) {
+                toast.error('That font file is too large', 'Choose one under 1.5 MB.');
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = () => {
+                const id = Math.random().toString(36).slice(2, 10);
+                const name = file.name.replace(/\.[^.]+$/, '').slice(0, 40) || 'Custom font';
+                void update({
+                  customFonts: [...theme.customFonts, { id, name, dataUrl: String(reader.result) }],
+                  fontFamily: `${CUSTOM_FONT_PREFIX}${id}`,
+                });
+              };
+              reader.readAsDataURL(file);
+            }}
+          />
+          {theme.fontFamily.startsWith(CUSTOM_FONT_PREFIX) ? (
+            <Button
+              variant="ghost"
+              icon="trash"
+              onClick={() =>
+                void update({
+                  customFonts: theme.customFonts.filter((font) => `${CUSTOM_FONT_PREFIX}${font.id}` !== theme.fontFamily),
+                  fontFamily: 'lexend',
+                })
+              }
+            >
+              Remove this font
+            </Button>
+          ) : null}
+        </div>
       </Card>
 
       <Card title="Start over">
