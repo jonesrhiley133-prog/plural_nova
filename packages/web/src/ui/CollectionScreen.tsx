@@ -15,6 +15,7 @@ import { ConfirmDialog, Dialog, useDialog } from './overlays.js';
 import { RecordForm } from './RecordForm.js';
 import { PageHeader } from '../app/PageHeader.js';
 import { Icon, iconOr } from './Icon.js';
+import { useFacets, type FilterSpec, type SortSpec } from './CollectionToolbar.js';
 
 /**
  * A complete CRUD screen, derived from the registry.
@@ -49,9 +50,23 @@ export interface CollectionScreenProps {
   headerActions?: ReactNode;
   /** Opens the create dialog on mount, for `?new=1` deep links. */
   autoCreate?: boolean;
+  /** Fields offered as filters above the list — enums, flags, tags, categories and member references. */
+  filters?: readonly FilterSpec[];
+  /** Orderings offered in a sort menu. The first is the default. */
+  sorts?: readonly SortSpec[];
+  /** A statistics / progress strip computed from every record, not just the filtered ones. */
+  stats?: (all: StoredRecord[], helpers: ScreenHelpers) => ReactNode;
+  /** A full preview. When given, opening a record shows this first, with Edit and Delete inside. */
+  detail?: (record: StoredRecord, helpers: RowHelpers) => ReactNode;
+}
+
+export interface ScreenHelpers {
+  memberName: (id: string | null) => string | null;
 }
 
 export interface RowHelpers {
+  /** Opens the preview when the screen has one, otherwise the editor. */
+  open: () => void;
   edit: () => void;
   remove: () => void;
   memberName: (id: string | null) => string | null;
@@ -70,14 +85,25 @@ export function CollectionScreen(props: CollectionScreenProps): JSX.Element {
   const [rawSearch, setRawSearch] = useState('');
   const search = useDebounced(rawSearch);
 
+  const baseQuery = useCollection(props.collection, {});
+  const facets = useFacets(props.collection, baseQuery.all, members, props.filters, props.sorts);
+  const outerFilter = props.filter;
+  const combinedFilter = useMemo(
+    () => (record: StoredRecord) => facets.filter(record) && (outerFilter ? outerFilter(record) : true),
+    [facets.filter, outerFilter],
+  );
+  const sortFn = facets.sort ?? props.sort;
   const { items, all, loading, error, reload, create, update, remove } = useCollection(
     props.collection,
     {
       search,
-      ...(props.filter ? { filter: props.filter } : {}),
-      ...(props.sort ? { sort: props.sort } : {}),
+      filter: combinedFilter,
+      ...(sortFn ? { sort: sortFn } : {}),
     },
   );
+  const previewing = useDialog<StoredRecord>();
+  // Reads the live record, so a favourite toggled inside the preview shows straight away.
+  const previewed = previewing.value ? (all.find((r) => r.id === previewing.value!.id) ?? previewing.value) : null;
 
   const editor = useDialog<StoredRecord>();
   const [creating, setCreating] = useState(props.autoCreate ?? false);
@@ -148,12 +174,15 @@ export function CollectionScreen(props: CollectionScreenProps): JSX.Element {
             />
           </>
         }
-        onClick={() => editor.show(record)}
+        onClick={() => open(record)}
       />
     );
   };
 
+  const open = (record: StoredRecord): void => (props.detail ? previewing.show(record) : editor.show(record));
+
   const helpers = (record: StoredRecord): RowHelpers => ({
+    open: () => open(record),
     edit: () => editor.show(record),
     remove: () => confirm.show(record),
     memberName,
@@ -206,6 +235,10 @@ export function CollectionScreen(props: CollectionScreenProps): JSX.Element {
 
       {props.above}
 
+      {props.stats && all.length > 0 ? props.stats(all, { memberName }) : null}
+
+      {facets.toolbar}
+
       {all.length > 4 ? (
         <div style={{ marginBottom: 'var(--space-4)' }}>
           <SearchField
@@ -223,7 +256,7 @@ export function CollectionScreen(props: CollectionScreenProps): JSX.Element {
         onRetry={reload}
         skeleton={<SkeletonList rows={5} />}
         empty={
-          search
+          search || facets.active
             ? { title: t('list.noResults'), body: t('list.noResultsBody'), icon: 'search' }
             : {
                 title: term(props.emptyTitle ?? `No ${definition.label.toLowerCase()} yet`),
@@ -246,7 +279,7 @@ export function CollectionScreen(props: CollectionScreenProps): JSX.Element {
                 props.renderRow ? (
                   <div key={record.id}>{props.renderRow(record, helpers(record))}</div>
                 ) : (
-                  <Card key={record.id} interactive onClick={() => editor.show(record)}>
+                  <Card key={record.id} interactive onClick={() => open(record)}>
                     {defaultRow(record)}
                   </Card>
                 ),
@@ -268,11 +301,47 @@ export function CollectionScreen(props: CollectionScreenProps): JSX.Element {
         }
       </AsyncContent>
 
-      {items.length > 0 && search ? (
+      {items.length > 0 && (search || facets.active) ? (
         <p className="tiny faint" style={{ marginTop: 'var(--space-3)' }}>
           {t('list.showing', { shown: items.length, total: all.length })}
         </p>
       ) : null}
+
+      <Dialog
+        open={previewing.open}
+        onClose={previewing.hide}
+        title={String(previewed?.[definition.titleField] ?? definition.singular)}
+      >
+        {previewed ? (
+          <div className="stack">
+            {props.detail?.(previewed, helpers(previewed))}
+            <div className="row row--between">
+              <Button
+                variant="danger"
+                icon="trash"
+                onClick={() => {
+                  const record = previewing.value;
+                  previewing.hide();
+                  if (record) confirm.show(record);
+                }}
+              >
+                Delete
+              </Button>
+              <Button
+                variant="primary"
+                icon="edit"
+                onClick={() => {
+                  const record = previewing.value;
+                  previewing.hide();
+                  if (record) editor.show(record);
+                }}
+              >
+                Edit
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Dialog>
 
       <Dialog
         open={creating || editor.open}

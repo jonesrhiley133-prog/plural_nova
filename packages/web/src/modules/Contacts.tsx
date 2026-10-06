@@ -3,10 +3,11 @@ import { OPTIONS, type StoredRecord } from '@pluralnova/shared';
 import { useCollection } from '../core/data.js';
 import { useToast } from '../core/toast.js';
 import { useI18n } from '../core/i18n.js';
-import { CollectionScreen } from '../ui/CollectionScreen.js';
-import { Avatar, Button, Chip, ListRow, Status } from '../ui/primitives.js';
+import { CollectionScreen, type RowHelpers } from '../ui/CollectionScreen.js';
+import { Avatar, Button, Chip, Status } from '../ui/primitives.js';
 import { FileButton } from '../ui/forms.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
+import { ProfilePreviewDialog, ProfileTile } from '../ui/ProfileParts.js';
 
 /**
  * People outside the system. The safety field is the one that earns its place:
@@ -48,36 +49,58 @@ export default function Contacts(): JSX.Element {
             ))}
           </div>
         }
-        renderRow={(record, helpers) => {
-          const level = OPTIONS.safety.find((option) => option.value === record['safety']);
-          return (
-            <ListRow
-              title={String(record['name'])}
-              leading={
-                <Avatar
-                  name={String(record['name'])}
-                  src={(record['avatarUrl'] as string) ?? null}
-                  size={36}
-                  round
-                />
-              }
-              meta={
-                <>
-                  {record['relationship'] ? <span>{String(record['relationship'])}</span> : null}
-                  {record['currentlyWith'] === true ? <Chip accent>With them now</Chip> : null}
-                </>
-              }
-              trailing={
-                level && level.value !== 'unset' ? (
-                  <Status label={level.label} color={level.color} glyph={level.icon} />
-                ) : null
-              }
-              onClick={helpers.edit}
-            />
-          );
-        }}
+        layout="grid"
+        gridMinWidth={240}
+        renderRow={(record, helpers) => <ContactTile record={record} helpers={helpers} />}
       />
       <ContactImportDialog dialog={importDialog} existing={contacts.items} onImported={contacts.reload} onCreate={contacts.create} />
+    </>
+  );
+}
+
+function ContactTile({ record, helpers }: { record: StoredRecord; helpers: RowHelpers }): JSX.Element {
+  const preview = useDialog();
+  const level = OPTIONS.safety.find((option) => option.value === record['safety']);
+  const name = String(record['name']);
+  const subtitle = [record['nickname'], record['relationship']].filter(Boolean).join(' · ');
+  return (
+    <>
+      <ProfileTile
+        name={name}
+        subtitle={subtitle || undefined}
+        avatarUrl={(record['avatarUrl'] as string) || null}
+        bannerUrl={(record['bannerUrl'] as string) || null}
+        badge={
+          <>
+            {level && level.value !== 'unset' ? <Status label={level.label} color={level.color} glyph={level.icon} /> : null}
+            {record['currentlyWith'] === true ? <Chip accent>With them now</Chip> : null}
+          </>
+        }
+        onOpen={() => preview.show()}
+      />
+      <ProfilePreviewDialog
+        open={preview.open}
+        onClose={preview.hide}
+        name={name}
+        subtitle={subtitle || undefined}
+        bio={(record['bio'] as string) || (record['notes'] as string) || null}
+        avatarUrl={(record['avatarUrl'] as string) || null}
+        bannerUrl={(record['bannerUrl'] as string) || null}
+        customInfo={[
+          ...(record['phone'] ? [{ label: 'Phone', value: String(record['phone']) }] : []),
+          ...(record['email'] ? [{ label: 'Email', value: String(record['email']) }] : []),
+          ...(Array.isArray(record['customInfo']) ? (record['customInfo'] as unknown[]) : []),
+        ]}
+        stats={level && level.value !== 'unset' ? [{ label: 'Safety', value: level.label }] : undefined}
+        onEdit={() => {
+          preview.hide();
+          helpers.edit();
+        }}
+        onDelete={() => {
+          preview.hide();
+          helpers.remove();
+        }}
+      />
     </>
   );
 }

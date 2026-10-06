@@ -495,6 +495,7 @@ export default function Relationships(): JSX.Element {
                   <div key={relationship.id} className="list-row">
                     <Avatar
                       name={fromName}
+                      src={(fromMember?.['avatarUrl'] as string) || null}
                       color={(fromMember?.['color'] as string) ?? null}
                       icon={(fromMember?.['icon'] as string) ?? null}
                       size={28}

@@ -286,6 +286,9 @@ systemRouter.get(
       .filter(
         (thread) =>
           thread['kind'] === 'system' ||
+          // A group created for "everyone" stores no participants, matching the
+          // collection's own convention that empty means the whole system.
+          (thread['kind'] === 'group' && ((thread['participantMemberIds'] as string[]) ?? []).length === 0) ||
           ((thread['participantMemberIds'] as string[]) ?? []).includes(activeMemberId ?? ''),
       )
       .sort((a, b) => {

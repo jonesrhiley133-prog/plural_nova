@@ -7,9 +7,9 @@ import { getMeta, setMeta } from '../core/localdb.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useActiveMemberId } from '../core/auth.js';
-import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, Meter } from '../ui/primitives.js';
-import { DateTimeField, SwitchRow, TextField } from '../ui/forms.js';
+import { Button, Card, Chip, Meter, Stat, Tabs } from '../ui/primitives.js';
+import { VoterPicker } from './PollVoterPicker.js';
+import { DateTimeField, SearchField, SwitchRow, TextField } from '../ui/forms.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
@@ -45,6 +45,18 @@ interface Poll {
   memberId: string | null;
   createdAt: string;
 }
+
+const STATUS_TABS = [
+  { value: 'all', label: 'All polls' },
+  { value: 'open', label: 'Open' },
+  { value: 'closed', label: 'Closed' },
+] as const;
+const KIND_TABS = [
+  { value: 'any', label: 'Any type' },
+  { value: 'single', label: 'Single choice' },
+  { value: 'multiple', label: 'Multiple choice' },
+  { value: 'anonymous', label: 'Anonymous' },
+] as const;
 
 export default function Polls(): JSX.Element {
   const { term } = useI18n();
@@ -105,77 +117,107 @@ export default function Polls(): JSX.Element {
     }
   };
 
+  const [query, setQuery] = useState('');
+  const [statusTab, setStatusTab] = useState<'all' | 'open' | 'closed'>('all');
+  const [kindTab, setKindTab] = useState<'any' | 'single' | 'multiple' | 'anonymous'>('any');
+
   const open = polls.filter((poll) => !poll.isClosed);
   const closed = polls.filter((poll) => poll.isClosed);
+  const needle = query.trim().toLowerCase();
+  const visible = [...open, ...closed].filter(
+    (poll) =>
+      (statusTab === 'all' || (statusTab === 'open' ? !poll.isClosed : poll.isClosed)) &&
+      (kindTab === 'any' ||
+        (kindTab === 'anonymous' ? poll.anonymous : kindTab === 'multiple' ? poll.multipleChoice : !poll.multipleChoice)) &&
+      (!needle || `${poll.title} ${poll.description}`.toLowerCase().includes(needle)),
+  );
+  // "Quick vote": jump to the newest open poll and clear the filters so it is in view.
+  const quickPoll = (): void => {
+    setStatusTab('open');
+    setKindTab('any');
+    setQuery('');
+  };
 
   return (
     <>
-      <PageHeader
-        title="Polls"
-        description={term('For decisions the {{system}} makes together.')}
-        actions={
-          <Button variant="primary" icon="plus" onClick={() => composer.show()}>
-            New poll
-          </Button>
-        }
-      />
+      <div className="polls-hub">
+        <header className="polls-hub__head">
+          <div>
+            <h1 className="polls-hub__title">Polls Hub</h1>
+            <p className="polls-hub__subtitle">{term('For decisions the {{system}} makes together.')}</p>
+          </div>
+          <div className="polls-hub__actions">
+            <Button variant="ghost" icon="check" onClick={() => quickPoll()} disabled={open.length === 0}>
+              Quick vote
+            </Button>
+            <Button variant="primary" icon="plus" onClick={() => composer.show()}>
+              Create poll
+            </Button>
+          </div>
+        </header>
 
-      {members.items.length > 0 ? (
-        <div className="row" style={{ marginBottom: 'var(--space-4)' }}>
-          <span className="tiny faint">Voting as</span>
-          <Chip selected={asMemberId === null} onClick={() => setAsMemberId(null)}>
-            {term('The {{system}}')}
-          </Chip>
-          {members.items.map((member) => (
-            <Chip
-              key={member.id}
-              selected={asMemberId === member.id}
-              color={(member['color'] as string) ?? null}
-              onClick={() => setAsMemberId(member.id)}
-            >
-              {String(member['name'])}
-            </Chip>
-          ))}
+        <div className="polls-hub__stats">
+          <Stat label="Total polls" value={polls.length} />
+          <Stat label="Open" value={open.length} />
+          <Stat label="Closed" value={closed.length} />
+          <Stat label="Votes cast" value={polls.reduce((sum, poll) => sum + poll.totalVotes, 0)} />
         </div>
-      ) : null}
 
-      {loading ? (
-        <SkeletonList rows={3} />
-      ) : error && polls.length === 0 ? (
-        <ErrorPanel message={error} onRetry={() => void load()} />
-      ) : polls.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon="poll"
-            title="No polls yet"
-            body={term(
-              'Useful when a decision affects everyone — which is more often than it seems until you ask.',
-            )}
-            action={{ label: 'New poll', run: () => composer.show() }}
+        <div className="polls-hub__toolbar">
+          <SearchField value={query} onChange={setQuery} placeholder="Search polls" />
+          <VoterPicker
+            members={members.items}
+            value={asMemberId}
+            onChange={setAsMemberId}
+            systemLabel={term('The {{system}}')}
           />
-        </Card>
-      ) : (
-        <div className="stack">
-          {error ? <p className="tiny faint">{error}</p> : null}
-          {[...open, ...closed].map((poll) => (
-            <PollCard
-              key={poll.id}
-              poll={poll}
-              onVote={(optionIds) => void vote(poll, optionIds)}
-              onClose={() => {
-                void api
-                  .post(`/api/system/polls/${poll.id}/close`)
-                  .then(() => {
-                    toast.success('Poll closed');
-                    void load();
-                  })
-                  .catch((cause: unknown) => toast.fromError(cause, 'Could not close that poll'));
-              }}
-              dates={dates}
-            />
-          ))}
         </div>
-      )}
+
+        <div className="polls-hub__tabs">
+          <Tabs value={statusTab} onChange={setStatusTab} label="Poll status" options={STATUS_TABS} />
+          <Tabs value={kindTab} onChange={setKindTab} label="Poll type" options={KIND_TABS} />
+        </div>
+
+        <div className="polls-hub__content">
+          {loading ? (
+            <SkeletonList rows={3} />
+          ) : error && polls.length === 0 ? (
+            <ErrorPanel message={error} onRetry={() => void load()} />
+          ) : polls.length === 0 ? (
+            <EmptyState
+              icon="poll"
+              title="No polls yet"
+              body={term(
+                'Useful when a decision affects everyone — which is more often than it seems until you ask.',
+              )}
+              action={{ label: 'Create poll', run: () => composer.show() }}
+            />
+          ) : visible.length === 0 ? (
+            <EmptyState icon="poll" title="No polls match" body="Try a different search or filter." />
+          ) : (
+            <div className="stack">
+              {error ? <p className="tiny faint">{error}</p> : null}
+              {visible.map((poll) => (
+                <PollCard
+                  key={poll.id}
+                  poll={poll}
+                  onVote={(optionIds) => void vote(poll, optionIds)}
+                  onClose={() => {
+                    void api
+                      .post(`/api/system/polls/${poll.id}/close`)
+                      .then(() => {
+                        toast.success('Poll closed');
+                        void load();
+                      })
+                      .catch((cause: unknown) => toast.fromError(cause, 'Could not close that poll'));
+                  }}
+                  dates={dates}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       <PollComposer dialog={composer} onCreated={() => void load()} />
     </>

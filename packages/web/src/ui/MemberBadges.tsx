@@ -68,7 +68,7 @@ export function MemberBadgeRow({ badges }: { badges: MemberBadge[] }): JSX.Eleme
 /** A one-tap picker: choosing an emoji gives the badge immediately, no extra form. */
 export function GiveBadgePicker({ onGive }: { onGive: (emoji: string, label: string) => void }): JSX.Element {
   return (
-    <div className="row" role="list" aria-label="Give a gift">
+    <div className="row" aria-label="Give a gift">
       {GIFT_EMOJI.map(({ emoji, label }) => (
         <button
           key={emoji}

@@ -477,10 +477,11 @@
 
 .settings-nav .list {
   flex-direction: row;
-  overflow-x: auto;
-  scrollbar-width: none;
+  /* Wraps rather than scrolls sideways, so every category is visible at once on a phone. */
+  flex-wrap: wrap;
+  overflow: visible;
   gap: var(--space-1);
-  padding: var(--space-1);
+  padding: var(--space-2);
 }
 
 .settings-nav .list::-webkit-scrollbar {
@@ -489,6 +490,8 @@
 
 .settings-nav .list-row {
   flex: none;
+  /* .list-row is full-width by default; a pill must size to its label. */
+  width: auto;
   flex-direction: row;
   align-items: center;
   gap: var(--space-2);
@@ -510,6 +513,7 @@
 @media (min-width: 1000px) {
   .settings-nav .list {
     flex-direction: column;
+    flex-wrap: nowrap;
     overflow: visible;
     gap: 0;
     padding: 0;
@@ -517,6 +521,7 @@
 
   .settings-nav .list-row {
     flex: 1;
+    width: 100%;
     flex-direction: row;
     border: none;
     border-radius: var(--radius);

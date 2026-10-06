@@ -227,6 +227,7 @@ function TimelineRow({
       {member ? (
         <Avatar
           name={String(member['name'])}
+          src={(member['avatarUrl'] as string) || null}
           color={(member['color'] as string) ?? null}
           size={32}
           round
