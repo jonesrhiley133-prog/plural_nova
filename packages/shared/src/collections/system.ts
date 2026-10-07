@@ -287,7 +287,7 @@ export const subsystems: CollectionDef = {
   description: 'Nested structures inside the system. A subsystem may contain other subsystems.',
   fields: [
     f.text('name', 'Name', { required: true, inList: true, searchable: true }),
-    f.long('description', 'Description', { searchable: true }),
+    f.long('description', 'Description', { searchable: true, group: 'Details' }),
     f.color('color', 'Colour'),
     f.text('icon', 'Symbol', { maxLength: 8 }),
     f.ref('parentId', 'Parent subsystem', 'subsystems', {
@@ -312,7 +312,7 @@ export const memberGroups: CollectionDef = {
   description: 'Free-form folders for organising members however the system likes.',
   fields: [
     f.text('name', 'Name', { required: true, inList: true, searchable: true }),
-    f.long('description', 'Description'),
+    f.long('description', 'Description', { group: 'Details' }),
     f.color('color', 'Colour'),
     f.text('icon', 'Symbol', { maxLength: 8 }),
     f.ref('subsystemId', 'Inside subsystem', 'subsystems'),
@@ -351,7 +351,7 @@ export const frontEvents: CollectionDef = {
       hint: 'Pick from the places you\'ve set up.',
     }),
     f.text('mood', 'Mood', { inList: true }),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
     f.tags('tags', 'Tags'),
     f.enumOf('statusType', 'Status', [...FRONT_STATUS], { defaultValue: 'fronting' }),
     f.bool('unknownFronter', 'Fronter unknown', {
@@ -517,7 +517,7 @@ export const flags: CollectionDef = {
   description: 'Reusable markers the system defines for itself.',
   fields: [
     f.text('name', 'Name', { required: true, inList: true, searchable: true }),
-    f.long('description', 'What it means', { searchable: true }),
+    f.long('description', 'What it means', { searchable: true, group: 'Details' }),
     f.image('imageUrl', 'Flag image'),
     f.color('color', 'Colour', { inList: true }),
     f.text('icon', 'Symbol', { maxLength: 8, inList: true }),

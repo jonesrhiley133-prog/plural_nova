@@ -59,7 +59,7 @@ export const tasks: CollectionDef = {
   indexes: [['systemId', 'completed', 'dueAt']],
   fields: [
     f.text('title', 'Task', { required: true, inList: true, searchable: true }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, group: 'Details' }),
     f.datetime('dueAt', 'Due', { inList: true }),
     f.enumOf('priority', 'Priority', OPTIONS.priority, { defaultValue: 'normal', inList: true }),
     f.text('category', 'Category', { inList: true, searchable: true }),
@@ -88,7 +88,7 @@ export const reminders: CollectionDef = {
   sortDir: 'asc',
   fields: [
     f.text('title', 'Title', { required: true, inList: true, searchable: true }),
-    f.long('body', 'Message', { searchable: true, hint: 'What the notification says — left blank, it just shows the title.' }),
+    f.long('body', 'Message', { searchable: true, group: 'Details', hint: 'What the notification says — left blank, it just shows the title.' }),
     f.datetime('remindAt', 'Remind at', { required: true, inList: true }),
     f.bool('remindSent', 'Sent'),
     f.bool('forWholeSystem', 'For the whole system', { defaultValue: true }),
@@ -145,7 +145,7 @@ export const bucketListItems: CollectionDef = {
   description: 'Things the whole system wants to do together someday.',
   fields: [
     f.text('title', 'Title', { required: true, inList: true, searchable: true }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, group: 'Details' }),
     f.bool('completed', 'Done', { inList: true }),
     f.datetime('completedAt', 'Completed'),
     f.ref('addedByMemberId', 'Added by', 'members'),
@@ -242,7 +242,7 @@ export const traditions: CollectionDef = {
   description: 'Things the system does together on a rhythm — surfaced when due, never nagged about.',
   fields: [
     f.text('title', 'Title', { required: true, inList: true, searchable: true }),
-    f.long('description', 'Description', { searchable: true }),
+    f.long('description', 'Description', { searchable: true, group: 'Details' }),
     f.enumOf(
       'kind',
       'Starter',
@@ -317,7 +317,7 @@ export const calendarEvents: CollectionDef = {
   indexes: [['systemId', 'startsAt']],
   fields: [
     f.text('title', 'Title', { required: true, inList: true, searchable: true }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, group: 'Details' }),
     f.datetime('startsAt', 'Starts', { required: true, inList: true }),
     f.datetime('endsAt', 'Ends'),
     f.bool('allDay', 'All day'),
@@ -416,7 +416,7 @@ export const mediaItems: CollectionDef = {
     f.int('width', 'Width'),
     f.int('height', 'Height'),
     f.int('durationSeconds', 'Duration'),
-    f.long('description', 'Description', { searchable: true }),
+    f.long('description', 'Description', { searchable: true, group: 'Details' }),
     f.text('folder', 'Folder', { inList: true, searchable: true }),
     f.tags('tags', 'Tags'),
     f.text('source', 'Source'),
@@ -443,7 +443,7 @@ export const moodEntries: CollectionDef = {
     f.text('label', 'Mood', { required: true, inList: true, searchable: true }),
     f.int('score', 'Score', { min: 1, max: 10, inList: true, hint: '1 lowest — 10 highest.' }),
     f.datetime('recordedAt', 'When', { required: true, inList: true }),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
     f.tags('tags', 'Tags'),
     f.color('color', 'Colour'),
   ],
@@ -477,7 +477,7 @@ export const emotionEntries: CollectionDef = {
     f.int('intensity', 'Intensity', { min: 1, max: 5, defaultValue: 3, inList: true }),
     f.datetime('recordedAt', 'When', { required: true, inList: true }),
     f.text('context', 'Context', { searchable: true, hint: 'What was happening.' }),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
     f.tags('tags', 'Tags'),
     f.text('activity', 'Activity', { searchable: true }),
   ],
@@ -547,7 +547,7 @@ export const bodySensations: CollectionDef = {
     f.text('sensation', 'Sensation', { required: true, inList: true, searchable: true }),
     f.int('intensity', 'Intensity', { min: 1, max: 5, defaultValue: 3, inList: true }),
     f.datetime('recordedAt', 'When', { required: true, inList: true }),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
     f.enumOf('side', 'Side', [
       { value: 'both', label: 'Both' },
       { value: 'left', label: 'Left' },
@@ -596,7 +596,7 @@ export const wellnessEntries: CollectionDef = {
     f.int('painLevel', 'Physical discomfort', { min: 0, max: 10 }),
     f.int('socialBattery', 'Social battery', { min: 1, max: 10 }),
     f.bool('medicationTaken', 'Medication taken'),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
     f.json('customMetrics', 'Custom metrics', {
       hint: 'Metrics the system defined for itself.',
     }),
@@ -625,8 +625,8 @@ export const sleepEntries: CollectionDef = {
     f.bool('isNap', 'Nap'),
     f.int('awakenings', 'Times awake', { min: 0, max: 50 }),
     f.text('mood', 'Mood on waking'),
-    f.long('dreamNotes', 'Dreams', { searchable: true }),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('dreamNotes', 'Dreams', { searchable: true, group: 'Details' }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
     f.tags('tags', 'Tags'),
 
     /*
@@ -724,7 +724,7 @@ export const fitnessEntries: CollectionDef = {
     f.real('distanceKm', 'Distance (km)'),
     f.int('steps', 'Steps'),
     f.int('intensity', 'Effort', { min: 1, max: 5 }),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
     f.text('goalKey', 'Goal'),
     f.tags('tags', 'Tags'),
 
@@ -809,7 +809,7 @@ export const cycleEntries: CollectionDef = {
     f.int('energy', 'Energy', { min: 1, max: 10 }),
     f.int('discomfort', 'Discomfort', { min: 0, max: 10 }),
     f.text('mood', 'Mood'),
-    f.long('note', 'Note', { searchable: true, sensitive: true }),
+    f.long('note', 'Note', { searchable: true, sensitive: true, group: 'Details' }),
     f.bool('remind', 'Remind me next cycle'),
   ],
 };
@@ -838,7 +838,7 @@ export const financeAccounts: CollectionDef = {
     f.money('openingBalance', 'Opening balance', { defaultValue: 0 }),
     f.text('currency', 'Currency', { defaultValue: 'USD', maxLength: 8 }),
     f.color('color', 'Colour'),
-    f.long('notes', 'Notes', { sensitive: true }),
+    f.long('notes', 'Notes', { sensitive: true, group: 'Details' }),
     f.bool('archived', 'Archived'),
   ],
 };
@@ -868,7 +868,7 @@ export const transactions: CollectionDef = {
       { value: 'transfer', label: 'Transfer' },
     ], { defaultValue: 'expense', inList: true }),
     f.text('recurrence', 'Repeats'),
-    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true, group: 'Details' }),
     f.tags('tags', 'Tags'),
   ],
 };
@@ -889,7 +889,7 @@ export const budgets: CollectionDef = {
     f.money('limitAmount', 'Monthly limit', { required: true, inList: true }),
     f.text('period', 'Period', { defaultValue: 'monthly' }),
     f.color('color', 'Colour'),
-    f.long('notes', 'Notes', { sensitive: true }),
+    f.long('notes', 'Notes', { sensitive: true, group: 'Details' }),
   ],
 };
 
@@ -910,7 +910,7 @@ export const savingsGoals: CollectionDef = {
     f.money('savedAmount', 'Saved so far', { defaultValue: 0, inList: true }),
     f.date('targetDate', 'Target date'),
     f.color('color', 'Colour'),
-    f.long('notes', 'Notes', { sensitive: true }),
+    f.long('notes', 'Notes', { sensitive: true, group: 'Details' }),
   ],
 };
 
@@ -937,7 +937,7 @@ export const contacts: CollectionDef = {
     f.bool('currentlyWith', 'Currently with them', { inList: true }),
     f.datetime('lastInteractionAt', 'Last interaction'),
     f.refs('knownByMemberIds', 'Known by', 'members'),
-    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true, group: 'Details' }),
     f.tags('tags', 'Tags'),
     f.image('avatarUrl', 'Photo'),
 
@@ -1000,7 +1000,7 @@ export const emergencyContacts: CollectionDef = {
     f.email('email', 'Email', { sensitive: true }),
     f.int('priority', 'Priority', { defaultValue: 1, min: 1, max: 20, inList: true }),
     f.text('availability', 'Availability', { hint: 'When they can usually be reached.' }),
-    f.long('notes', 'Notes', { sensitive: true }),
+    f.long('notes', 'Notes', { sensitive: true, group: 'Details' }),
   ],
 };
 
@@ -1104,7 +1104,7 @@ export const contactInteractions: CollectionDef = {
       max: 5,
       hint: 'How draining it was, separately from whether it went well.',
     }),
-    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true, group: 'Details' }),
     f.bool('needsFollowUp', 'Needs following up'),
     f.date('followUpBy', 'Follow up by'),
     f.tags('tags', 'Tags'),
@@ -1135,7 +1135,7 @@ export const savedLocations: CollectionDef = {
     f.text('icon', 'Icon', { maxLength: 8, hint: 'An emoji works well.' }),
     f.color('color', 'Colour'),
     f.text('category', 'Kind of place', { inList: true }),
-    f.long('note', 'Note'),
+    f.long('note', 'Note', { group: 'Details' }),
     f.text('address', 'Address', { sensitive: true }),
     f.int('sortOrder', 'Order', { defaultValue: 0 }),
   ],
@@ -1161,7 +1161,7 @@ export const locationEntries: CollectionDef = {
     }),
     f.datetime('visitedAt', 'When', { required: true, inList: true }),
     f.text('activity', 'Activity', { inList: true, searchable: true }),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
     f.real('latitude', 'Latitude', { sensitive: true }),
     f.real('longitude', 'Longitude', { sensitive: true }),
     f.text('address', 'Address', { sensitive: true }),

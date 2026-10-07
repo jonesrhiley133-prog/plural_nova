@@ -770,7 +770,7 @@ export function buildDemoData(options: {
     url: 'https://example.org/works/1',
     platform: 'AO3',
     status: 'reading',
-    publicationStatus: 'in progress',
+    publicationStatus: 'inProgress',
     chaptersRead: 12,
     chaptersTotal: 20,
     wordCount: 84000,

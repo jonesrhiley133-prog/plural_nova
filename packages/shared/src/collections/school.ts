@@ -74,7 +74,7 @@ export const classes: CollectionDef = {
       defaultValue: DEFAULT_GRADE_CATEGORIES,
       hint: 'Your own weighted categories — edit, rename or remove to match how this class is actually graded.',
     }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, group: 'Details' }),
     f.tags('tags', 'Tags'),
     f.bool('archived', 'Archived'),
   ],
@@ -125,7 +125,7 @@ export const assignments: CollectionDef = {
   fields: [
     f.text('name', 'Assignment', { required: true, inList: true, searchable: true }),
     f.ref('classId', 'Class', 'classes', { required: true, inList: true }),
-    f.long('description', 'Description', { searchable: true }),
+    f.long('description', 'Description', { searchable: true, group: 'Details' }),
     f.datetime('dueAt', 'Due', { required: true, inList: true }),
     f.enumOf('type', 'Type', ASSIGNMENT_TYPES, { defaultValue: 'homework', inList: true }),
     f.int('estimatedMinutes', 'Estimated time', { min: 0, hint: 'Minutes.' }),
@@ -135,7 +135,7 @@ export const assignments: CollectionDef = {
     f.real('maxPoints', 'Max points', { min: 0 }),
     f.text('gradeCategory', 'Grading category', { inList: true, hint: "Match one of this class's grading categories." }),
     f.refs('attachmentIds', 'Attachments', 'mediaItems'),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, group: 'Details' }),
     f.tags('tags', 'Tags'),
     f.enumOf('priority', 'Priority', OPTIONS.priority, { defaultValue: 'normal', inList: true }),
     f.ref('completedByMemberId', 'Completed by', 'members', {
@@ -168,7 +168,7 @@ export const grades: CollectionDef = {
     f.real('pointsEarned', 'Points earned', { required: true, min: 0 }),
     f.real('maxPoints', 'Max points', { min: 0, hint: 'Leave blank if "points earned" is already a percentage.' }),
     f.date('gradedAt', 'Date', { required: true, inList: true }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, group: 'Details' }),
   ],
 };
 
@@ -211,7 +211,7 @@ export const extracurriculars: CollectionDef = {
     f.time('endTime', 'Ends'),
     f.color('color', 'Colour'),
     f.text('icon', 'Symbol', { maxLength: 8, hint: 'A short glyph or emoji.' }),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, group: 'Details' }),
     f.tags('tags', 'Tags'),
     f.bool('archived', 'Archived'),
   ],
@@ -233,7 +233,7 @@ export const extracurricularLogs: CollectionDef = {
     f.ref('extracurricularId', 'Extracurricular', 'extracurriculars', { required: true, inList: true }),
     f.date('date', 'Date', { required: true, inList: true }),
     f.real('hours', 'Hours', { required: true, min: 0, max: 24, inList: true }),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
   ],
 };
 
@@ -258,7 +258,7 @@ export const studySessions: CollectionDef = {
     f.datetime('startedAt', 'Started', { required: true, inList: true }),
     f.datetime('endedAt', 'Ended'),
     f.int('durationSeconds', 'Duration'),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
   ],
 };
 
@@ -285,7 +285,7 @@ export const schoolCheckIns: CollectionDef = {
     }),
     f.int('stress', 'Stress', { min: 1, max: 10, inList: true }),
     f.int('workload', 'Workload', { min: 1, max: 10, hint: 'How heavy it feels right now.' }),
-    f.long('note', 'Note', { searchable: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
   ],
 };
 

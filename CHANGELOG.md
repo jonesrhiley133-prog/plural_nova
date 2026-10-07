@@ -12,6 +12,16 @@ different versions of PluralNova.
 
 ### Added
 
+- **Fewer text boxes in view at once.** Optional notes and descriptions that
+  aren't a record's main point — a class's notes, a fic's own notes, a
+  subsystem's description, and dozens like them across School Life, Creative,
+  Work, Life and System forms — now fold behind the same "Details" disclosure
+  the member and calendar-event editors already used elsewhere: collapsed on
+  a new record, opened automatically the moment you edit one that already has
+  something written there, so nothing you've already saved is ever hidden
+  from you. A fic's own completion state and a story chapter's status are now
+  a short pick list instead of a free-text box, the same as a story's own
+  status already was.
 - **More depth to appearance: header opacity, a background dimmer, and two
   more custom colours.** The bar at the top of the app now has its own
   opacity setting, independent of card translucency, so it can let the

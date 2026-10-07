@@ -21,7 +21,7 @@ export const workplaces: CollectionDef = {
     f.money('hourlyRate', 'Hourly rate', { sensitive: true }),
     f.text('currency', 'Currency', { defaultValue: 'USD', maxLength: 8 }),
     f.text('location', 'Location'),
-    f.long('notes', 'Notes', { searchable: true }),
+    f.long('notes', 'Notes', { searchable: true, group: 'Details' }),
     f.color('color', 'Colour'),
     f.bool('current', 'Current job', { defaultValue: true, inList: true }),
   ],
@@ -94,7 +94,7 @@ export const workShifts: CollectionDef = {
     f.datetime('remindAt', 'Reminder'),
     f.bool('remindSent', 'Reminder sent'),
     f.bool('completed', 'Worked', { inList: true }),
-    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true, group: 'Details' }),
   ],
 };
 
@@ -114,7 +114,7 @@ export const workTasks: CollectionDef = {
     f.ref('workplaceId', 'Workplace', 'workplaces'),
     f.text('title', 'Task', { required: true, inList: true, searchable: true }),
     f.text('project', 'Project', { inList: true, searchable: true }),
-    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true, group: 'Details' }),
     f.datetime('dueAt', 'Due', { inList: true }),
     f.enumOf('priority', 'Priority', OPTIONS.priority, { defaultValue: 'normal', inList: true }),
     f.bool('completed', 'Completed', { inList: true }),
@@ -139,7 +139,7 @@ export const coworkers: CollectionDef = {
     f.text('name', 'Name', { required: true, inList: true, searchable: true }),
     f.text('role', 'Role', { inList: true }),
     f.enumOf('safety', 'Comfort', OPTIONS.safety, { defaultValue: 'unset', inList: true }),
-    f.long('notes', 'Notes', { searchable: true, sensitive: true }),
+    f.long('notes', 'Notes', { searchable: true, sensitive: true, group: 'Details' }),
   ],
 };
 
