@@ -788,6 +788,16 @@
   display: flex;
 }
 
+.reaction-picker__input {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: 1rem;
+  padding: 6px 12px;
+  width: 7em;
+}
+
 .chatter-popover {
   z-index: var(--z-modal);
   min-width: 220px;

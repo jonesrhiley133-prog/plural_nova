@@ -12,6 +12,26 @@ different versions of PluralNova.
 
 ### Added
 
+- **Flux stops at a page instead of loading every post at once.** The feed
+  already asked the server for one page at a time; the screen just never
+  asked for a second one. A "Load more" button now appears under the feed
+  whenever there's another page behind it, and disappears once you've
+  reached the actual end — scrolling a feed that's grown large no longer
+  means rendering all of it.
+- **A message reaction is no longer limited to six emoji.** The reaction
+  picker's quick picks are still there, but an "Other" option now opens a
+  small field for any emoji your device's own keyboard offers, in both
+  Messages and In-Sys Chat.
+- **Fewer text boxes in view at once.** Optional notes and descriptions that
+  aren't a record's main point — a class's notes, a fic's own notes, a
+  subsystem's description, and dozens like them across School Life, Creative,
+  Work, Life and System forms — now fold behind the same "Details" disclosure
+  the member and calendar-event editors already used elsewhere: collapsed on
+  a new record, opened automatically the moment you edit one that already has
+  something written there, so nothing you've already saved is ever hidden
+  from you. A fic's own completion state and a story chapter's status are now
+  a short pick list instead of a free-text box, the same as a story's own
+  status already was.
 - **More depth to appearance: header opacity, a background dimmer, and two
   more custom colours.** The bar at the top of the app now has its own
   opacity setting, independent of card translucency, so it can let the
@@ -164,6 +184,35 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **The "Other" reaction field had no label a screen reader could announce.**
+  Visually it was clear enough from the "Any emoji…" placeholder, but a
+  placeholder disappears the moment there's a value and was never read as
+  a label to begin with. It now has one, in both Messages and In-Sys Chat.
+- **"Log a mood" could land you on the wrong tab.** Wellbeing's own quick
+  action opened the mood dialog correctly but always landed on the Games
+  tab behind it, rather than Check-ins, where mood content actually lives;
+  the Dashboard's own Mood widget didn't open the dialog at all, just the
+  Games tab with nothing open. Both now land where they mean to.
+- **A theme's background image didn't travel with it.** Exporting a theme
+  only ever saved a path on this server, so sharing it or restoring it
+  elsewhere left the image broken while every colour and gradient still
+  came through fine. The image is now embedded directly in the export.
+- **Thick-banner member rows sat inside their own lightly-tinted panel.**
+  Now that each row is its own separated card, the wrapping panel behind
+  the whole list was just a second, redundant background layer — removed,
+  the same way the square and circle layouts never had one.
+- **Messages and In-Sys Chat could lag while typing in a long conversation.**
+  The composer's draft and the conversation's own message list live in the
+  same piece of state, and every keystroke was re-mapping and re-sorting the
+  whole thread from scratch as a result — work that scales with how long the
+  conversation is, repeated on every key. Typing now only touches the
+  composer; the conversation list is recomputed solely when a message
+  actually changes.
+- **Thick-banner member rows read as one connected strip instead of separate
+  ones.** Each row shared a plain divider line with its neighbour rather than
+  standing apart, so a run of real banner images looked like a single,
+  unbroken surface. Every row is now its own rounded card with a visible gap
+  below it, the same as any other card in the app.
 - **Birthdays never actually notified anyone.** The Calendar's own empty
   state promised "to be reminded when it comes around," but nothing was
   wired up to do that — it now checks once a day and lets the whole

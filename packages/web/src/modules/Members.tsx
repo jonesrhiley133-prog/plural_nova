@@ -489,25 +489,23 @@ export default function Members(): JSX.Element {
                   }
                 />
               ) : (
-                <Card flush>
-                  <VirtualizedList
-                    members={records}
-                    estimateRowHeight={layout === 'thickBanner' ? 96 : 66}
-                    renderRow={(member, isLast) => (
-                      <MemberBannerRow
-                        key={member.id}
-                        member={member}
-                        thick={layout === 'thickBanner'}
-                        last={isLast}
-                        onOpen={multiselect ? () => toggleSelected(member.id) : () => navigate(`/members/${member.id}`)}
-                        onQuickFront={() => quickFrontMember(member)}
-                        multiselect={multiselect}
-                        selected={selectedIds.has(member.id)}
-                        onLongPress={() => enterMultiselect(member.id)}
-                      />
-                    )}
-                  />
-                </Card>
+                <VirtualizedList
+                  members={records}
+                  estimateRowHeight={layout === 'thickBanner' ? 104 : 66}
+                  renderRow={(member, isLast) => (
+                    <MemberBannerRow
+                      key={member.id}
+                      member={member}
+                      thick={layout === 'thickBanner'}
+                      last={isLast}
+                      onOpen={multiselect ? () => toggleSelected(member.id) : () => navigate(`/members/${member.id}`)}
+                      onQuickFront={() => quickFrontMember(member)}
+                      multiselect={multiselect}
+                      selected={selectedIds.has(member.id)}
+                      onLongPress={() => enterMultiselect(member.id)}
+                    />
+                  )}
+                />
               )
             }
           </AsyncContent>
@@ -830,7 +828,7 @@ function MemberBannerRow({
     // recognise someone by more than a small circular avatar.
     const color = (member['color'] as string) || 'var(--accent)';
     return (
-      <div className="member-banner-row" style={{ ['--member-color' as never]: color, ...dividerStyle }}>
+      <div className="member-banner-row" style={{ ['--member-color' as never]: color }}>
         {member['bannerUrl'] ? (
           <img
             className="member-banner-row__image"

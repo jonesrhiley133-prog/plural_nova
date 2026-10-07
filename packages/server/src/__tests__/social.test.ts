@@ -277,6 +277,43 @@ describe('friends, flux and messaging', () => {
     expect(carolBodies).not.toContain('Bob, friends only');
   });
 
+  it('pages the feed with a cursor instead of handing back everything at once', async () => {
+    for (let i = 0; i < 7; i += 1) {
+      await client.request('POST', '/api/social/flux', {
+        token: bob.token,
+        body: { body: `Paging post ${i}`, visibility: 'public' },
+      });
+    }
+
+    const firstPage = await client.request('GET', '/api/social/flux?scope=public&limit=3', { token: alice.token });
+    expect(firstPage.body.data.posts).toHaveLength(3);
+    expect(firstPage.body.data.nextCursor).toEqual(expect.any(String));
+
+    const secondPage = await client.request(
+      'GET',
+      `/api/social/flux?scope=public&limit=3&before=${encodeURIComponent(firstPage.body.data.nextCursor)}`,
+      { token: alice.token },
+    );
+    expect(secondPage.body.data.posts).toHaveLength(3);
+
+    const firstIds = new Set(firstPage.body.data.posts.map((p: any) => p.id));
+    for (const post of secondPage.body.data.posts) expect(firstIds.has(post.id)).toBe(false);
+
+    // Walk the rest of the way to the end: the cursor eventually runs dry.
+    let cursor = secondPage.body.data.nextCursor;
+    let guard = 0;
+    while (cursor && guard < 10) {
+      const page = await client.request(
+        'GET',
+        `/api/social/flux?scope=public&limit=3&before=${encodeURIComponent(cursor)}`,
+        { token: alice.token },
+      );
+      cursor = page.body.data.nextCursor;
+      guard += 1;
+    }
+    expect(cursor).toBeNull();
+  });
+
   it('delivers a message from one account to the other', async () => {
     const created = await client.request('POST', '/api/messages/conversations', {
       token: alice.token,

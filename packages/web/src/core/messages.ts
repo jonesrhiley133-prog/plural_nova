@@ -401,12 +401,16 @@ export function useMessageConversation(
     }
   }, [threadId]);
 
-  const normalizedMessages = (() => {
+  // Memoized so a composer keystroke — local state in the component calling
+  // this hook, not anything here — doesn't re-map and re-sort the whole
+  // conversation on every key. Only a real change to the messages themselves
+  // recomputes this.
+  const normalizedMessages = useMemo(() => {
     const list = rawMessages.map((message) => normalize(message));
     const confirmedClientIds = new Set(list.map((message) => message.clientId).filter(Boolean));
     const stillPending = pending.filter((message) => !confirmedClientIds.has(message.clientId));
     return [...list, ...stillPending].sort(compareBySentAt);
-  })();
+  }, [rawMessages, pending, normalize]);
 
   useEffect(() => {
     const confirmedClientIds = new Set(rawMessages.map((message) => message['clientId']).filter(Boolean));
@@ -564,8 +568,12 @@ export function useMessageConversation(
     typingStopTimerRef.current = window.setTimeout(stopTyping, 3000);
   }, [threadId, stopTyping]);
 
-  const displayMessages = normalizedMessages.map((message) =>
-    message.encrypted && decrypted[message.id] !== undefined ? { ...message, body: decrypted[message.id]! } : message,
+  const displayMessages = useMemo(
+    () =>
+      normalizedMessages.map((message) =>
+        message.encrypted && decrypted[message.id] !== undefined ? { ...message, body: decrypted[message.id]! } : message,
+      ),
+    [normalizedMessages, decrypted],
   );
 
   const send = useCallback(

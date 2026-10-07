@@ -91,7 +91,9 @@ export default function Flux(): JSX.Element {
 
   const [scope, setScope] = useState<'friends' | 'mine' | 'public'>('friends');
   const [posts, setPosts] = useState<Post[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const composer = useDialog();
   const confirm = useDialog<Post>();
@@ -99,8 +101,9 @@ export default function Flux(): JSX.Element {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await api.get<{ posts: Post[] }>('/api/social/flux', { scope });
+      const result = await api.get<{ posts: Post[]; nextCursor: string | null }>('/api/social/flux', { scope });
       setPosts(result.posts);
+      setNextCursor(result.nextCursor);
       setError(null);
     } catch (cause) {
       setError(messageFor(cause));
@@ -108,6 +111,23 @@ export default function Flux(): JSX.Element {
       setLoading(false);
     }
   }, [scope]);
+
+  const loadMore = async (): Promise<void> => {
+    if (!nextCursor) return;
+    setLoadingMore(true);
+    try {
+      const result = await api.get<{ posts: Post[]; nextCursor: string | null }>('/api/social/flux', {
+        scope,
+        before: nextCursor,
+      });
+      setPosts((current) => [...current, ...result.posts]);
+      setNextCursor(result.nextCursor);
+    } catch (cause) {
+      toast.fromError(cause, 'Could not load more posts');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -224,6 +244,14 @@ export default function Flux(): JSX.Element {
           ))}
         </div>
       )}
+
+      {!single && nextCursor ? (
+        <div className="row" style={{ marginTop: 'var(--space-4)', justifyContent: 'center' }}>
+          <Button variant="ghost" onClick={() => void loadMore()} loading={loadingMore}>
+            Load more
+          </Button>
+        </div>
+      ) : null}
 
       {single ? (
         <div className="row" style={{ marginTop: 'var(--space-4)' }}>
