@@ -6,6 +6,7 @@ import { updateSystemChatThread, type SystemChatThreadSummary } from '../core/sy
 import { Avatar, Button, SegmentedControl } from '../ui/primitives.js';
 import { ColorField, SwitchRow, TextField } from '../ui/forms.js';
 import { Dialog } from '../ui/overlays.js';
+import { ChatIcon, readChatIcon } from './ChatIcon.js';
 
 /**
  * Who an In-Sys Chat thread is with/between, the handful of settings that
@@ -77,6 +78,20 @@ export function SystemChatInfoDialog({ open, onClose, thread, onChanged }: Syste
   return (
     <Dialog open={open} onClose={onClose} title="Conversation info">
       <div className="stack">
+        {(() => {
+          const icon = readChatIcon(thread.settings);
+          return icon ? (
+            <div className="row" style={{ alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+              <ChatIcon icon={icon} size={48} />
+              <div>
+                <span className="chat-conversation__name" style={{ fontWeight: 700 }}>{thread.title}</span>
+                {thread.settings['category'] && thread.settings['category'] !== 'none' ? (
+                  <span className="small muted" style={{ display: 'block' }}>{String(thread.settings['category'])}</span>
+                ) : null}
+              </div>
+            </div>
+          ) : null;
+        })()}
         <div className="chat-info__people">
           {(thread.participants.length > 0 ? thread.participants : thread.person ? [thread.person] : []).map((person) => (
             <div key={person.id} className="chat-info__person">

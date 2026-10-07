@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import {
+  buildDemoAppearance,
   buildDemoData,
+  BACKUP_COLLECTIONS,
+  defaultSettings,
   isEmail,
   mergeSettings,
   newCode,
@@ -163,8 +166,38 @@ authRouter.post(
     const demo = buildDemoData({ userId: user.id, systemId, days });
     restoreCollections({ userId: user.id, systemId }, demo, 'replace');
     refreshMemberCount(user.id, systemId);
+    writeSettings(withSystem, { ...readSettings(withSystem), appearance: buildDemoAppearance(demo) });
 
     ok(res, { ...startSession(withSystem, req.header('user-agent')), demoDays: days }, 201);
+  }),
+);
+
+/**
+ * Wipes a guest's sandbox and re-seeds it. Only ever touches the calling
+ * guest's own rows — a registered account is refused outright.
+ */
+authRouter.post(
+  '/guest/reset',
+  requireAuth,
+  handler((req, res) => {
+    const context = auth(req);
+    if (context.user.isGuest !== 1) throw badRequest('Only demo accounts can be reset.');
+    const systemId = context.user.activeSystemId;
+    if (!systemId) throw badRequest('This demo has no system to reset.');
+    const db = getDb();
+    const wipe = db.transaction(() => {
+      for (const collection of BACKUP_COLLECTIONS) {
+        if (collection.name === 'systems') continue;
+        db.prepare(`DELETE FROM "${collection.name}" WHERE "userId" = ?`).run(context.user.id);
+      }
+    });
+    wipe();
+    const demo = buildDemoData({ userId: context.user.id, systemId, days: 30 });
+    restoreCollections({ userId: context.user.id, systemId }, demo, 'replace');
+    refreshMemberCount(context.user.id, systemId);
+    const fresh = { ...defaultSettings('system'), appearance: buildDemoAppearance(demo), onboardingCompleted: readSettings(context.user).onboardingCompleted };
+    writeSettings(context.user, fresh);
+    ok(res, { reset: true });
   }),
 );
 

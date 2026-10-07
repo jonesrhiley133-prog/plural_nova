@@ -473,6 +473,66 @@
   }
 }
 
+/* ── Settings nav: horizontal scroll on mobile, sidebar on desktop ───────── */
+
+.settings-nav .list {
+  flex-direction: row;
+  /* Wraps rather than scrolls sideways, so every category is visible at once on a phone. */
+  flex-wrap: wrap;
+  overflow: visible;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.settings-nav .list::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-nav .list-row {
+  flex: none;
+  /* .list-row is full-width by default; a pill must size to its label. */
+  width: auto;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: var(--border-width) solid var(--border);
+  white-space: nowrap;
+  font-size: var(--size-sm);
+}
+
+.settings-nav .list-row .list-row__body {
+  flex: none;
+}
+
+.settings-nav .list-row > :last-child {
+  display: none;
+}
+
+@media (min-width: 1000px) {
+  .settings-nav .list {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow: visible;
+    gap: 0;
+    padding: 0;
+  }
+
+  .settings-nav .list-row {
+    flex: 1;
+    width: 100%;
+    flex-direction: row;
+    border: none;
+    border-radius: var(--radius);
+    white-space: normal;
+  }
+
+  .settings-nav .list-row > :last-child {
+    display: flex;
+  }
+}
+
 /* ── Calendar: birthdays beside the grid on desktop, a tab below it ──────── */
 
 .calendar-mobile-tabs {

@@ -6,6 +6,7 @@ import { DataProvider } from './core/data.js';
 import { I18nProvider } from './core/i18n.js';
 import { ThemeProvider, usePreAuthTheme } from './core/theme.js';
 import { ToastProvider } from './core/toast.js';
+import { AppearanceProvider } from './core/appearance.js';
 import { MusicPlayerProvider } from './core/musicPlayer.js';
 import { AppLockProvider } from './core/appLock.js';
 import { AppLockGate } from './app/AppLockGate.js';
@@ -54,6 +55,8 @@ const BucketList = load(() => import('./modules/BucketList.js'));
 const Watchlist = load(() => import('./modules/Watchlist.js'));
 const Compliments = load(() => import('./modules/Compliments.js'));
 const Traditions = load(() => import('./modules/Traditions.js'));
+const AstroPage = load(() => import('./modules/astro/AstroPage.js'));
+const NewGroupPage = load(() => import('./systemChat/NewGroupPage.js'));
 const Calendar = load(() => import('./modules/Calendar.js'));
 const Media = load(() => import('./modules/Media.js'));
 const Flags = load(() => import('./modules/Flags.js'));
@@ -175,6 +178,7 @@ function AppRoutes(): JSX.Element {
             and Messages are genuinely separate features under this shared
             visual treatment — two route trees, not one generic chat page. */}
         <Route path="system/chat" element={<SystemOnly><SystemChatPage /></SystemOnly>} />
+        <Route path="system/chat/new" element={<SystemOnly><NewGroupPage /></SystemOnly>} />
         <Route path="system/chat/:threadId" element={<SystemOnly><SystemChatPage /></SystemOnly>} />
         <Route path="social/messages" element={<MessagesPage />} />
         <Route path="social/messages/:threadId" element={<MessagesPage />} />
@@ -205,6 +209,8 @@ function AppRoutes(): JSX.Element {
           <Route path="watchlist" element={<Watchlist />} />
           <Route path="compliments" element={<Compliments />} />
           <Route path="traditions" element={<Traditions />} />
+          <Route path="astro" element={<AstroPage />} />
+          <Route path="astro/:section" element={<AstroPage />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="media" element={<Media />} />
           <Route path="flags" element={<Flags />} />
@@ -278,12 +284,14 @@ export function App(): JSX.Element {
               <ThemeProvider>
                 <DataProvider>
                   <MusicPlayerProvider>
-                    <AppLockProvider>
-                      <AppUpdate />
-                      <Suspense fallback={<ScreenFallback />}>
-                        <AppRoutes />
-                      </Suspense>
-                    </AppLockProvider>
+                    <AppearanceProvider>
+                      <AppLockProvider>
+                        <AppUpdate />
+                        <Suspense fallback={<ScreenFallback />}>
+                          <AppRoutes />
+                        </Suspense>
+                      </AppLockProvider>
+                    </AppearanceProvider>
                   </MusicPlayerProvider>
                 </DataProvider>
               </ThemeProvider>

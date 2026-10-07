@@ -264,7 +264,7 @@ export default function Friends(): JSX.Element {
                 <ListRow
                   key={person.userId}
                   title={person.displayName}
-                  leading={<Avatar name={person.displayName} size={32} round />}
+                  leading={<Avatar name={person.displayName} src={person.avatarUrl || null} size={32} round />}
                   trailing={
                     <Button variant="ghost" size="sm" onClick={() => void setState(person, 'active')}>
                       {t('social.unblock')}

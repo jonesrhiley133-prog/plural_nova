@@ -1,5 +1,6 @@
 import { DEFAULT_MOBILE_TABS, DEFAULT_SINGLET_TABS } from './navigation.js';
 import { DEFAULT_THEME, type ThemePreset, type ThemeSettings } from './themes.js';
+import { DEFAULT_APPEARANCE, normaliseAppearance, type AppearanceState } from './appearance.js';
 import type { TermOverrides } from './terminology.js';
 import type { AppMode } from './types.js';
 
@@ -97,6 +98,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'watchlist', label: 'Watchlist' },
   { id: 'theme-music', label: 'Theme music' },
   { id: 'traditions', label: 'Traditions due' },
+  { id: 'astro-today', label: 'Astro today' },
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id'];
@@ -204,6 +206,8 @@ export interface AppSettings {
   theme: ThemeSettings;
   /** Themes saved, duplicated or imported by this account, alongside the built-in presets. */
   customThemePresets: ThemePreset[];
+  /** Advanced appearance: global look, component overrides, saved themes, assignments, music pins, chat categories. */
+  appearance: AppearanceState;
   terminology: TermOverrides;
   locale: string;
   notifications: Record<NotificationCategory, NotificationChannelPrefs>;
@@ -212,6 +216,8 @@ export interface AppSettings {
   inAppNotificationsEnabled: boolean;
   quietHours: { enabled: boolean; from: string; to: string };
   widgets: WidgetSetting[];
+  /** Dashboard grid column count: 'auto' lets the grid flow, a number pins it. */
+  dashboardColumns: 'auto' | number;
   mobileTabs: string[];
   privacy: PrivacyDefaults;
   /** App-wide lock, separate from the vault and from per-alter profile PINs. */
@@ -265,6 +271,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     mode,
     theme: { ...DEFAULT_THEME },
     customThemePresets: [],
+    appearance: { ...DEFAULT_APPEARANCE },
     terminology: {},
     locale: 'en',
     notifications: defaultNotificationPrefs(),
@@ -272,6 +279,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     inAppNotificationsEnabled: true,
     quietHours: { enabled: false, from: '22:00', to: '07:00' },
     widgets: defaultWidgets(mode),
+    dashboardColumns: 'auto',
     mobileTabs: [...(mode === 'system' ? DEFAULT_MOBILE_TABS : DEFAULT_SINGLET_TABS)],
     privacy: {
       defaultVisibility: 'private',
@@ -343,6 +351,7 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
     ...stored,
     theme: { ...base.theme, ...(stored.theme ?? {}) },
     customThemePresets,
+    appearance: normaliseAppearance(stored.appearance),
     terminology: stored.terminology ?? {},
     notifications,
     quietHours: { ...base.quietHours, ...(stored.quietHours ?? {}) },
@@ -355,6 +364,7 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
         ? stored.gradingScale
         : base.gradingScale,
     widgets: widgets.sort((a, b) => a.order - b.order),
+    dashboardColumns: stored.dashboardColumns === 'auto' || typeof stored.dashboardColumns === 'number' ? stored.dashboardColumns : 'auto',
     mobileTabs:
       Array.isArray(stored.mobileTabs) && stored.mobileTabs.length >= 3
         ? stored.mobileTabs.slice(0, 5)

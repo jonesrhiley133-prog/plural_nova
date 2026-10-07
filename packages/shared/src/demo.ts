@@ -1,3 +1,4 @@
+import { addDemoExtras } from './demoExtra.js';
 import { newId } from './ids.js';
 import { EMOTIONS } from './emotions.js';
 import type { StoredRecord, Visibility } from './types.js';
@@ -903,6 +904,7 @@ export function buildDemoData(options: {
     }, 'hst'));
   }
 
+  addDemoExtras(out, { userId: options.userId, systemId: options.systemId, now: ctx.now });
   return out;
 }
 

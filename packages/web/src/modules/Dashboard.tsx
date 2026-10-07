@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+  Astro,
   DAILY_MESSAGES,
   DASHBOARD_WIDGETS,
   FORTUNES,
@@ -88,7 +89,14 @@ export default function Dashboard(): JSX.Element {
           />
         </Card>
       ) : (
-        <div className="grid" style={{ ['--grid-min' as never]: '280px' }}>
+        <div
+          className="grid"
+          style={
+            settings.dashboardColumns === 'auto'
+              ? { ['--grid-min' as never]: '280px' }
+              : { gridTemplateColumns: `repeat(${settings.dashboardColumns}, 1fr)` }
+          }
+        >
           {visible.map((widget) => (
             <Widget key={widget.id} id={widget.id} />
           ))}
@@ -101,6 +109,24 @@ export default function Dashboard(): JSX.Element {
         title={t('dashboard.customise')}
         description="Choose what appears, and drag the arrows to reorder."
       >
+        <div className="field" style={{ marginBottom: 'var(--space-4)' }}>
+          <span className="field__label">Columns</span>
+          <div className="row" style={{ marginTop: 'var(--space-1)' }}>
+            {(['auto', 1, 2, 3, 4] as const).map((col) => (
+              <button
+                key={col}
+                type="button"
+                className="chip chip--interactive"
+                data-selected={settings.dashboardColumns === col}
+                aria-pressed={settings.dashboardColumns === col}
+                onClick={() => updateSettings({ dashboardColumns: col })}
+              >
+                {col === 'auto' ? 'Auto' : String(col)}
+              </button>
+            ))}
+          </div>
+          <p className="field__hint">Auto fills the available width; a fixed number pins the column count.</p>
+        </div>
         <WidgetEditor
           widgets={settings.widgets}
           systemMode={systemMode}
@@ -173,6 +199,8 @@ function Widget({ id }: { id: string }): JSX.Element | null {
       return <ThemeMusicWidget />;
     case 'traditions':
       return <TraditionsWidget />;
+    case 'astro-today':
+      return <AstroTodayWidget />;
     default:
       return null;
   }
@@ -387,6 +415,7 @@ function QuickFrontWidget(): JSX.Element {
               >
                 <Avatar
                   name={String(member['name'])}
+                  src={(member['avatarUrl'] as string) || null}
                   color={(member['color'] as string) ?? null}
                   size={18}
                   round
@@ -1330,6 +1359,65 @@ function TraditionsWidget(): JSX.Element {
           ))}
         </div>
       )}
+    </Card>
+  );
+}
+
+function AstroTodayWidget(): JSX.Element {
+  const navigate = useNavigate();
+  const activeMemberId = useActiveMemberId();
+  const members = useCollection('members', { filter: (m) => m['archived'] !== true, limit: 50 });
+  const member = members.items.find((m) => m.id === activeMemberId) ?? members.items[0];
+
+  if (members.loading) return <Card title="🌌 Astro today"><LoadingLine label="Loading…" /></Card>;
+  if (!member) return (
+    <Card title="🌌 Astro today" actions={<Button variant="ghost" size="sm" onClick={() => navigate('/astro')}>Open</Button>}>
+      <p className="small faint">Add a member with a birthday to see their daily reading.</p>
+    </Card>
+  );
+
+  const birthday = member['birthday'] as string | undefined;
+  if (!birthday) return (
+    <Card title="🌌 Astro today" actions={<Button variant="ghost" size="sm" onClick={() => navigate(`/members/${member.id}`)}>Edit</Button>}>
+      <p className="small faint">Add a birthday for {String(member['name'])} to unlock their astrology.</p>
+    </Card>
+  );
+
+  const input: Astro.AstroInput = {
+    birthday,
+    birthTime: (member['birthTime'] as string) || null,
+    latitude: typeof member['birthLatitude'] === 'number' ? member['birthLatitude'] : null,
+    longitude: typeof member['birthLongitude'] === 'number' ? member['birthLongitude'] : null,
+    utcOffset: typeof member['birthUtcOffset'] === 'number' ? member['birthUtcOffset'] : null,
+  };
+  const profile = Astro.buildProfile(input);
+  if (profile.level === 'none') return (
+    <Card title="🌌 Astro today" actions={<Button variant="ghost" size="sm" onClick={() => navigate('/astro')}>Open</Button>}>
+      <p className="small faint">Astro needs a valid birthday date.</p>
+    </Card>
+  );
+
+  const today = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 12));
+  const reading = Astro.dailyReading(profile, { id: member.id }, today);
+  const sun = profile.sun ? Astro.signInfo(profile.sun) : null;
+
+  return (
+    <Card
+      title={`🌌 ${String(member['name'])}'s sky`}
+      actions={<Button variant="ghost" size="sm" onClick={() => navigate('/astro')}>Open</Button>}
+    >
+      <div className="row row--between">
+        <div>
+          {sun ? <div style={{ fontSize: 'var(--size-lg)' }}>{sun.glyph} {profile.sun}</div> : null}
+          <div className="small muted" style={{ marginTop: 2 }}>{reading.theme} · {reading.energy}% energy</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '1.4rem' }}>{reading.moon.emoji}</div>
+          <div className="tiny faint">{reading.moon.phase}</div>
+        </div>
+      </div>
+      <p className="small muted" style={{ marginTop: 'var(--space-2)' }}>{reading.emotions}</p>
+      <p className="tiny faint" style={{ marginTop: 'var(--space-2)' }}>✨ {reading.cosmicMessage}</p>
     </Card>
   );
 }
