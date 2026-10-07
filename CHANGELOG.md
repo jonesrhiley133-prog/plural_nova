@@ -12,6 +12,12 @@ different versions of PluralNova.
 
 ### Added
 
+- **Flux stops at a page instead of loading every post at once.** The feed
+  already asked the server for one page at a time; the screen just never
+  asked for a second one. A "Load more" button now appears under the feed
+  whenever there's another page behind it, and disappears once you've
+  reached the actual end — scrolling a feed that's grown large no longer
+  means rendering all of it.
 - **A message reaction is no longer limited to six emoji.** The reaction
   picker's quick picks are still there, but an "Other" option now opens a
   small field for any emoji your device's own keyboard offers, in both
