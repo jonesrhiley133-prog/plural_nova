@@ -22,10 +22,6 @@ different versions of PluralNova.
   picker's quick picks are still there, but an "Other" option now opens a
   small field for any emoji your device's own keyboard offers, in both
   Messages and In-Sys Chat.
-- **Emotions now has its own place in navigation.** It was always a full
-  screen — logging, recents, favourites, custom emotions — but was only
-  ever reachable through a quick action or a deep link. It now sits
-  alongside Wellbeing, Body sensations and the rest in the Life section.
 - **Fewer text boxes in view at once.** Optional notes and descriptions that
   aren't a record's main point — a class's notes, a fic's own notes, a
   subsystem's description, and dozens like them across School Life, Creative,
