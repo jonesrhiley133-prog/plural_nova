@@ -184,6 +184,10 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **The "Other" reaction field had no label a screen reader could announce.**
+  Visually it was clear enough from the "Any emoji…" placeholder, but a
+  placeholder disappears the moment there's a value and was never read as
+  a label to begin with. It now has one, in both Messages and In-Sys Chat.
 - **"Log a mood" could land you on the wrong tab.** Wellbeing's own quick
   action opened the mood dialog correctly but always landed on the Games
   tab behind it, rather than Check-ins, where mood content actually lives;

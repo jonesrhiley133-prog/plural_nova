@@ -251,6 +251,7 @@ function ReactionPicker({
           <input
             className="reaction-picker__input"
             autoFocus
+            aria-label="Type any emoji to react with"
             placeholder="Any emoji…"
             value={other}
             onChange={(event) => setOther(event.target.value)}
