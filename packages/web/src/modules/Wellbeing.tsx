@@ -52,7 +52,11 @@ export default function Wellbeing(): JSX.Element {
 
   const checkIn = useDialog();
   const [moodOpen, setMoodOpen] = useState(params.get('new') === 'mood');
-  const [tab, setTab] = useState<WellbeingTab>('games');
+  // Arriving to log a mood or check in should land on the tab that content
+  // actually lives on, not the games tab with a dialog floating over it.
+  const [tab, setTab] = useState<WellbeingTab>(
+    params.get('new') === 'mood' || params.get('tab') === 'checkIns' ? 'checkIns' : 'games',
+  );
 
   const overview = useQuery<{
     mood: { entries: number; average: number; trend: string; byDay: { label: string; value: number; key: string }[] };

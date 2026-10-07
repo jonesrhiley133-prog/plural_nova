@@ -478,7 +478,7 @@ function MoodWidget(): JSX.Element {
     <Card
       title="Mood"
       actions={
-        <Button variant="ghost" size="sm" onClick={() => navigate('/wellbeing')}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/wellbeing?new=mood')}>
           Log
         </Button>
       }
@@ -735,7 +735,7 @@ function WellnessWidget(): JSX.Element {
     <Card
       title="Wellbeing"
       actions={
-        <Button variant="ghost" size="sm" onClick={() => navigate('/wellbeing')}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/wellbeing?tab=checkIns')}>
           Check in
         </Button>
       }

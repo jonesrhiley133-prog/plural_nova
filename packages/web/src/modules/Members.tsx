@@ -489,25 +489,23 @@ export default function Members(): JSX.Element {
                   }
                 />
               ) : (
-                <Card flush>
-                  <VirtualizedList
-                    members={records}
-                    estimateRowHeight={layout === 'thickBanner' ? 104 : 66}
-                    renderRow={(member, isLast) => (
-                      <MemberBannerRow
-                        key={member.id}
-                        member={member}
-                        thick={layout === 'thickBanner'}
-                        last={isLast}
-                        onOpen={multiselect ? () => toggleSelected(member.id) : () => navigate(`/members/${member.id}`)}
-                        onQuickFront={() => quickFrontMember(member)}
-                        multiselect={multiselect}
-                        selected={selectedIds.has(member.id)}
-                        onLongPress={() => enterMultiselect(member.id)}
-                      />
-                    )}
-                  />
-                </Card>
+                <VirtualizedList
+                  members={records}
+                  estimateRowHeight={layout === 'thickBanner' ? 104 : 66}
+                  renderRow={(member, isLast) => (
+                    <MemberBannerRow
+                      key={member.id}
+                      member={member}
+                      thick={layout === 'thickBanner'}
+                      last={isLast}
+                      onOpen={multiselect ? () => toggleSelected(member.id) : () => navigate(`/members/${member.id}`)}
+                      onQuickFront={() => quickFrontMember(member)}
+                      multiselect={multiselect}
+                      selected={selectedIds.has(member.id)}
+                      onLongPress={() => enterMultiselect(member.id)}
+                    />
+                  )}
+                />
               )
             }
           </AsyncContent>

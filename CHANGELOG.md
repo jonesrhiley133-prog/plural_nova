@@ -12,6 +12,14 @@ different versions of PluralNova.
 
 ### Added
 
+- **A message reaction is no longer limited to six emoji.** The reaction
+  picker's quick picks are still there, but an "Other" option now opens a
+  small field for any emoji your device's own keyboard offers, in both
+  Messages and In-Sys Chat.
+- **Emotions now has its own place in navigation.** It was always a full
+  screen — logging, recents, favourites, custom emotions — but was only
+  ever reachable through a quick action or a deep link. It now sits
+  alongside Wellbeing, Body sensations and the rest in the Life section.
 - **Fewer text boxes in view at once.** Optional notes and descriptions that
   aren't a record's main point — a class's notes, a fic's own notes, a
   subsystem's description, and dozens like them across School Life, Creative,
@@ -174,6 +182,19 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **"Log a mood" could land you on the wrong tab.** Wellbeing's own quick
+  action opened the mood dialog correctly but always landed on the Games
+  tab behind it, rather than Check-ins, where mood content actually lives;
+  the Dashboard's own Mood widget didn't open the dialog at all, just the
+  Games tab with nothing open. Both now land where they mean to.
+- **A theme's background image didn't travel with it.** Exporting a theme
+  only ever saved a path on this server, so sharing it or restoring it
+  elsewhere left the image broken while every colour and gradient still
+  came through fine. The image is now embedded directly in the export.
+- **Thick-banner member rows sat inside their own lightly-tinted panel.**
+  Now that each row is its own separated card, the wrapping panel behind
+  the whole list was just a second, redundant background layer — removed,
+  the same way the square and circle layouts never had one.
 - **Messages and In-Sys Chat could lag while typing in a long conversation.**
   The composer's draft and the conversation's own message list live in the
   same piece of state, and every keystroke was re-mapping and re-sorting the

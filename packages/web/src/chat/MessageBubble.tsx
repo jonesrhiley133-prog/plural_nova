@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Avatar, IconButton } from '../ui/primitives.js';
 import { ActionMenu, useActionMenu, type ActionMenuItem, type ActionMenuPosition } from '../ui/overlays.js';
@@ -217,20 +217,65 @@ function ReactionPicker({
   onClose: () => void;
   onPick: (emoji: string) => void;
 }): JSX.Element | null {
+  // The six quick picks below are a shortcut, not the whole set — "Other"
+  // reaches any emoji at all through the device's own emoji keyboard, so a
+  // reaction is never limited to this fixed list.
+  const [showOther, setShowOther] = useState(false);
+  const [other, setOther] = useState('');
+
   if (!position.open) return null;
   const style = {
     position: 'fixed' as const,
     [position.fromRight ? 'right' : 'left']: position.x,
     [position.fromBottom ? 'bottom' : 'top']: position.y,
   };
+
+  const reset = (): void => {
+    setShowOther(false);
+    setOther('');
+  };
+  const submitOther = (): void => {
+    const trimmed = other.trim();
+    if (trimmed) onPick(trimmed);
+    reset();
+  };
+  const handleClose = (): void => {
+    reset();
+    onClose();
+  };
+
   return createPortal(
     <div className="reaction-picker" role="menu" style={style}>
-      {QUICK_REACTIONS.map((emoji) => (
-        <button key={emoji} type="button" className="reaction-picker__option" onClick={() => onPick(emoji)}>
-          {emoji}
-        </button>
-      ))}
-      <button type="button" className="reaction-picker__dismiss" aria-label="Close" onClick={onClose}>
+      {showOther ? (
+        <>
+          <input
+            className="reaction-picker__input"
+            autoFocus
+            placeholder="Any emoji…"
+            value={other}
+            onChange={(event) => setOther(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') submitOther();
+              if (event.key === 'Escape') handleClose();
+            }}
+          />
+          <button type="button" className="reaction-picker__dismiss" aria-label="Add this reaction" onClick={submitOther}>
+            <Icon name="check" size={14} />
+          </button>
+        </>
+      ) : (
+        <>
+          {QUICK_REACTIONS.map((emoji) => (
+            <button key={emoji} type="button" className="reaction-picker__option" onClick={() => onPick(emoji)}>
+              {emoji}
+            </button>
+          ))}
+          <button type="button" className="reaction-picker__option" aria-label="Pick another emoji" onClick={() => setShowOther(true)}>
+            <Icon name="plus" size={14} />
+          </button>
+        </>
+      )}
+      <button type="button" className="reaction-picker__dismiss" aria-label="Close" onClick={handleClose}>
         <Icon name="close" size={14} />
       </button>
     </div>,

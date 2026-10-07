@@ -42,8 +42,38 @@ export function ThemesPanel(): JSX.Element {
   const deleteDialog = useDialog<SavedTheme>();
   const importRef = useRef<HTMLInputElement>(null);
 
-  const download = (theme: SavedTheme): void => {
-    const blob = new Blob([exportTheme(theme)], { type: 'application/json' });
+  /**
+   * A theme's background image is normally a path on this server
+   * (`/uploads/...`), so handing the exported JSON to someone else — or
+   * restoring it on a different server — would leave the image broken.
+   * Inlining it as a data URI makes the export self-contained, the same
+   * way the colours and gradients already are.
+   */
+  const inlineBackgroundImage = async (theme: SavedTheme): Promise<SavedTheme> => {
+    const bgImage = theme.global.bgImage;
+    if (!bgImage || bgImage.startsWith('data:')) return theme;
+    try {
+      const response = await fetch(bgImage);
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      return { ...theme, global: { ...theme.global, bgImage: dataUrl } };
+    } catch {
+      // Exported without the image rather than failing the whole download —
+      // every other setting still travels, and the image was already broken
+      // for anyone this is shared with outside this account.
+      toast.error('Could not include the background image; the rest of the theme still exported.');
+      return theme;
+    }
+  };
+
+  const download = async (theme: SavedTheme): Promise<void> => {
+    const resolved = await inlineBackgroundImage(theme);
+    const blob = new Blob([exportTheme(resolved)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -114,7 +144,7 @@ export function ThemesPanel(): JSX.Element {
                   <Button size="sm" variant="ghost" onClick={() => setRenaming({ id: theme.id, value: theme.name })}>Rename</Button>
                   <Button size="sm" variant="ghost" onClick={() => a.duplicateTheme(theme.id)}>Duplicate</Button>
                   <Button size="sm" variant="ghost" onClick={() => a.togglePinTheme(theme.id)}>{theme.pinned ? 'Unpin' : 'Pin'}</Button>
-                  <Button size="sm" variant="ghost" onClick={() => download(theme)}>Export</Button>
+                  <Button size="sm" variant="ghost" onClick={() => void download(theme)}>Export</Button>
                   <Button size="sm" variant="ghost" onClick={() => deleteDialog.show(theme)}>Delete</Button>
                 </>
               )}
