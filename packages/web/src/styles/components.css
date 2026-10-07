@@ -1080,6 +1080,11 @@
  * profile's own banner (same gradient formula, same layered structure) rather
  * than a taller list row, so a member is recognised by more than a circular
  * avatar without opening their profile.
+ *
+ * Each row is its own rounded card with a gap below it, rather than a
+ * border-divided strip of one continuous surface — a real banner image reads
+ * as a connected, unbroken row of banners otherwise, which a plain divider
+ * line does nothing to separate.
  */
 .member-banner-row {
   position: relative;
@@ -1095,11 +1100,8 @@
     color-mix(in srgb, var(--member-color, var(--accent)) 30%, var(--bg-subtle)),
     var(--bg-subtle)
   );
-  border-bottom: var(--border-width) solid var(--border);
-}
-
-.member-banner-row:last-child {
-  border-bottom: none;
+  border-radius: var(--radius);
+  margin-bottom: var(--space-2);
 }
 
 .member-banner-row__image {

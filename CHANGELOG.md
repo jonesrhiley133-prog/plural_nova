@@ -174,6 +174,18 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Messages and In-Sys Chat could lag while typing in a long conversation.**
+  The composer's draft and the conversation's own message list live in the
+  same piece of state, and every keystroke was re-mapping and re-sorting the
+  whole thread from scratch as a result — work that scales with how long the
+  conversation is, repeated on every key. Typing now only touches the
+  composer; the conversation list is recomputed solely when a message
+  actually changes.
+- **Thick-banner member rows read as one connected strip instead of separate
+  ones.** Each row shared a plain divider line with its neighbour rather than
+  standing apart, so a run of real banner images looked like a single,
+  unbroken surface. Every row is now its own rounded card with a visible gap
+  below it, the same as any other card in the app.
 - **Birthdays never actually notified anyone.** The Calendar's own empty
   state promised "to be reminded when it comes around," but nothing was
   wired up to do that — it now checks once a day and lets the whole

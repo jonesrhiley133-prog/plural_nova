@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Avatar, IconButton } from '../ui/primitives.js';
 import { ActionMenu, useActionMenu, type ActionMenuItem, type ActionMenuPosition } from '../ui/overlays.js';
@@ -52,7 +53,7 @@ interface MessageBubbleProps {
   onQuoteClick?: () => void;
 }
 
-export function MessageBubble({
+function MessageBubbleImpl({
   message,
   showAvatar,
   showName,
@@ -192,6 +193,11 @@ export function MessageBubble({
     </div>
   );
 }
+
+// Memoized: every message bubble in a conversation otherwise re-renders on
+// each composer keystroke, since the composer's draft state lives in the
+// same component tree that hands this its props.
+export const MessageBubble = memo(MessageBubbleImpl);
 
 /** The reaction menu item has no pointer event of its own — it opens at
  *  wherever the "…" menu already is, rather than requiring a second click. */

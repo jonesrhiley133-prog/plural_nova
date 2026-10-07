@@ -492,7 +492,7 @@ export default function Members(): JSX.Element {
                 <Card flush>
                   <VirtualizedList
                     members={records}
-                    estimateRowHeight={layout === 'thickBanner' ? 96 : 66}
+                    estimateRowHeight={layout === 'thickBanner' ? 104 : 66}
                     renderRow={(member, isLast) => (
                       <MemberBannerRow
                         key={member.id}
@@ -830,7 +830,7 @@ function MemberBannerRow({
     // recognise someone by more than a small circular avatar.
     const color = (member['color'] as string) || 'var(--accent)';
     return (
-      <div className="member-banner-row" style={{ ['--member-color' as never]: color, ...dividerStyle }}>
+      <div className="member-banner-row" style={{ ['--member-color' as never]: color }}>
         {member['bannerUrl'] ? (
           <img
             className="member-banner-row__image"

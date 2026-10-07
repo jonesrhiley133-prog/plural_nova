@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { newId, type StoredRecord } from '@pluralnova/shared';
 import { api, messageFor } from './api.js';
 import { realtime } from './realtime.js';
@@ -306,12 +306,16 @@ export function useSystemChatConversation(
     }
   }, [threadId]);
 
-  const normalizedMessages = (() => {
+  // Memoized for the same reason as the Messages equivalent in
+  // core/messages.ts: a composer keystroke is local state in the component
+  // calling this hook, and shouldn't re-map and re-sort every message in the
+  // thread on every key.
+  const normalizedMessages = useMemo(() => {
     const list = rawMessages.map((message) => normalize(message, thread));
     const confirmedClientIds = new Set(list.map((message) => message.clientId).filter(Boolean));
     const stillPending = pending.filter((message) => !confirmedClientIds.has(message.clientId));
     return [...list, ...stillPending].sort(compareBySentAt);
-  })();
+  }, [rawMessages, pending, normalize, thread]);
 
   // Confirmed optimistic sends are only ever hidden by the filter above, not
   // actually dropped from `pending` — so a later action on the real message
