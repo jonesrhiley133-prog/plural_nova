@@ -256,6 +256,14 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Alter flags rendered as text chips, not the flag images they're meant to
+  be.** A flag's picture now shows as an actual rectangular image, at a
+  consistent wide ratio, everywhere a flag appears — the alter profile header
+  and the flag attach/detach list. A flag with no picture, or whose picture
+  fails to load, falls back to its colour and icon rather than breaking or
+  silently showing nothing. Attached flags can now be reordered (and still
+  removed, as before); the order is saved and shows up the same way
+  everywhere the flags are listed.
 - **Typing in Messages or In-Sys Chat could freeze the interface on a long
   conversation.** A prior fix memoized the message list itself but missed the
   real cause: the composer (what you're typing) lived in the same component

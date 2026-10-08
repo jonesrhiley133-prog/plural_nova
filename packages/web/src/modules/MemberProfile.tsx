@@ -23,6 +23,7 @@ import { SwitchRow } from '../ui/forms.js';
 import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
 import { GiveBadgePicker, MemberBadgeRow, createBadge, parseBadges } from '../ui/MemberBadges.js';
 import { Icon } from '../ui/Icon.js';
+import { FlagImage, FlagImageRow, type FlagImageItem } from '../ui/FlagImage.js';
 import { ThemeScope, useAssignedTheme } from '../core/appearance.js';
 import { ThemePicker } from './appearance/ThemePicker.js';
 import { Markdown } from '../ui/Markdown.js';
@@ -80,11 +81,18 @@ export default function MemberProfile(): JSX.Element {
     limit: 1,
   });
   const flagById = useMemo(() => new Map(flags.items.map((flag) => [flag.id, flag])), [flags.items]);
-  const attachedFlags = useMemo(
+  const attachedFlags: FlagImageItem[] = useMemo(
     () =>
       flagAssignments.items
-        .map((assignment) => flagById.get(String(assignment['flagId'])))
-        .filter((flag): flag is StoredRecord => Boolean(flag)),
+        .map((flag) => flagById.get(String(flag['flagId'])))
+        .filter((flag): flag is StoredRecord => Boolean(flag))
+        .map((flag) => ({
+          id: flag.id,
+          name: String(flag['name'] ?? ''),
+          imageUrl: (flag['imageUrl'] as string) ?? null,
+          color: (flag['color'] as string) ?? null,
+          icon: (flag['icon'] as string) ?? null,
+        })),
     [flagAssignments.items, flagById],
   );
 
@@ -173,18 +181,8 @@ export default function MemberProfile(): JSX.Element {
             ) : null}
 
             {flagsVisible ? (
-              <div className="row" style={{ marginTop: 'var(--space-3)' }}>
-                {attachedFlags.map((flag) => (
-                  <span
-                    key={flag.id}
-                    className="chip chip--flag"
-                    style={{ ['--flag-color' as never]: (flag['color'] as string) || 'var(--accent)' }}
-                    title={String(flag['name'])}
-                  >
-                    {flag['icon'] ? `${String(flag['icon'])} ` : ''}
-                    {String(flag['name'])}
-                  </span>
-                ))}
+              <div style={{ marginTop: 'var(--space-3)' }}>
+                <FlagImageRow flags={attachedFlags} width={44} />
               </div>
             ) : null}
 
@@ -473,6 +471,21 @@ function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
   );
   const picker = useDialog();
 
+  // `assignments.items` already arrives sorted by `sortOrder` (the
+  // collection's own default sort) — reordering renumbers this list and
+  // persists the new order, rather than tracking position separately.
+  const reorder = (fromIndex: number, toIndex: number): void => {
+    if (toIndex < 0 || toIndex >= assignments.items.length) return;
+    const next = [...assignments.items];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved!);
+    next.forEach((assignment, index) => {
+      if (Number(assignment['sortOrder'] ?? 0) !== index) {
+        void assignments.update(assignment.id, { sortOrder: index }).catch((cause: unknown) => toast.fromError(cause));
+      }
+    });
+  };
+
   return (
     <div className="stack">
       <Card title="Boundaries">
@@ -500,22 +513,56 @@ function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
               : 'No flags attached.'}
           </p>
         ) : (
-          <div className="row">
-            {assignments.items.map((assignment) => {
+          <div className="stack" style={{ gap: 'var(--space-2)' }}>
+            {assignments.items.map((assignment, index) => {
               const flag = flagById.get(String(assignment['flagId']));
               if (!flag) return null;
+              const name = String(flag['name'] ?? '');
               return (
-                <Chip
-                  key={assignment.id}
-                  color={(flag['color'] as string) ?? null}
-                  onClick={() => {
-                    void assignments.remove(assignment.id).catch((cause: unknown) => toast.fromError(cause));
-                  }}
-                  title={`Remove ${String(flag['name'])}`}
-                >
-                  {flag['icon'] ? `${String(flag['icon'])} ` : ''}
-                  {String(flag['name'])} <Icon name="close" size={10} />
-                </Chip>
+                <div key={assignment.id} className="row row--between" style={{ alignItems: 'center' }}>
+                  <div className="row row--nowrap" style={{ alignItems: 'center' }}>
+                    <FlagImage
+                      flag={{
+                        id: flag.id,
+                        name,
+                        imageUrl: (flag['imageUrl'] as string) ?? null,
+                        color: (flag['color'] as string) ?? null,
+                        icon: (flag['icon'] as string) ?? null,
+                      }}
+                      width={52}
+                    />
+                    <span className="small" style={{ marginLeft: 'var(--space-2)' }}>
+                      {name}
+                    </span>
+                  </div>
+                  <div className="row row--nowrap">
+                    <IconButton
+                      icon="chevronUp"
+                      label={`Move ${name} earlier`}
+                      variant="ghost"
+                      size="sm"
+                      disabled={index === 0}
+                      onClick={() => reorder(index, index - 1)}
+                    />
+                    <IconButton
+                      icon="chevronDown"
+                      label={`Move ${name} later`}
+                      variant="ghost"
+                      size="sm"
+                      disabled={index === assignments.items.length - 1}
+                      onClick={() => reorder(index, index + 1)}
+                    />
+                    <IconButton
+                      icon="close"
+                      label={`Remove ${name}`}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        void assignments.remove(assignment.id).catch((cause: unknown) => toast.fromError(cause));
+                      }}
+                    />
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -528,20 +575,36 @@ function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
         ) : (
           <div className="row">
             {available.map((flag) => (
-              <Chip
+              <button
                 key={flag.id}
-                color={(flag['color'] as string) ?? null}
+                type="button"
+                className="card card--interactive"
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-2)' }}
                 onClick={() => {
                   void assignments
-                    .create({ targetType: 'member', targetId: member.id, flagId: flag.id })
+                    .create({
+                      targetType: 'member',
+                      targetId: member.id,
+                      flagId: flag.id,
+                      sortOrder: assignments.items.length,
+                    })
                     .then(() => toast.success('Attached'))
                     .catch((cause: unknown) => toast.fromError(cause));
                   picker.hide();
                 }}
               >
-                {flag['icon'] ? `${String(flag['icon'])} ` : ''}
-                {String(flag['name'])}
-              </Chip>
+                <FlagImage
+                  flag={{
+                    id: flag.id,
+                    name: String(flag['name'] ?? ''),
+                    imageUrl: (flag['imageUrl'] as string) ?? null,
+                    color: (flag['color'] as string) ?? null,
+                    icon: (flag['icon'] as string) ?? null,
+                  }}
+                  width={56}
+                />
+                <span className="tiny">{String(flag['name'])}</span>
+              </button>
             ))}
           </div>
         )}

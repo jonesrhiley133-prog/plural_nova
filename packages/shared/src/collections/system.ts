@@ -576,14 +576,15 @@ export const flagAssignments: CollectionDef = {
   area: 'system',
   scope: 'system',
   titleField: 'targetId',
-  sortField: 'createdAt',
-  sortDir: 'desc',
+  sortField: 'sortOrder',
+  sortDir: 'asc',
   indexes: [['systemId', 'targetType', 'targetId']],
   fields: [
     f.ref('flagId', 'Flag', 'flags', { required: true }),
     f.text('targetType', 'Attached to type', { required: true }),
     f.text('targetId', 'Attached to', { required: true }),
     f.long('note', 'Note'),
+    f.int('sortOrder', 'Order', { defaultValue: 0 }),
   ],
 };
 
