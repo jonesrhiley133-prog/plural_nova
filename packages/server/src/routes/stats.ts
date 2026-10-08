@@ -7,6 +7,7 @@ import {
   bucketByWeek,
   bucketByWeekday,
   categoriesOf,
+  coOccurringPairs,
   countBy,
   currentStreak,
   dayKey,
@@ -18,8 +19,11 @@ import {
   longestStreak,
   memberFrontingStats,
   percentOf,
+  stdev,
+  toPercent,
   topEntries,
   trendOf,
+  variance,
   type FrontEventLike,
   type GradeCategory,
 } from '@pluralnova/shared';
@@ -80,6 +84,81 @@ statsRouter.get(
       .map((m) => Number(m['score'] ?? 0))
       .filter((score) => score > 0);
 
+    // The Snapshot and energy signals below read the single latest row of
+    // each collection — not range-limited by `days`, since "what's the most
+    // recent thing known" is a different question than "what happened in
+    // this window", and the rest of this response already answers that one.
+    const latestWellness = listRecords('wellnessEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestSleepRow = listRecords('sleepEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestFeeling = listRecords('feelingEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestMoodRow = listRecords('moodEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestJournalForEnergy = listRecords('journalEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestFitness = listRecords('fitnessEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestCycle = listRecords('cycleEntries', context.scope, { limit: 1 }).items[0] ?? null;
+
+    const snapshotMood =
+      latestFeeling && typeof latestFeeling['mood'] === 'number'
+        ? Math.round(latestFeeling['mood'] as number)
+        : latestMoodRow && typeof latestMoodRow['score'] === 'number'
+          ? (latestMoodRow['score'] as number) * 10
+          : null;
+    const snapshotAxes: { key: string; label: string; percent: number | null }[] = [
+      { key: 'mood', label: 'Mood', percent: snapshotMood === null ? null : toPercent(snapshotMood, 0, 100) },
+      {
+        key: 'energy',
+        label: 'Energy',
+        percent: latestWellness && typeof latestWellness['energy'] === 'number' ? toPercent(latestWellness['energy'] as number, 1, 10) : null,
+      },
+      {
+        key: 'stress',
+        label: 'Stress',
+        percent: latestWellness && typeof latestWellness['stress'] === 'number' ? toPercent(latestWellness['stress'] as number, 1, 10) : null,
+      },
+      {
+        key: 'comfort',
+        label: 'Comfort',
+        percent: latestWellness && typeof latestWellness['comfort'] === 'number' ? toPercent(latestWellness['comfort'] as number, 1, 10) : null,
+      },
+      {
+        key: 'socialBattery',
+        label: 'Social battery',
+        percent:
+          latestWellness && typeof latestWellness['socialBattery'] === 'number' ? toPercent(latestWellness['socialBattery'] as number, 1, 10) : null,
+      },
+      {
+        key: 'sleep',
+        label: 'Sleep',
+        percent: latestSleepRow && typeof latestSleepRow['quality'] === 'number' ? toPercent(latestSleepRow['quality'] as number, 0, 5) : null,
+      },
+      {
+        key: 'focus',
+        label: 'Focus',
+        percent: latestWellness && typeof latestWellness['focus'] === 'number' ? toPercent(latestWellness['focus'] as number, 1, 10) : null,
+      },
+    ];
+    const presentPercents = snapshotAxes.map((axis) => axis.percent).filter((value): value is number => value !== null);
+
+    const energySources: { source: string; label: string; row: Record<string, unknown> | null; field: string; min: number; max: number }[] = [
+      { source: 'wellness', label: "Today's check-in", row: latestWellness, field: 'energy', min: 1, max: 10 },
+      { source: 'journal', label: 'Journal entry', row: latestJournalForEnergy, field: 'energy', min: 1, max: 5 },
+      { source: 'fitness', label: 'After activity', row: latestFitness, field: 'energyAfter', min: 1, max: 5 },
+      { source: 'cycle', label: 'Cycle log', row: latestCycle, field: 'energy', min: 1, max: 10 },
+    ];
+    const energySignals = energySources
+      .map(({ source, label, row, field, min, max }) => {
+        const raw = row ? row[field] : null;
+        if (typeof raw !== 'number' || !row) return null;
+        return {
+          source,
+          label,
+          value: raw,
+          percent: toPercent(raw, min, max),
+          recordedAt: String(row['recordedAt'] ?? row['startedAt'] ?? row['performedAt'] ?? row['entryDate'] ?? ''),
+        };
+      })
+      .filter((signal): signal is NonNullable<typeof signal> => signal !== null)
+      .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+
     ok(res, {
       rangeDays: days,
       fronting: {
@@ -93,10 +172,25 @@ statsRouter.get(
         byWeekday: bucketByWeekday(fronts.map((event) => ({ at: event.startedAt }))),
         members: memberFrontingStats(fronts).slice(0, 10),
       },
+      // Every axis here is a different collection's own most recent value,
+      // scaled onto the same 0-100 line so they can sit on one bar chart —
+      // nothing is blended across sources, and a missing axis is left out
+      // rather than guessed at.
+      snapshot: {
+        axes: snapshotAxes,
+        overall: presentPercents.length > 0 ? Math.round(average(presentPercents)) : null,
+      },
+      energySignals,
       mood: {
         entries: moods.length,
         average: Math.round(average(moodScores) * 10) / 10,
         trend: trendOf(moodScores),
+        // A 1-10 scale makes variance/stdev small, fiddly numbers — scored on
+        // the same 0-100 line the check-in's own slider uses instead.
+        variance: Math.round(variance(moodScores.map((score) => score * 10)) * 10) / 10,
+        stdev: Math.round(stdev(moodScores.map((score) => score * 10)) * 10) / 10,
+        streak: currentStreak(moods.map((m) => String(m['recordedAt']))),
+        longestStreak: longestStreak(moods.map((m) => String(m['recordedAt']))),
         byDay: bucketByDay(
           moods.map((m) => ({ at: String(m['recordedAt']), value: Number(m['score'] ?? 0) })),
           Math.min(days, 90),
@@ -311,6 +405,15 @@ function dayInsights(
   };
 }
 
+/** Three plain bands, wide enough that each one usually has something in it. */
+function moodBand(mood: number): 'low' | 'mid' | 'high' {
+  if (mood < 40) return 'low';
+  if (mood < 70) return 'mid';
+  return 'high';
+}
+
+const MOOD_BAND_LABELS = { low: 'Lower moods', mid: 'Middling moods', high: 'Higher moods' } as const;
+
 /**
  * Emotion insights: which emotions recur, when, and alongside what. Presented
  * as observations about the log, not conclusions about the person.
@@ -338,14 +441,67 @@ statsRouter.get(
     const byActivity = countBy(entries, (entry) => String(entry['activity'] ?? '').trim() || null);
     const byMember = countBy(entries, (entry) => (entry['memberId'] as string) ?? null);
 
+    // An entry's intensity describes the whole entry, not each emotion in it
+    // individually — the same approximation `averageIntensity` above already
+    // makes for a multi-emotion entry, just broken out per emotion here too.
+    const intensityByEmotion = new Map<string, number[]>();
+    for (const entry of entries) {
+      const intensity = Number(entry['intensity'] ?? 0);
+      if (intensity <= 0) continue;
+      for (const id of emotionIdsOf(entry)) {
+        const list = intensityByEmotion.get(id) ?? [];
+        list.push(intensity);
+        intensityByEmotion.set(id, list);
+      }
+    }
+
+    // How often emotions were logged in the same entry as each other — the
+    // Emotional Constellation's connecting lines, nothing more than a count.
+    const coOccurrence = coOccurringPairs(entries.map((entry) => emotionIdsOf(entry)))
+      .slice(0, 16)
+      .map((pair) => ({
+        ...pair,
+        emotionA: getEmotion(pair.a) ?? null,
+        emotionB: getEmotion(pair.b) ?? null,
+      }));
+
+    // Only a check-in links one mood value to a set of emotions in the same
+    // row — `emotionEntries` and `moodEntries` never shared a key, so this
+    // breakdown reads `feelingEntries` on its own rather than the `entries`
+    // fetched above, and says so in its own `source` field.
+    const feelings = listRecords('feelingEntries', context.scope, {
+      limit: 500,
+      range: { field: 'recordedAt', from: rangeFrom(days) },
+    }).items.filter((entry) => entry['excludeFromInsights'] !== true);
+    const byBand = new Map<'low' | 'mid' | 'high', typeof feelings>();
+    for (const feeling of feelings) {
+      const band = moodBand(Number(feeling['mood'] ?? 50));
+      const list = byBand.get(band) ?? [];
+      list.push(feeling);
+      byBand.set(band, list);
+    }
+    const moodLinks = (['low', 'mid', 'high'] as const).map((band) => {
+      const rows = byBand.get(band) ?? [];
+      const emotionCounts = countBy(rows.flatMap((row) => emotionIdsOf(row)), (id) => id || null);
+      return {
+        band,
+        label: MOOD_BAND_LABELS[band],
+        checkIns: rows.length,
+        topEmotions: topEntries(emotionCounts, 6).map((entry) => ({ ...entry, emotion: getEmotion(entry.key) ?? null })),
+      };
+    });
+
     ok(res, {
       rangeDays: days,
       total: entries.length,
       averageIntensity: Math.round(average(intensities) * 10) / 10,
       intensityTrend: trendOf(intensities),
-      topEmotions: topEntries(byEmotion, 12).map((entry) => ({
+      // 40, not a display limit — `RankedBars` already trims its own list to
+      // a readable length, and the Constellation wants more stars than that.
+      topEmotions: topEntries(byEmotion, 40).map((entry) => ({
         ...entry,
         emotion: getEmotion(entry.key) ?? null,
+        averageIntensity: Math.round(average(intensityByEmotion.get(entry.key) ?? []) * 10) / 10,
       })),
       families: topEntries(byFamily, 12).map((entry) => ({
         ...entry,
@@ -357,6 +513,8 @@ statsRouter.get(
         ...entry,
         name: memberNames.get(entry.key) ?? 'Unattributed',
       })),
+      coOccurrence,
+      moodLinks: moodLinks.some((entry) => entry.checkIns >= 3) ? moodLinks : null,
       byHour: bucketByHour(entries.map((entry) => ({ at: String(entry['recordedAt']) }))),
       byWeekday: bucketByWeekday(entries.map((entry) => ({ at: String(entry['recordedAt']) }))),
       byDay: bucketByDay(
@@ -799,6 +957,95 @@ statsRouter.get(
       ),
       activities: topEntries(countBy(entries, (entry) => String(entry['activity'] ?? '')), 8),
       streak: currentStreak(entries.map((entry) => String(entry['performedAt']))),
+    });
+  }),
+);
+
+/**
+ * Cycle & Wellbeing: one row per completed cycle (the stretch between one
+ * logged "start" and the next), and symptoms grouped by whichever phase was
+ * most recently named as of the day each symptom was logged. The phase link
+ * is computed here, not stored — `cycleEntries.phase` is free text set on
+ * whichever days the user bothers to name one, carried forward day to day,
+ * the same way `Cycle.tsx`'s own "Your phases" list already treats it.
+ */
+statsRouter.get(
+  '/cycle',
+  handler((req, res) => {
+    const context = auth(req);
+    const entries = listRecords('cycleEntries', context.scope, { limit: 2000 }).items;
+    const symptoms = listRecords('symptomEntries', context.scope, { limit: 2000 }).items;
+
+    const sorted = [...entries].sort((a, b) => String(a['entryDate']).localeCompare(String(b['entryDate'])));
+    const starts = sorted.filter((entry) => entry['eventType'] === 'start');
+
+    const cycles = starts.map((start, index) => {
+      const startDate = String(start['entryDate']);
+      const next = starts[index + 1];
+      const endDate = next ? String(next['entryDate']) : null;
+      const inCycle = sorted.filter((entry) => {
+        const date = String(entry['entryDate']);
+        return date >= startDate && (endDate === null || date < endDate);
+      });
+      const energies = inCycle.map((entry) => Number(entry['energy'] ?? 0)).filter((n) => n > 0);
+      const discomforts = inCycle
+        .map((entry) => entry['discomfort'])
+        .filter((value): value is number => typeof value === 'number');
+      const symptomTags = inCycle.flatMap((entry) => (entry['symptoms'] as string[]) ?? []);
+
+      return {
+        startDate,
+        endDate,
+        lengthDays: endDate
+          ? Math.round((Date.parse(`${endDate}T00:00:00`) - Date.parse(`${startDate}T00:00:00`)) / 86_400_000)
+          : null,
+        averageEnergy: energies.length > 0 ? Math.round(average(energies) * 10) / 10 : null,
+        averageDiscomfort: discomforts.length > 0 ? Math.round(average(discomforts) * 10) / 10 : null,
+        symptomDays: inCycle.filter((entry) => ((entry['symptoms'] as string[]) ?? []).length > 0).length,
+        topSymptoms: topEntries(countBy(symptomTags, (tag) => tag || null), 5),
+      };
+    });
+
+    const completedLengths = cycles.map((cycle) => cycle.lengthDays).filter((n): n is number => n !== null);
+
+    // Carried-forward phase lookup: the most recent dated, non-empty phase as
+    // of a given day. `phaseTimeline` is ascending, so the first entry past
+    // the target day means every later one is too — nothing after it can win.
+    const phaseTimeline = sorted
+      .filter((entry) => typeof entry['phase'] === 'string' && (entry['phase'] as string).trim())
+      .map((entry) => ({ date: String(entry['entryDate']), phase: String(entry['phase']) }));
+    const phaseAsOf = (date: string): string | null => {
+      let found: string | null = null;
+      for (const point of phaseTimeline) {
+        if (point.date > date) break;
+        found = point.phase;
+      }
+      return found;
+    };
+
+    const byPhase = new Map<string, Record<string, unknown>[]>();
+    for (const symptom of symptoms) {
+      const date = String(symptom['recordedAt'] ?? '').slice(0, 10);
+      const phase = date ? phaseAsOf(date) : null;
+      if (!phase) continue;
+      const rows = byPhase.get(phase) ?? [];
+      rows.push(symptom);
+      byPhase.set(phase, rows);
+    }
+
+    ok(res, {
+      // Most recent two years or so of cycles — a full history at this
+      // granularity is more than a comparison view needs to show at once.
+      cycles: cycles.slice(-24),
+      cycleCount: cycles.length,
+      averageLengthDays: completedLengths.length > 0 ? Math.round(average(completedLengths)) : null,
+      symptomsByPhase: [...byPhase.entries()]
+        .map(([phase, rows]) => ({
+          phase,
+          count: rows.length,
+          topSymptoms: topEntries(countBy(rows, (row) => String(row['name'] ?? '')), 5),
+        }))
+        .sort((a, b) => b.count - a.count),
     });
   }),
 );

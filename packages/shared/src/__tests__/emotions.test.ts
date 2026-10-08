@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoriesOf, emotionIdsOf } from '../emotions.js';
+import { categoriesOf, emotionIdsOf, emotionIntensityOf } from '../emotions.js';
 
 /**
  * Both helpers exist for one reason: an `emotionEntries` row logged with more
@@ -40,5 +40,32 @@ describe('categoriesOf', () => {
 
   it('returns nothing for an entry with neither', () => {
     expect(categoriesOf({})).toEqual([]);
+  });
+});
+
+describe('emotionIntensityOf', () => {
+  it('reads a feelingEntries-style per-emotion map first', () => {
+    const entry = { emotionIntensities: { 'joy.happy': 5, 'fear.nervous': 2 }, intensity: 3 };
+    expect(emotionIntensityOf(entry, 'joy.happy')).toBe(5);
+    expect(emotionIntensityOf(entry, 'fear.nervous')).toBe(2);
+  });
+
+  it('falls back to the whole-entry intensity when the map has nothing for that emotion', () => {
+    const entry = { emotionIntensities: { 'joy.happy': 5 }, intensity: 4 };
+    expect(emotionIntensityOf(entry, 'fear.nervous')).toBe(4);
+  });
+
+  it('falls back to the whole-entry intensity for a plain emotionEntries row with no map at all', () => {
+    expect(emotionIntensityOf({ intensity: 4 }, 'joy.happy')).toBe(4);
+  });
+
+  it('falls back to the given default when neither is present', () => {
+    expect(emotionIntensityOf({}, 'joy.happy')).toBe(3);
+    expect(emotionIntensityOf({}, 'joy.happy', 1)).toBe(1);
+  });
+
+  it('clamps whatever it reads to the 1-5 range', () => {
+    expect(emotionIntensityOf({ emotionIntensities: { 'joy.happy': 9 } }, 'joy.happy')).toBe(5);
+    expect(emotionIntensityOf({ emotionIntensities: { 'joy.happy': 0 } }, 'joy.happy')).toBe(1);
   });
 });

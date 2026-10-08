@@ -185,6 +185,32 @@ export function categoriesOf(entry: Record<string, unknown>): string[] {
   return entry['category'] ? [String(entry['category'])] : [];
 }
 
+/**
+ * One emotion's own 1–5 strength within an entry that may hold several —
+ * `feelingEntries.emotionIntensities` (a json map of emotion id to level) when
+ * present, falling back to the entry's single whole-entry `intensity` (how
+ * every `emotionEntries` row, and a `feelingEntries` row logged without
+ * per-emotion detail, already store it), and finally to `fallback`.
+ */
+export function emotionIntensityOf(
+  entry: Record<string, unknown>,
+  emotionId: string,
+  fallback = 3,
+): number {
+  const perEmotion = entry['emotionIntensities'];
+  if (perEmotion && typeof perEmotion === 'object' && !Array.isArray(perEmotion)) {
+    const level = (perEmotion as Record<string, unknown>)[emotionId];
+    if (typeof level === 'number' && Number.isFinite(level)) {
+      return Math.min(Math.max(Math.round(level), 1), 5);
+    }
+  }
+  const whole = entry['intensity'];
+  if (typeof whole === 'number' && Number.isFinite(whole)) {
+    return Math.min(Math.max(Math.round(whole), 1), 5);
+  }
+  return fallback;
+}
+
 /** Labels for the 1–5 intensity scale, so the number always arrives with a word. */
 export const INTENSITY_LABELS: readonly string[] = [
   'Barely there',

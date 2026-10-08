@@ -80,6 +80,8 @@ function distinctTrackingDays(scope: Scope): number {
     ['moodEntries', 'recordedAt'],
     ['emotionEntries', 'recordedAt'],
     ['sleepEntries', 'startedAt'],
+    ['cycleEntries', 'entryDate'],
+    ['symptomEntries', 'recordedAt'],
   ] as const;
   const days = new Set<string>();
   for (const [table, column] of sources) {
@@ -153,6 +155,8 @@ export function collectMetrics(scope: Scope): Partial<Record<AchievementMetric, 
     'memberNotes.count': countRows('memberNotes', scope),
     'wellbeingGames.count': countRows('wellbeingGameLog', scope),
     'wellbeingGames.streakDays': wellbeingGameStreakDays(scope),
+    'cycleEntries.count': countRows('cycleEntries', scope),
+    'symptomEntries.count': countRows('symptomEntries', scope),
     trackingDays: distinctTrackingDays(scope),
     'backups.count': (
       getDb().prepare('SELECT COUNT(*) AS n FROM backups WHERE userId = ?').get(scope.userId) as {

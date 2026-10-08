@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { emotionIdsOf, type StoredRecord } from '@pluralnova/shared';
+import { emotionIdsOf, moodLabelFor, type StoredRecord } from '@pluralnova/shared';
 import { useCollection, useRecordMap } from '../core/data.js';
 import { useAllEmotions } from '../core/emotions.js';
 import { useDateFormat, useI18n } from '../core/i18n.js';
@@ -19,7 +19,7 @@ import { Icon, type IconName } from '../ui/Icon.js';
  * of what "recent" means for any of them.
  */
 
-type TimelineType = 'front' | 'journal' | 'mood' | 'emotion';
+type TimelineType = 'front' | 'journal' | 'mood' | 'emotion' | 'feeling';
 
 interface TimelineEntry {
   id: string;
@@ -47,6 +47,7 @@ export default function Timeline(): JSX.Element {
   const journal = useCollection('journalEntries', { limit: FETCH_LIMIT });
   const moods = useCollection('moodEntries', { limit: FETCH_LIMIT });
   const emotions = useCollection('emotionEntries', { limit: FETCH_LIMIT });
+  const feelings = useCollection('feelingEntries', { limit: FETCH_LIMIT });
 
   const [activeTypes, setActiveTypes] = useState<Set<TimelineType> | null>(null);
 
@@ -55,6 +56,7 @@ export default function Timeline(): JSX.Element {
     journal: { icon: 'journal', label: term('{{Journal}}') },
     mood: { icon: 'mood', label: 'Moods' },
     emotion: { icon: 'emotion', label: 'Emotions' },
+    feeling: { icon: 'mood', label: 'Check-ins' },
   };
 
   const memberName = (id: string | null): string | null =>
@@ -126,8 +128,30 @@ export default function Timeline(): JSX.Element {
       });
     }
 
+    for (const record of feelings.items) {
+      const recordedAt = String(record['recordedAt'] ?? '');
+      if (!recordedAt) continue;
+      const name = memberName((record['memberId'] as string) ?? null);
+      const recordedEmotions = emotionIdsOf(record)
+        .map((id) => findEmotion(id))
+        .filter((item): item is NonNullable<typeof item> => item != null);
+      const mood = Number(record['mood'] ?? 50);
+      const felt =
+        recordedEmotions.length > 0
+          ? ` feeling ${joinWithAnd(recordedEmotions.map((item) => item.name.toLowerCase()))}`
+          : '';
+      list.push({
+        id: `feeling-${record.id}`,
+        type: 'feeling',
+        timestamp: recordedAt,
+        memberId: (record['memberId'] as string) ?? null,
+        title: name ? `${name} checked in${felt}` : `Checked in${felt}`,
+        subtitle: `${moodLabelFor(mood)} (${mood}/100)`,
+      });
+    }
+
     return list.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
-  }, [front.items, journal.items, moods.items, emotions.items, members, findEmotion]);
+  }, [front.items, journal.items, moods.items, emotions.items, feelings.items, members, findEmotion]);
 
   const visible = activeTypes ? entries.filter((entry) => activeTypes.has(entry.type)) : entries;
 
@@ -152,8 +176,8 @@ export default function Timeline(): JSX.Element {
     });
   };
 
-  const loading = front.loading && journal.loading && moods.loading && emotions.loading;
-  const error = front.error ?? journal.error ?? moods.error ?? emotions.error;
+  const loading = front.loading && journal.loading && moods.loading && emotions.loading && feelings.loading;
+  const error = front.error ?? journal.error ?? moods.error ?? emotions.error ?? feelings.error;
 
   return (
     <>
@@ -184,6 +208,7 @@ export default function Timeline(): JSX.Element {
             void journal.reload();
             void moods.reload();
             void emotions.reload();
+            void feelings.reload();
           }}
         />
       ) : visible.length === 0 ? (

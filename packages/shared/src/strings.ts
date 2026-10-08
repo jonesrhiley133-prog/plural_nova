@@ -234,7 +234,7 @@ export const EN = {
   'confirm.typeToConfirm': 'Type {word} to confirm',
 
   // — Wellbeing —————————————————————————————————————————————
-  'wellbeing.title': 'Wellbeing',
+  'wellbeing.title': 'Cycle & Wellbeing',
   'wellbeing.disclaimer':
     'These are your own notes, not an assessment. PluralNova describes what you recorded and nothing more.',
   'wellbeing.checkIn': 'Check in',
@@ -505,7 +505,7 @@ export const ES: StringTable = {
   'confirm.permanentTitle': '¿Eliminar {label} de forma permanente?',
   'confirm.permanentBody': 'Esto no se puede deshacer.',
   'confirm.typeToConfirm': 'Escribe {word} para confirmar',
-  'wellbeing.title': 'Bienestar',
+  'wellbeing.title': 'Ciclo y bienestar',
   'wellbeing.disclaimer': 'Esto son tus propias notas, no una evaluación. PluralNova describe lo que has registrado y nada más.',
   'wellbeing.checkIn': 'Registrar cómo estás',
   'emotions.title': 'Emociones',

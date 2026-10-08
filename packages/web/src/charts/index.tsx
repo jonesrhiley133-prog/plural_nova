@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from 'react';
+import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CHART_INK, magnitudeColor, memberColor, seriesColor, chartMode } from './palette.js';
 import { ChartFrame, ChartTooltip, type ChartSeries } from './ChartFrame.js';
 
@@ -498,18 +498,24 @@ export function Heatmap({
   rows,
   columns,
   values,
+  cellLabels,
   format = formatNumber,
   emptyMessage,
   valueLabel = 'Count',
+  action,
 }: {
   title: string;
   subtitle?: string;
   rows: string[];
   columns: string[];
   values: number[][];
+  /** An emoji (or other glyph that carries its own colour) centred on each cell — never plain text, which the magnitude fill could make unreadable. */
+  cellLabels?: (string | null)[][];
   format?: (value: number) => string;
   emptyMessage?: string;
   valueLabel?: string;
+  /** Controls alongside the title, such as a prev/next month pair — the same slot `ChartFrame` already reserves. */
+  action?: ReactNode;
 }): JSX.Element {
   const mode = chartMode();
   const max = Math.max(...values.flat(), 1);
@@ -520,13 +526,17 @@ export function Heatmap({
       title={title}
       {...(subtitle ? { subtitle } : {})}
       {...(emptyMessage ? { emptyMessage } : {})}
+      {...(action ? { action } : {})}
       isEmpty={isEmpty}
       description={`${title}: highest ${format(max)}.`}
       table={{
         columns: ['', ...columns],
         rows: rows.map((row, rowIndex) => [
           row,
-          ...(values[rowIndex] ?? []).map((value) => format(value)),
+          ...(values[rowIndex] ?? []).map((value, columnIndex) => {
+            const label = cellLabels?.[rowIndex]?.[columnIndex];
+            return label ? `${format(value)} (${label})` : format(value);
+          }),
         ]),
       }}
     >
@@ -556,6 +566,7 @@ export function Heatmap({
               </span>
               {columns.map((column, columnIndex) => {
                 const value = values[rowIndex]?.[columnIndex] ?? 0;
+                const label = cellLabels?.[rowIndex]?.[columnIndex] ?? null;
                 return (
                   <span
                     key={`${row}-${column}`}
@@ -563,10 +574,17 @@ export function Heatmap({
                     style={{
                       aspectRatio: '1',
                       borderRadius: 'var(--radius-xs)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 11,
+                      lineHeight: 1,
                       background:
                         value === 0 ? 'var(--surface-sunken)' : magnitudeColor(value / max, mode),
                     }}
-                  />
+                  >
+                    {label}
+                  </span>
                 );
               })}
             </Fragment>

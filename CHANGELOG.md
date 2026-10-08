@@ -12,6 +12,51 @@ different versions of PluralNova.
 
 ### Added
 
+- **Cycle & Wellbeing gained a Symptoms tab, and cycle data now feeds real
+  comparisons.** Symptoms is a small log of its own — physical, emotional,
+  or anything else worth a note, not limited to the cycle — with its own
+  intensity and duration, separate from the quick symptom tags a cycle day
+  already had. Past names you've used are offered back so logging the same
+  thing twice doesn't mean retyping it. Behind the scenes, PluralNova now
+  turns your logged cycle starts into actual cycle-to-cycle comparisons
+  (length, average energy, average discomfort) and links each symptom to
+  whichever phase you'd most recently named as of that day — the
+  foundation the Insights area builds on next.
+- **Wellbeing is now Cycle & Wellbeing, and its Check-ins tab gained a
+  Snapshot and energy signals.** The Snapshot is seven bars — mood, energy,
+  stress, comfort, social battery, sleep, and a new focus check-in field —
+  each one a different place's own most recent log, scaled onto the same
+  0–100 line so they sit together without being blended into one number;
+  an axis with nothing logged for it is left off rather than guessed at.
+  Energy signals does something similar for just energy: PluralNova already
+  asked about it in four separate places (a check-in, a journal entry, after
+  a workout, a cycle log), and this is the first place that lists the most
+  recent reading from each side by side, still labelled by where it came
+  from rather than averaged into something falsely precise.
+- **Mood & Emotions grew three more tabs: Constellation, Calendar, and
+  Analytics.** The Constellation groups every emotion you've logged into its
+  family, sized by how intensely it tends to show up and connected by lines
+  to whatever else gets logged alongside it — a shape that's meant to become
+  familiar, not one that rearranges itself every time you check in. The
+  Calendar is a month at a glance, each day tinted by its average mood with
+  that day's most-logged emotion as a small emoji. Analytics replaces the old
+  standalone "Emotion insights" page (which now redirects here) and adds
+  mood's own spread and streaks alongside it, plus — only once a mood band
+  has at least three check-ins behind it — which emotions tend to travel
+  with a low, middling, or high mood. All three read what you've actually
+  logged and describe it; none of it is a diagnosis or a prediction.
+- **Mood and Emotions now share one check-in instead of two separate
+  questions.** A new "Mood & Emotions" screen — and its own quick action —
+  opens a single flow: how you're feeling on a 0–100 scale, then any
+  emotions that go with it, each with its own strength, then as much or as
+  little context as you want (what you were doing, who was around,
+  co-fronters, a note). The separate Mood and Emotions screens haven't gone
+  anywhere and keep working exactly as before — a check-in quietly saves an
+  equivalent entry to each of them, so your existing history, stats, and the
+  "How We Feel" card all see it without any changes on their end. Deleting a
+  check-in removes those two linked entries with it, which also makes this
+  the first place a mood or emotion log can be deleted at all. It shows up
+  on the Timeline too, alongside everything else that happened that day.
 - **Flux stops at a page instead of loading every post at once.** The feed
   already asked the server for one page at a time; the screen just never
   asked for a second one. A "Load more" button now appears under the feed
