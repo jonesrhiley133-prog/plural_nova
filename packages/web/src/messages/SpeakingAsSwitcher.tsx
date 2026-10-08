@@ -171,7 +171,7 @@ export function SpeakingAsSwitcher({
         ref={triggerRef}
         onClick={(event) => menu.openFrom(event)}
         aria-haspopup="true"
-        aria-label={`Sending this message as ${currentMember ? String(currentMember['name']) : 'the system'}. Tap to switch.`}
+        aria-label={`Speaking as ${currentMember ? String(currentMember['name']) : 'the system'} in this conversation. Tap to switch.`}
       >
         <Avatar
           name={currentMember ? String(currentMember['name']) : 'System'}
@@ -181,7 +181,7 @@ export function SpeakingAsSwitcher({
           size={22}
           round
         />
-        <span>Sending as {currentMember ? String(currentMember['name']) : 'the system'}</span>
+        <span>Speaking as {currentMember ? String(currentMember['name']) : 'the system'}</span>
         <Icon name="chevronDown" size={13} />
       </button>
 
