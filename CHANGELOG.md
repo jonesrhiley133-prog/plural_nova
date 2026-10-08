@@ -12,6 +12,24 @@ different versions of PluralNova.
 
 ### Added
 
+- **A new Insights area ties mood, sleep, cycle, emotions and fronting
+  together.** Patterns surfaces real comparisons — mood against who was
+  around, what you were doing, who was fronting, and the night before's
+  sleep, plus (once cycle tracking is on) which cycle phase — each one
+  shown only once there's actually enough logged on both sides to compare
+  it with. Mood while fronting is listed by member rather than ranked
+  highest-to-lowest, on purpose: who tends to feel worst is not something
+  worth a leaderboard. Story turns a single day into a short paragraph,
+  extending the Daily Summary's own comparisons with that day's cycle
+  phase and symptom count. Cycle comparison (visible once cycle tracking
+  is on) shows cycle-to-cycle length and energy next to which symptoms
+  cluster in which phase — the comparisons the last update's cycle depth
+  pass built the data for but didn't yet have a screen of its own.
+  Landscape is the long view: mood and sleep averages and spread over
+  roughly the last two years, which of the two has stayed steadier, and
+  the most logged emotion family. None of it is new tracking — every tab
+  reads what other screens already write, and nothing is stored beyond
+  that.
 - **Cycle & Wellbeing gained a Symptoms tab, and cycle data now feeds real
   comparisons.** Symptoms is a small log of its own — physical, emotional,
   or anything else worth a note, not limited to the cycle — with its own

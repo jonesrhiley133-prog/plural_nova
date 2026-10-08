@@ -315,7 +315,7 @@ statsRouter.get(
  * comparison never gets more confidence than three data points earn it.
  * These are numbers next to other numbers, not conclusions about anyone.
  */
-function dayInsights(
+export function dayInsights(
   scope: Parameters<typeof listRecords>[1],
   date: string,
   from: string,
