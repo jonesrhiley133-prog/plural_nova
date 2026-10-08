@@ -246,6 +246,10 @@ export const members: CollectionDef = {
     }),
     f.text('pinHash', 'Profile PIN', { sensitive: true, group: 'Privacy' }),
     f.json('preferences', 'Member preferences', { group: 'Privacy' }),
+    f.refs('pinnedMediaIds', 'Featured gallery', 'mediaItems', {
+      group: 'Media',
+      hint: 'A small featured strip above their full media library.',
+    }),
     f.bool('archived', 'Archived'),
   ],
 };

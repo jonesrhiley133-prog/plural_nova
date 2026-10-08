@@ -1,6 +1,6 @@
 {
   "name": "@pluralnova/shared",
-  "version": "1.0.68",
+  "version": "1.0.69",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

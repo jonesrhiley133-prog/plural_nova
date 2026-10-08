@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   customFieldValues,
   emotionIdsOf,
   formatDuration,
   isBirthdayToday,
+  valueForDefinition,
   type StoredRecord,
 } from '@pluralnova/shared';
 import { useCollection, useRecord, useRecordMap } from '../core/data.js';
@@ -19,7 +20,7 @@ import { EmptyState, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { AstroSummaryCard } from './astro/AstroSummary.js';
 import { MemberEditorForm } from '../ui/MemberEditorForm.js';
-import { SwitchRow } from '../ui/forms.js';
+import { SelectField, SwitchRow } from '../ui/forms.js';
 import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
 import { GiveBadgePicker, MemberBadgeRow, createBadge, parseBadges } from '../ui/MemberBadges.js';
 import { Icon } from '../ui/Icon.js';
@@ -34,36 +35,60 @@ import { Markdown } from '../ui/Markdown.js';
  * Banner, then avatar, then content, in that order and on their own layers, so
  * a portrait never lands on top of the name. Sections are tabs rather than one
  * long scroll, because a filled-in profile is long and most visits want one
- * part of it.
+ * part of it. Birthday and badges are the two exceptions — shown once, above
+ * the tabs, since they are not any one section's business.
  */
 
 const TABS = [
-  'overview',
-  'identity',
-  'about',
-  'fronting',
-  'relationships',
-  'journal',
-  'media',
+  'identity-about',
   'boundaries',
+  'fronting',
   'statistics',
+  'relationships',
+  'media',
+  'gallery',
+  'mood-emotions',
+  'wellbeing',
+  'journal',
+  'horoscope',
+  'preferences',
   'privacy',
+  'theme',
 ] as const;
 
 type Tab = (typeof TABS)[number];
+
+function tabLabel(value: Tab): string {
+  const labels: Record<Tab, string> = {
+    'identity-about': 'Identity & About',
+    boundaries: 'Boundaries',
+    fronting: '{{Fronting}}',
+    statistics: 'Statistics',
+    relationships: 'Relationships',
+    media: 'Media',
+    gallery: 'Gallery',
+    'mood-emotions': 'Mood & Emotions',
+    wellbeing: 'Cycle & Wellbeing',
+    journal: '{{Journal}}',
+    horoscope: 'Horoscope',
+    preferences: 'Preferences',
+    privacy: 'Privacy',
+    theme: 'Theme',
+  };
+  return labels[value];
+}
 
 export default function MemberProfile(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t, term } = useI18n();
-  const dates = useDateFormat();
   const toast = useToast();
   const activeMemberId = useActiveMemberId();
 
   const member = useRecord('members', id);
   const { update, remove, loading } = useCollection('members');
   const { quickFront: fireQuickFront, isFrontingAlready } = useFronting();
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>('identity-about');
   const editor = useDialog();
   const confirm = useDialog();
   const celebrate = useDialog<StoredRecord>();
@@ -116,11 +141,18 @@ export default function MemberProfile(): JSX.Element {
   const alreadyFronting = isFrontingAlready(member.id);
   const isBirthday = member['birthday'] ? isBirthdayToday(String(member['birthday'])) : false;
   const latestVibe = vibePosts.items[0];
+  const badges = parseBadges(member['customBadges']);
 
   // Instant: applied to the shared fronting state before the request that
   // tells the server about it resolves, so this never shows a loading state.
   const quickFront = (): void => {
     fireQuickFront(member.id).catch((cause: unknown) => toast.fromError(cause));
+  };
+
+  const addSticker = async (emoji: string, label: string): Promise<void> => {
+    const badge = createBadge(emoji, label, activeMemberId ?? null);
+    await update(member.id, { customBadges: [...badges, badge] });
+    toast.success(`Added ${label.toLowerCase()}`);
   };
 
   const flagsVisible = member['flagDisplayEnabled'] !== false && attachedFlags.length > 0;
@@ -199,6 +231,27 @@ export default function MemberProfile(): JSX.Element {
         </div>
       </Card>
 
+      {isBirthday ? (
+        <Card style={{ textAlign: 'center', marginBottom: 'var(--space-4)' }}>
+          <p style={{ fontSize: 'var(--size-lg)' }}>🎉 It's {String(member['name'])}'s birthday!</p>
+          <Button variant="primary" size="sm" style={{ marginTop: 'var(--space-2)' }} onClick={() => celebrate.show(member)}>
+            Celebrate
+          </Button>
+        </Card>
+      ) : null}
+
+      <Card
+        title="Badges"
+        subtitle={badges.length > 0 ? undefined : 'Pick a sticker for their profile'}
+        style={{ marginBottom: 'var(--space-4)' }}
+      >
+        <MemberBadgeRow badges={badges} />
+        <p className="tiny faint" style={{ marginTop: badges.length > 0 ? 'var(--space-3)' : 0 }}>
+          Tap one to add it
+        </p>
+        <GiveBadgePicker onGive={(emoji, label) => void addSticker(emoji, label)} />
+      </Card>
+
       <Tabs
         value={tab}
         onChange={setTab}
@@ -206,21 +259,20 @@ export default function MemberProfile(): JSX.Element {
         options={TABS.map((option) => ({ value: option, label: term(tabLabel(option)) }))}
       />
 
-      {tab === 'overview' ? (
-        <Card title="Profile theme" subtitle="Banner, accent, buttons and cards on this profile — and, if you choose, everywhere they are fronting">
-          <ThemePicker target="alter" id={member.id} label="Assigned theme" />
-        </Card>
-      ) : null}
-      {tab === 'overview' ? <Overview member={member} /> : null}
-      {tab === 'identity' ? <Identity member={member} /> : null}
-      {tab === 'about' ? <About member={member} onChange={update} /> : null}
-      {tab === 'fronting' ? <FrontingTab member={member} /> : null}
-      {tab === 'relationships' ? <RelationshipsTab member={member} /> : null}
-      {tab === 'journal' ? <MemberJournal member={member} /> : null}
-      {tab === 'media' ? <MemberMedia member={member} /> : null}
+      {tab === 'identity-about' ? <IdentityAbout member={member} onChange={update} /> : null}
       {tab === 'boundaries' ? <Boundaries member={member} /> : null}
+      {tab === 'fronting' ? <FrontingTab member={member} /> : null}
       {tab === 'statistics' ? <Statistics member={member} /> : null}
+      {tab === 'relationships' ? <RelationshipsTab member={member} /> : null}
+      {tab === 'media' ? <MemberMedia member={member} /> : null}
+      {tab === 'gallery' ? <Gallery member={member} onChange={update} /> : null}
+      {tab === 'mood-emotions' ? <MoodEmotionsTab member={member} /> : null}
+      {tab === 'wellbeing' ? <WellbeingTab member={member} /> : null}
+      {tab === 'journal' ? <MemberJournal member={member} /> : null}
+      {tab === 'horoscope' ? <Horoscope member={member} /> : null}
+      {tab === 'preferences' ? <Preferences member={member} onChange={update} /> : null}
       {tab === 'privacy' ? <Privacy member={member} onChange={update} /> : null}
+      {tab === 'theme' ? <Theme member={member} /> : null}
 
       <Dialog open={editor.open} onClose={editor.hide} title={term('Edit {{member}}')} wide>
         <MemberEditorForm
@@ -250,137 +302,9 @@ export default function MemberProfile(): JSX.Element {
     </div>
     </ThemeScope>
   );
-
-  function tabLabel(value: Tab): string {
-    const labels: Record<Tab, string> = {
-      overview: 'Overview',
-      identity: 'Identity',
-      about: 'About',
-      fronting: '{{Fronting}}',
-      relationships: 'Relationships',
-      journal: '{{Journal}}',
-      media: 'Media',
-      boundaries: 'Boundaries',
-      statistics: 'Statistics',
-      privacy: 'Privacy',
-    };
-    return labels[value];
-  }
-
-  function Overview({ member }: { member: StoredRecord }): JSX.Element {
-    const badges = parseBadges(member['customBadges']);
-
-    const addSticker = async (emoji: string, label: string): Promise<void> => {
-      const badge = createBadge(emoji, label, activeMemberId ?? null);
-      await update(member.id, { customBadges: [...badges, badge] });
-      toast.success(`Added ${label.toLowerCase()}`);
-    };
-
-    return (
-      <div className="stack">
-        {isBirthday ? (
-          <Card style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: 'var(--size-lg)' }}>🎉 It's {String(member['name'])}'s birthday!</p>
-            <Button variant="primary" size="sm" style={{ marginTop: 'var(--space-2)' }} onClick={() => celebrate.show(member)}>
-              Celebrate
-            </Button>
-          </Card>
-        ) : null}
-
-        <AstroSummaryCard member={member} />
-
-        {member['color'] || member['icon'] ? (
-          <div className="row" style={{ gap: 'var(--space-5)' }}>
-            {member['color'] ? (
-              <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
-                <span
-                  aria-hidden="true"
-                  style={{
-                    display: 'inline-block',
-                    width: 14,
-                    height: 14,
-                    borderRadius: '50%',
-                    background: String(member['color']),
-                    border: '1px solid var(--border)',
-                  }}
-                />
-                <span className="small muted">Favourite colour</span>
-              </span>
-            ) : null}
-            {member['icon'] ? (
-              <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
-                <span aria-hidden="true" style={{ fontSize: 'var(--size-lg)', lineHeight: 1 }}>
-                  {String(member['icon'])}
-                </span>
-                <span className="small muted">Favourite emoji</span>
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-
-        <Card title="Badges" subtitle={badges.length > 0 ? undefined : 'Pick a sticker for their profile'}>
-          <MemberBadgeRow badges={badges} />
-          <p className="tiny faint" style={{ marginTop: badges.length > 0 ? 'var(--space-3)' : 0 }}>
-            Tap one to add it
-          </p>
-          <GiveBadgePicker onGive={(emoji, label) => void addSticker(emoji, label)} />
-        </Card>
-
-        {member['bio'] ? (
-          <Card title="Biography">
-            <Markdown text={String(member['bio'])} />
-          </Card>
-        ) : null}
-
-        <div className="stat-grid">
-          <Stat label={term('Times {{fronting}}')} value={Number(member['frontCount'] ?? 0)} />
-          <Stat
-            label={term('Total {{fronting}} time')}
-            value={formatDuration(Number(member['frontMinutes'] ?? 0))}
-          />
-          <Stat
-            label={term('Last {{fronting}}')}
-            value={
-              member['lastFrontedAt'] ? dates.relative(String(member['lastFrontedAt'])) : 'Not yet'
-            }
-          />
-        </div>
-
-        {Array.isArray(member['interests']) && member['interests'].length > 0 ? (
-          <Card title="Interests">
-            <div className="row">
-              {(member['interests'] as string[]).map((interest) => (
-                <Chip key={interest}>{interest}</Chip>
-              ))}
-            </div>
-          </Card>
-        ) : null}
-      </div>
-    );
-  }
 }
 
-function Identity({ member }: { member: StoredRecord }): JSX.Element {
-  return (
-    <Card title="Identity">
-      <FieldList
-        rows={[
-          ['Pronouns', member['pronouns']],
-          ['Age', member['age']],
-          ['Gender', member['gender']],
-          ['Sexuality', member['sexuality']],
-          ['Nationality', member['nationality']],
-          ['Ethnicity', member['ethnicity']],
-          ['Race', member['race']],
-          ['Labels', member['identityLabels']],
-          ['Birthday', member['birthday']],
-        ]}
-      />
-    </Card>
-  );
-}
-
-function About({
+function IdentityAbout({
   member,
   onChange,
 }: {
@@ -390,72 +314,11 @@ function About({
   const toast = useToast();
   const navigate = useNavigate();
   const editor = useDialog();
+  const picker = useDialog();
   const definitions = useCollection('customFieldDefinitions');
   const members = useCollection('members');
   const values = useMemo(() => customFieldValues(member['customFieldValues']), [member]);
 
-  return (
-    <div className="stack">
-      <Card title="About">
-        <FieldList
-          rows={[
-            ['Source / origin', member['source']],
-            ['Tags', member['tags']],
-          ]}
-        />
-        {(['personality', 'likes', 'dislikes'] as const).map((field) =>
-          member[field] ? (
-            <div key={field} style={{ marginTop: 'var(--space-4)' }}>
-              <p className="small muted" style={{ marginBottom: 'var(--space-1)' }}>
-                {field === 'personality' ? 'Personality' : field === 'likes' ? 'Likes' : 'Dislikes'}
-              </p>
-              <Markdown text={String(member[field])} />
-            </div>
-          ) : null,
-        )}
-      </Card>
-
-      <MemberCustomFieldsView
-        definitions={definitions.items}
-        values={values}
-        members={members.items}
-        actions={
-          <span className="row row--nowrap">
-            <Button variant="ghost" size="sm" icon="settings" onClick={() => navigate('/settings/custom-fields')}>
-              Manage fields
-            </Button>
-            <Button variant="ghost" size="sm" icon="edit" onClick={() => editor.show()}>
-              Edit
-            </Button>
-          </span>
-        }
-      />
-
-      {member['notes'] ? (
-        <Card title="Notes" subtitle="Private to this account">
-          <Markdown text={String(member['notes'])} />
-        </Card>
-      ) : null}
-
-      <Dialog open={editor.open} onClose={editor.hide} title="Custom fields" wide>
-        <MemberCustomFieldsEditor
-          definitions={definitions.items}
-          values={values}
-          members={members.items}
-          onCancel={editor.hide}
-          onSave={async (next) => {
-            await onChange(member.id, { customFieldValues: next });
-            toast.success('Saved');
-            editor.hide();
-          }}
-        />
-      </Dialog>
-    </div>
-  );
-}
-
-function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
-  const toast = useToast();
   const flags = useCollection('flags');
   const assignments = useCollection('flagAssignments', {
     filter: (record) => record['targetType'] === 'member' && record['targetId'] === member.id,
@@ -469,7 +332,6 @@ function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
     () => flags.items.filter((flag) => !attachedIds.has(flag.id)),
     [flags.items, attachedIds],
   );
-  const picker = useDialog();
 
   // `assignments.items` already arrives sorted by `sortOrder` (the
   // collection's own default sort) — reordering renumbers this list and
@@ -488,13 +350,16 @@ function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
 
   return (
     <div className="stack">
-      <Card title="Boundaries">
-        {member['boundaries'] ? (
-          <Markdown text={String(member['boundaries'])} />
-        ) : (
-          <p className="small faint">Nothing recorded here.</p>
-        )}
+      <Card title="Identity">
+        <FieldList
+          rows={[
+            ['Pronouns', member['pronouns']],
+            ['Age', member['age']],
+            ['Birthday', member['birthday']],
+          ]}
+        />
       </Card>
+
       <Card
         title="Flags"
         subtitle="Markers attached to this profile"
@@ -569,6 +434,26 @@ function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
         )}
       </Card>
 
+      <Card title="About">
+        <FieldList rows={[['Source / origin', member['source']]]} />
+      </Card>
+
+      <MemberCustomFieldsView
+        definitions={definitions.items}
+        values={values}
+        members={members.items}
+        actions={
+          <span className="row row--nowrap">
+            <Button variant="ghost" size="sm" icon="settings" onClick={() => navigate('/settings/custom-fields')}>
+              Manage fields
+            </Button>
+            <Button variant="ghost" size="sm" icon="edit" onClick={() => editor.show()}>
+              Edit
+            </Button>
+          </span>
+        }
+      />
+
       <Dialog open={picker.open} onClose={picker.hide} title="Attach a flag">
         {available.length === 0 ? (
           <p className="small muted">Every flag you have defined is already attached.</p>
@@ -609,7 +494,37 @@ function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
           </div>
         )}
       </Dialog>
+
+      <Dialog open={editor.open} onClose={editor.hide} title="Custom fields" wide>
+        <MemberCustomFieldsEditor
+          definitions={definitions.items}
+          values={values}
+          members={members.items}
+          onCancel={editor.hide}
+          onSave={async (next) => {
+            await onChange(member.id, { customFieldValues: next });
+            toast.success('Saved');
+            editor.hide();
+          }}
+        />
+      </Dialog>
     </div>
+  );
+}
+
+function Boundaries({ member }: { member: StoredRecord }): JSX.Element {
+  const definitions = useCollection('customFieldDefinitions');
+  const boundariesDefinition = useMemo(
+    () => definitions.items.find((definition) => String(definition['label']).trim().toLowerCase() === 'boundaries'),
+    [definitions.items],
+  );
+  const values = useMemo(() => customFieldValues(member['customFieldValues']), [member]);
+  const boundariesText = boundariesDefinition ? valueForDefinition(boundariesDefinition.id, values) : '';
+
+  return (
+    <Card title="Boundaries" subtitle="Edited from Identity & About">
+      {boundariesText ? <Markdown text={boundariesText} /> : <p className="small faint">Nothing recorded here.</p>}
+    </Card>
   );
 }
 
@@ -779,8 +694,168 @@ function MemberMedia({ member }: { member: StoredRecord }): JSX.Element {
   );
 }
 
+/**
+ * A small, curated strip from this member's own media — distinct from the
+ * full chronological grid on the Media tab, which stays unchanged and
+ * unfiltered. Picking is scoped to their own images, same as Media.
+ */
+function Gallery({
+  member,
+  onChange,
+}: {
+  member: StoredRecord;
+  onChange: (id: string, patch: Record<string, unknown>) => Promise<StoredRecord>;
+}): JSX.Element {
+  const toast = useToast();
+  const picker = useDialog();
+  const media = useCollection('mediaItems', {
+    filter: (record) => record['memberId'] === member.id && record['mediaType'] === 'image',
+  });
+  const pinnedIds = Array.isArray(member['pinnedMediaIds']) ? (member['pinnedMediaIds'] as string[]) : [];
+  const pinnedItems = useMemo(
+    () =>
+      pinnedIds
+        .map((pinnedId) => media.items.find((item) => item.id === pinnedId))
+        .filter((item): item is StoredRecord => Boolean(item)),
+    [pinnedIds, media.items],
+  );
+
+  const toggle = (itemId: string): void => {
+    const next = pinnedIds.includes(itemId)
+      ? pinnedIds.filter((existing) => existing !== itemId)
+      : [...pinnedIds, itemId];
+    void onChange(member.id, { pinnedMediaIds: next }).catch((cause: unknown) => toast.fromError(cause));
+  };
+
+  return (
+    <div className="stack">
+      <Card
+        title="Gallery"
+        subtitle="A featured strip from their media — the full library is in Media"
+        actions={
+          media.items.length > 0 ? (
+            <Button variant="ghost" size="sm" icon="edit" onClick={() => picker.show()}>
+              Choose
+            </Button>
+          ) : null
+        }
+      >
+        {pinnedItems.length === 0 ? (
+          <p className="small faint">
+            {media.items.length === 0 ? 'No images in their media yet.' : 'Nothing featured yet.'}
+          </p>
+        ) : (
+          <div className="grid" style={{ ['--grid-min' as never]: '110px' }}>
+            {pinnedItems.map((item) => (
+              <div key={item.id} className="card card--flush" style={{ aspectRatio: '1', overflow: 'hidden' }}>
+                <img
+                  src={String(item['url'])}
+                  alt={String(item['title'] ?? '')}
+                  loading="lazy"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Dialog open={picker.open} onClose={picker.hide} title="Choose featured images" wide>
+        {media.items.length === 0 ? (
+          <p className="small muted">No images yet — add some from Media first.</p>
+        ) : (
+          <div className="grid grid--tight" style={{ ['--grid-min' as never]: '80px' }}>
+            {media.items.map((item) => {
+              const pinned = pinnedIds.includes(item.id);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={pinned}
+                  onClick={() => toggle(item.id)}
+                  style={{
+                    padding: 0,
+                    border: pinned ? '2px solid var(--accent)' : 'var(--border-width) solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    overflow: 'hidden',
+                    aspectRatio: '1',
+                    cursor: 'pointer',
+                    background: 'none',
+                  }}
+                >
+                  <img
+                    src={String(item['url'])}
+                    alt={String(item['title'] ?? '')}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Dialog>
+    </div>
+  );
+}
+
+/** A thin, member-filtered slice of the account-level Mood & Emotions screen. */
+function MoodEmotionsTab({ member }: { member: StoredRecord }): JSX.Element {
+  const dates = useDateFormat();
+  const checkIns = useCollection('feelingEntries', {
+    filter: (record) => record['memberId'] === member.id,
+  });
+  const emotions = useCollection('emotionEntries', {
+    filter: (record) => record['memberId'] === member.id,
+  });
+  const latest = checkIns.items[0];
+
+  return (
+    <Card title="Mood & Emotions" subtitle="Filtered to just this member from the full log">
+      <div className="stat-grid">
+        <Stat label="Check-ins logged" value={checkIns.items.length} />
+        <Stat
+          label="Emotions logged"
+          value={emotions.items.reduce((sum, entry) => sum + emotionIdsOf(entry).length, 0)}
+        />
+        <Stat label="Latest mood" value={latest ? `${Number(latest['mood'] ?? 0)} / 100` : 'None yet'} />
+        <Stat label="Last check-in" value={latest ? dates.relative(String(latest['recordedAt'])) : 'Not yet'} />
+      </div>
+      <p style={{ marginTop: 'var(--space-3)' }}>
+        <Link to="/mood-emotions">Open Mood &amp; Emotions →</Link>
+      </p>
+    </Card>
+  );
+}
+
+/** A thin, member-filtered slice of the account-level Cycle & Wellbeing screen. */
+function WellbeingTab({ member }: { member: StoredRecord }): JSX.Element {
+  const dates = useDateFormat();
+  const cycle = useCollection('cycleEntries', {
+    filter: (record) => record['memberId'] === member.id,
+  });
+  const symptoms = useCollection('symptomEntries', {
+    filter: (record) => record['memberId'] === member.id,
+  });
+  const latestCycle = cycle.items[0];
+
+  return (
+    <Card title="Cycle & Wellbeing" subtitle="Filtered to just this member from the full log">
+      <div className="stat-grid">
+        <Stat label="Cycle entries" value={cycle.items.length} />
+        <Stat label="Symptoms logged" value={symptoms.items.length} />
+        <Stat label="Latest phase" value={latestCycle ? String(latestCycle['phase'] || 'Unnamed') : 'None yet'} />
+        <Stat label="Last entry" value={latestCycle ? dates.relative(String(latestCycle['entryDate'])) : 'Not yet'} />
+      </div>
+      <p style={{ marginTop: 'var(--space-3)' }}>
+        <Link to="/wellbeing">Open Cycle &amp; Wellbeing →</Link>
+      </p>
+    </Card>
+  );
+}
+
 function Statistics({ member }: { member: StoredRecord }): JSX.Element {
   const { term } = useI18n();
+  const dates = useDateFormat();
   const events = useCollection('frontEvents', {
     filter: (record) =>
       record['memberId'] === member.id ||
@@ -799,17 +874,106 @@ function Statistics({ member }: { member: StoredRecord }): JSX.Element {
 
   return (
     <div className="stat-grid">
+      <Stat label={term('Times {{fronting}}')} value={Number(member['frontCount'] ?? 0)} />
       <Stat label={term('{{Fronts}} as the main {{member}}')} value={primary.length} />
       <Stat label={term('Co-{{fronting}} {{fronts}}')} value={co} />
       <Stat
         label={term('Total {{fronting}} time')}
         value={formatDuration(Number(member['frontMinutes'] ?? 0))}
       />
+      <Stat
+        label={term('Last {{fronting}}')}
+        value={member['lastFrontedAt'] ? dates.relative(String(member['lastFrontedAt'])) : 'Not yet'}
+      />
       <Stat label={term('{{Journal}} entries')} value={journal.items.length} />
       <Stat
         label="Emotions logged"
         value={emotions.items.reduce((sum, entry) => sum + emotionIdsOf(entry).length, 0)}
       />
+    </div>
+  );
+}
+
+function Horoscope({ member }: { member: StoredRecord }): JSX.Element | null {
+  return <AstroSummaryCard member={member} />;
+}
+
+function Preferences({
+  member,
+  onChange,
+}: {
+  member: StoredRecord;
+  onChange: (id: string, patch: Record<string, unknown>) => Promise<StoredRecord>;
+}): JSX.Element {
+  const toast = useToast();
+
+  const set = (key: string, value: unknown): void => {
+    void onChange(member.id, { [key]: value })
+      .then(() => toast.success('Saved'))
+      .catch((cause: unknown) => toast.fromError(cause));
+  };
+
+  return (
+    <div className="stack">
+      <Card title="Flag display" subtitle="How attached flags are intended to appear on this profile">
+        <SwitchRow
+          label="Show flags on their profile"
+          checked={member['flagDisplayEnabled'] !== false}
+          onChange={(value) => set('flagDisplayEnabled', value)}
+        />
+        <SelectField
+          label="Flag style"
+          value={String(member['flagDisplayStyle'] ?? 'stripes')}
+          options={[
+            { value: 'stripes', label: 'Stripes' },
+            { value: 'badge', label: 'Badge' },
+            { value: 'ring', label: 'Ring around the avatar' },
+            { value: 'background', label: 'Card background' },
+          ]}
+          onChange={(value) => set('flagDisplayStyle', value)}
+        />
+        <SelectField
+          label="Flag size"
+          value={String(member['flagDisplaySize'] ?? 'md')}
+          options={[
+            { value: 'sm', label: 'Small' },
+            { value: 'md', label: 'Medium' },
+            { value: 'lg', label: 'Large' },
+          ]}
+          onChange={(value) => set('flagDisplaySize', value)}
+        />
+      </Card>
+
+      {member['color'] || member['icon'] ? (
+        <Card title="Colour & symbol">
+          <div className="row" style={{ gap: 'var(--space-5)' }}>
+            {member['color'] ? (
+              <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: 'inline-block',
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: String(member['color']),
+                    border: '1px solid var(--border)',
+                  }}
+                />
+                <span className="small muted">Favourite colour</span>
+              </span>
+            ) : null}
+            {member['icon'] ? (
+              <span className="row row--nowrap" style={{ gap: 'var(--space-2)' }}>
+                <span aria-hidden="true" style={{ fontSize: 'var(--size-lg)', lineHeight: 1 }}>
+                  {String(member['icon'])}
+                </span>
+                <span className="small muted">Favourite emoji</span>
+              </span>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }
@@ -863,6 +1027,17 @@ function Privacy({
         checked={privacy['showRelationships'] === true}
         onChange={(value) => set('showRelationships', value)}
       />
+    </Card>
+  );
+}
+
+function Theme({ member }: { member: StoredRecord }): JSX.Element {
+  return (
+    <Card
+      title="Profile theme"
+      subtitle="Banner, accent, buttons and cards on this profile — and, if you choose, everywhere they are fronting"
+    >
+      <ThemePicker target="alter" id={member.id} label="Assigned theme" />
     </Card>
   );
 }

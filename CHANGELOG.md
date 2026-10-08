@@ -241,6 +241,27 @@ different versions of PluralNova.
 
 ### Changed
 
+- **The Alter Profile screen is reorganised, and two fields it showed twice
+  now show once.** Overview is gone — the birthday banner, Celebrate button
+  and badges it held now sit above the tabs, visible regardless of which one
+  is open, rather than only on a tab of their own. Identity and About are
+  merged onto one Identity & About tab, which also gained the Flags section
+  moved out of Boundaries (matching where the alter edit flow already groups
+  it). Every field already migrated to Custom Fields — gender, bio, tags,
+  notes, boundaries, likes, dislikes, interests, and the rest — is now read
+  only through Custom Fields; the old tabs read the same frozen raw columns
+  Custom Fields had already taken over, so each one appeared twice from two
+  sources that could quietly drift apart. Boundaries keeps its own tab (its
+  text, not its flags) for exactly that reason. Statistics gained the
+  fronting count and last-fronted date that used to live only on the removed
+  Overview. New tabs: Gallery (a small featured strip from an alter's own
+  media, separate from the full Media grid), Mood & Emotions and Cycle &
+  Wellbeing (this one alter's own filtered stats, with a link to the full
+  screen), Horoscope (the astrology summary, relocated), Preferences (flag
+  display style and size, the colour/icon swatches), and Theme (the per-alter
+  theme picker, also relocated). Tab order: Identity & About, Boundaries,
+  Fronting, Statistics, Relationships, Media, Gallery, Mood & Emotions,
+  Cycle & Wellbeing, Journal, Horoscope, Preferences, Privacy, Theme.
 - **Messages are no longer end-to-end encrypted.** Every new message sent
   between accounts is now stored and delivered as plain text — the lock
   icon, the "End-to-end encrypted" / "Not encrypted yet" status, and the
