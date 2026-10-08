@@ -256,6 +256,12 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Mood & Emotions logged a harmless but needless error in Singlet Mode.**
+  It fetched the (system-only) member list unconditionally, which the
+  server correctly refuses outside System Mode — nothing broke, but the
+  console carried a 403 on every visit. It now only asks for that list
+  when it can actually use it, the same way Cycle & Wellbeing's own
+  Check-ins tab already does.
 - **The "Other" reaction field had no label a screen reader could announce.**
   Visually it was clear enough from the "Any emoji…" placeholder, but a
   placeholder disappears the moment there's a value and was never read as
