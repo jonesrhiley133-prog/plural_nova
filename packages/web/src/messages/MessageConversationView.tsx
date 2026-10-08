@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { readableTextOn, resolveChatAppearance } from '@pluralnova/shared';
-import { useAuth } from '../core/auth.js';
+import { useAuth, useSystemMode } from '../core/auth.js';
 import { useDateFormat } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import {
@@ -19,6 +19,7 @@ import { useVirtualizedChat } from '../chat/useVirtualizedChat.js';
 import { ChatComposer, type ComposerReplyTarget } from '../chat/ChatComposer.js';
 import { useStableRowActions } from '../chat/useStableRowActions.js';
 import { MessagesInfoDialog } from './MessagesInfoDialog.js';
+import { SpeakingAsSwitcher } from './SpeakingAsSwitcher.js';
 
 /**
  * One open Messages conversation: header, history, composer — every DM is a
@@ -83,7 +84,13 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
   const dates = useDateFormat();
   const toast = useToast();
   const { settings, user } = useAuth();
-  const conversation = useMessageConversation(threadId, speakingAsMemberId);
+  // Starts as the account's active profile, then follows fronting (or a
+  // manual pick) via SpeakingAsSwitcher — see its own doc comment for why
+  // this stays local to this one conversation rather than reassigning the
+  // active profile itself.
+  const [speakerId, setSpeakerId] = useState<string | null>(speakingAsMemberId);
+  const isSystem = useSystemMode();
+  const conversation = useMessageConversation(threadId, speakerId);
   const { threads: allThreads } = useMessageThreads();
 
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -249,6 +256,8 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
         </div>
         <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
       </header>
+
+      {isSystem ? <SpeakingAsSwitcher fallbackMemberId={speakingAsMemberId} onChange={setSpeakerId} /> : null}
 
       <div className="chat-conversation__messages" ref={scrollRef} onScroll={handleScroll}>
         {rows.length === 0 ? (

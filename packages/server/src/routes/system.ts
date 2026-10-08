@@ -124,6 +124,22 @@ systemRouter.post(
 // — Profile select ——————————————————————————————————————————
 
 /**
+ * Throws if `member` has a PIN, PINs are required account-wide, and `pin`
+ * does not match — a no-op otherwise. Shared by `/active-member` and
+ * `/members/:id/verify-pin` so the two routes can never quietly drift apart
+ * on what "PIN-protected" means.
+ */
+async function requireMemberPin(member: StoredRecord, pin: string | undefined, requireProfilePins: boolean): Promise<void> {
+  const pinHash = member['pinHash'] as string | null;
+  if (!pinHash || !requireProfilePins) return;
+  const { verifySecret } = await import('../auth/passwords.js');
+  const [salt = '', hash = ''] = pinHash.split(':');
+  if (!(await verifySecret(pin ?? '', { hash, salt }))) {
+    throw badRequest('That PIN is not right.');
+  }
+}
+
+/**
  * Switching the active member changes the default attribution for new records.
  * It is not the same as who is fronting and it is not a second account — the
  * three are kept separate on purpose.
@@ -142,18 +158,28 @@ systemRouter.post(
 
     const member = getRecord('members', context.scope, memberId);
     if (!member) throw notFound('That member');
-
-    const pinHash = member['pinHash'] as string | null;
-    if (pinHash && context.settings.privacy.requireProfilePins) {
-      const { verifySecret } = await import('../auth/passwords.js');
-      const [salt = '', hash = ''] = pinHash.split(':');
-      if (!(await verifySecret(pin ?? '', { hash, salt }))) {
-        throw badRequest('That PIN is not right.');
-      }
-    }
+    await requireMemberPin(member, pin, context.settings.privacy.requireProfilePins);
 
     const user = updateUser(context.user.id, { activeMemberId: memberId });
     ok(res, { activeMemberId: user.activeMemberId, member });
+  }),
+);
+
+/**
+ * Confirms a member's PIN without changing anything — for a moment that
+ * needs "yes, this really is them" without also reassigning the account's
+ * default attribution, the way speaking as a fronting alter in one DM does
+ * not make them the active member everywhere else.
+ */
+systemRouter.post(
+  '/members/:id/verify-pin',
+  handler(async (req, res) => {
+    const context = requireSystemMode(req);
+    const { pin } = req.body as { pin?: string };
+    const member = getRecord('members', context.scope, String(req.params['id']));
+    if (!member) throw notFound('That member');
+    await requireMemberPin(member, pin, context.settings.privacy.requireProfilePins);
+    ok(res, { verified: true });
   }),
 );
 

@@ -842,4 +842,28 @@ describe('"send as a member" never attributes a DM to an alter unless the sender
     const afterMemberOptOut = await client.request('GET', `/api/messages/threads/${threadId}`, { token: eve.token });
     expect(afterMemberOptOut.body.data.messages.find((m: any) => m.id === sent.body.data.message.id).asMember).toBeNull();
   });
+
+  it('carries the alter\'s avatar in asMember, withheld by their own showAvatar switch independently of the rest', async () => {
+    await client.request('PATCH', `/api/records/members/${memberId}`, {
+      token: dana.token,
+      body: { avatarUrl: 'https://example.invalid/dana-alt.png', privacy: { showOnProfile: true } },
+    });
+    const sent = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: dana.token,
+      body: { body: 'does my avatar show?' },
+    });
+    expect(sent.body.data.message.asMember.avatarUrl).toBe('https://example.invalid/dana-alt.png');
+
+    await client.request('PATCH', `/api/records/members/${memberId}`, {
+      token: dana.token,
+      body: { privacy: { showOnProfile: true, showAvatar: false } },
+    });
+    const sentWithAvatarHidden = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: dana.token,
+      body: { body: 'now it should not show' },
+    });
+    expect(sentWithAvatarHidden.body.data.message.asMember.avatarUrl).toBeNull();
+    // The rest of the identity is unaffected — showAvatar only withholds the picture.
+    expect(sentWithAvatarHidden.body.data.message.asMember.name).toBe('Dana-Alt');
+  });
 });

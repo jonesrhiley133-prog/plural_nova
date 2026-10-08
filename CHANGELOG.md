@@ -241,6 +241,21 @@ different versions of PluralNova.
 
 ### Changed
 
+- **A Direct Message now shows which alter is actually sending it, instead
+  of always speaking as whichever profile happens to be active.** Opening a
+  conversation reads who is currently fronting: one alter fronting is
+  selected automatically, several co-fronting asks once rather than
+  guessing, and nobody fronting leaves things as they were. A new row under
+  the conversation header names whoever you're sending as and opens a
+  picker (fronting alters listed first) to switch for just the next
+  message — never mid-draft, and never the account's wider active profile,
+  which switching here leaves alone on purpose. A PIN-protected alter still
+  needs their PIN, whether picked automatically or by hand, through a new
+  endpoint that only confirms the PIN rather than also reassigning that
+  wider active profile the way the existing profile switcher does.
+  Recipients now see that alter's real avatar too — their picture is sent
+  alongside the name and colour that already worked, gated by the same
+  "show avatar" switch as everywhere else.
 - **The Alter Profile screen is reorganised, and two fields it showed twice
   now show once.** Overview is gone — the birthday banner, Celebrate button
   and badges it held now sit above the tabs, visible regardless of which one

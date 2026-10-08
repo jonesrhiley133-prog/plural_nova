@@ -338,7 +338,13 @@ function messageView(message: StoredRecord, viewerId: string): Record<string, un
       // sender's own account — "send as a member" is not a second, ungated
       // place that identity can leak from.
       if (isMine || (showsMemberList(senderId) && privacy['showOnProfile'] !== false)) {
-        asMember = { id: member.id, name: member['name'], color: member['color'], icon: member['icon'] };
+        asMember = {
+          id: member.id,
+          name: member['name'],
+          color: member['color'],
+          icon: member['icon'],
+          avatarUrl: privacy['showAvatar'] !== false ? member['avatarUrl'] : null,
+        };
       }
     }
   }

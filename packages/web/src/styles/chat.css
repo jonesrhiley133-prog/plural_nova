@@ -409,6 +409,28 @@
   color: var(--text-faint);
 }
 
+/* Who a DM is sent as — its own slim row, outside the scrollable history,
+   so it stays visible while scrolled the same way the header above it does. */
+.chat-conversation__speaker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  width: 100%;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.chat-conversation__speaker:hover,
+.chat-conversation__speaker:focus-visible {
+  background: var(--surface-sunken);
+}
+
 .chat-conversation__messages {
   flex: 1;
   min-height: 0;
