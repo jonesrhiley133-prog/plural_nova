@@ -11,7 +11,7 @@ import { handler, ok } from '../http/respond.js';
 import { badRequest, conflict, forbidden, notFound } from '../http/errors.js';
 import { auth, requireAuth } from '../auth/middleware.js';
 import { getDb } from '../db/index.js';
-import { deserialize, getRecord, listRecords } from '../db/repository.js';
+import { deserialize, getRecord, listRecords, type Scope } from '../db/repository.js';
 import { shareableView } from '../services/projection.js';
 import { findUserById } from '../auth/users.js';
 import { notify } from '../services/notifications.js';
@@ -180,6 +180,38 @@ socialRouter.get(
   }),
 );
 
+// A flag's category decides whether it is the kind of thing a system would
+// want a stranger or friend to see on a first look at an alter, the same way
+// `showOnProfile` decides it per-flag. Warnings, boundaries and content notes
+// are catalogued for the system's own use, not for cross-account display —
+// `important` is a severity marker for the same internal kinds of flag, so it
+// is held back alongside them. The owner viewing their own profile preview
+// always sees every flag, exactly as the alter editor does.
+const PUBLISHABLE_FLAG_CATEGORIES = new Set(['custom', 'fronting', 'communication', 'accessibility']);
+
+/**
+ * Every member-targeted flag a system has defined, resolved once and grouped
+ * by the member it is attached to — one pair of queries for the whole
+ * profile instead of one per member shown.
+ */
+function memberFlagsByTarget(scope: Scope, isOwner: boolean): Map<string, Record<string, unknown>[]> {
+  const flagById = new Map(listRecords('flags', scope, { limit: 500 }).items.map((flag) => [flag.id, flag]));
+  const assignments = listRecords('flagAssignments', scope, { filters: { targetType: 'member' }, limit: 2000 }).items;
+
+  const byTarget = new Map<string, Record<string, unknown>[]>();
+  for (const assignment of assignments) {
+    const flag = flagById.get(String(assignment['flagId']));
+    if (!flag) continue;
+    if (!isOwner && flag['showOnProfile'] === false) continue;
+    if (!isOwner && !PUBLISHABLE_FLAG_CATEGORIES.has(String(flag['category'] ?? 'custom'))) continue;
+    const targetId = String(assignment['targetId']);
+    const list = byTarget.get(targetId) ?? [];
+    list.push({ id: flag.id, name: flag['name'], imageUrl: flag['imageUrl'], color: flag['color'], icon: flag['icon'] });
+    byTarget.set(targetId, list);
+  }
+  return byTarget;
+}
+
 /**
  * Trims a profile to what the viewer may see. Per-member privacy is applied
  * here too — a member who opted out is not in the list at all, rather than
@@ -233,6 +265,7 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
   }
 
   if (listShown) {
+    const flagsByMember = memberFlagsByTarget(scope, isOwner);
     view['members'] = shownMembers.map((member) => {
       const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
       return {
@@ -247,6 +280,7 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
           profile['showCurrentFronter'] === true && privacy['showFronting'] !== false
             ? member['frontStatus']
             : null,
+        flags: flagsByMember.get(member.id) ?? [],
       };
     });
   }

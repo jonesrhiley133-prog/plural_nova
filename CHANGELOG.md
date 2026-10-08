@@ -241,6 +241,20 @@ different versions of PluralNova.
 
 ### Changed
 
+- **A constellation's member grid is tappable, and flags now travel with
+  it.** Tapping a member tile — instead of only the profile's own full
+  navigation — opens the same contextual card used elsewhere for "who is
+  this": picture, pronouns, fronting status and (for categories a system
+  would actually want a stranger or friend to see — custom, fronting,
+  communication, accessibility — and only when the flag's own "show on
+  profile" switch allows it) their attached flags. A flag marked warning,
+  boundary, important or content-note stays off the public profile by
+  default no matter what, the same way a flag's own opt-out already does;
+  the owner previewing their own profile still sees everything. Viewing
+  your own profile adds Quick Front and View Profile to that same card.
+  Flux on a constellation profile gained a Posts/Media toggle, reusing the
+  same already-privacy-filtered posts it already fetched rather than a
+  second query — Media is just those posts' attachments as a grid.
 - **A Direct Message now shows which alter is actually sending it, instead
   of always speaking as whichever profile happens to be active.** Opening a
   conversation reads who is currently fronting: one alter fronting is

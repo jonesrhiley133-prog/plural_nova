@@ -202,6 +202,89 @@ describe('privacy: the canary alter never leaks', () => {
     expect(message.senderMemberId).toBeNull();
   });
 
+  it('publishes a member’s flags only when both the flag and its category allow it', async () => {
+    // Re-assert the profile's visibility switches — the pinned-gallery test
+    // above re-PUTs the profile with only a few fields, which otherwise
+    // leaves `showMemberList` reset for every test that runs after it.
+    await client.request('PUT', '/api/social/profile', {
+      token: owner.token,
+      body: {
+        handle: 'owner-system',
+        displayName: 'owner-system',
+        isPublic: true,
+        showMemberList: true,
+        showMemberCount: true,
+        showCurrentFronter: true,
+      },
+    });
+
+    // A second, otherwise fully visible alter — unlike the canary, this one
+    // is meant to show up, so any flag missing from the response is the
+    // flag's own opt-out at work, not the member-level one already covered
+    // above.
+    const flagBearer = await client.request('POST', '/api/records/members', {
+      token: owner.token,
+      body: { name: 'FlagBearer' },
+    });
+    const flagBearerId = flagBearer.body.data.id;
+
+    const safe = await client.request('POST', '/api/records/flags', {
+      token: owner.token,
+      body: { name: 'Safe flag', category: 'custom' },
+    });
+    const boundary = await client.request('POST', '/api/records/flags', {
+      token: owner.token,
+      body: { name: 'Boundary flag', category: 'boundary' },
+    });
+    const optedOut = await client.request('POST', '/api/records/flags', {
+      token: owner.token,
+      body: { name: 'Opted-out flag', category: 'custom', showOnProfile: false },
+    });
+
+    for (const flag of [safe, boundary, optedOut]) {
+      await client.request('POST', '/api/records/flagAssignments', {
+        token: owner.token,
+        body: { flagId: flag.body.data.id, targetType: 'member', targetId: flagBearerId },
+      });
+    }
+
+    const viewedByStranger = await client.request('GET', '/api/social/profiles/owner-system', {
+      token: stranger.token,
+    });
+    const strangerFlags = (viewedByStranger.body.data.profile.members ?? []).find(
+      (m: any) => m.id === flagBearerId,
+    ).flags.map((f: any) => f.name);
+    expect(strangerFlags).toContain('Safe flag');
+    expect(strangerFlags).not.toContain('Boundary flag');
+    expect(strangerFlags).not.toContain('Opted-out flag');
+
+    // A friend is not a special case for an internal-category or opted-out
+    // flag either — those categories are held back from everyone but the
+    // owner, not just strangers.
+    const viewedByFriend = await client.request('GET', '/api/social/profiles/owner-system', {
+      token: friend.token,
+    });
+    const friendFlags = (viewedByFriend.body.data.profile.members ?? []).find(
+      (m: any) => m.id === flagBearerId,
+    ).flags.map((f: any) => f.name);
+    expect(friendFlags).toContain('Safe flag');
+    expect(friendFlags).not.toContain('Boundary flag');
+    expect(friendFlags).not.toContain('Opted-out flag');
+
+    // The owner previewing their own profile sees every flag they attached —
+    // the category/showOnProfile filter is for other accounts, not a second
+    // editor-facing restriction.
+    const viewedByOwner = await client.request('GET', '/api/social/profiles/owner-system', {
+      token: owner.token,
+    });
+    const ownerFlags = (viewedByOwner.body.data.profile.members ?? []).find(
+      (m: any) => m.id === flagBearerId,
+    ).flags.map((f: any) => f.name);
+    expect(ownerFlags).toEqual(
+      expect.arrayContaining(['Safe flag', 'Boundary flag', 'Opted-out flag']),
+    );
+  });
+
   it('still shows the canary to the owner’s own account everywhere', async () => {
     // Opting out hides an alter from everyone else; it must never also hide
     // them from the account that owns them.
