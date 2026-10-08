@@ -14,6 +14,7 @@ import { DescriptiveNote, EmptyState, ErrorPanel, SkeletonCards } from '../ui/fe
 import { Dialog, useDialog } from '../ui/overlays.js';
 import { LineChart } from '../charts/index.js';
 import { Icon, type IconName } from '../ui/Icon.js';
+import { Symptoms } from './wellbeing/Symptoms.js';
 
 /**
  * Wellbeing.
@@ -24,7 +25,7 @@ import { Icon, type IconName } from '../ui/Icon.js';
  * or timed against you; there is nothing to win.
  */
 
-type WellbeingTab = 'games' | 'checkIns';
+type WellbeingTab = 'games' | 'checkIns' | 'symptoms';
 
 const MOOD_WORDS = [
   ['Bright', 8], ['Content', 7], ['Steady', 6], ['Flat', 4],
@@ -54,9 +55,11 @@ export default function Wellbeing(): JSX.Element {
   const [moodOpen, setMoodOpen] = useState(params.get('new') === 'mood');
   // Arriving to log a mood or check in should land on the tab that content
   // actually lives on, not the games tab with a dialog floating over it.
-  const [tab, setTab] = useState<WellbeingTab>(
-    params.get('new') === 'mood' || params.get('tab') === 'checkIns' ? 'checkIns' : 'games',
-  );
+  const [tab, setTab] = useState<WellbeingTab>(() => {
+    if (params.get('new') === 'mood') return 'checkIns';
+    const requested = params.get('tab');
+    return requested === 'checkIns' || requested === 'symptoms' ? requested : 'games';
+  });
 
   const overview = useQuery<{
     mood: { entries: number; average: number; trend: string; byDay: { label: string; value: number; key: string }[] };
@@ -98,10 +101,13 @@ export default function Wellbeing(): JSX.Element {
         options={[
           { value: 'games', label: 'Games' },
           { value: 'checkIns', label: 'Check-ins' },
+          { value: 'symptoms', label: 'Symptoms' },
         ]}
       />
 
       {tab === 'games' ? <div style={{ marginTop: 'var(--space-4)' }}><WellbeingGames /></div> : null}
+
+      {tab === 'symptoms' ? <div style={{ marginTop: 'var(--space-4)' }}><Symptoms /></div> : null}
 
       {tab === 'checkIns' && overview.loading && !overview.data ? (
         <SkeletonCards count={4} />

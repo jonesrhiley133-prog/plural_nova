@@ -12,6 +12,16 @@ different versions of PluralNova.
 
 ### Added
 
+- **Cycle & Wellbeing gained a Symptoms tab, and cycle data now feeds real
+  comparisons.** Symptoms is a small log of its own — physical, emotional,
+  or anything else worth a note, not limited to the cycle — with its own
+  intensity and duration, separate from the quick symptom tags a cycle day
+  already had. Past names you've used are offered back so logging the same
+  thing twice doesn't mean retyping it. Behind the scenes, PluralNova now
+  turns your logged cycle starts into actual cycle-to-cycle comparisons
+  (length, average energy, average discomfort) and links each symptom to
+  whichever phase you'd most recently named as of that day — the
+  foundation the Insights area builds on next.
 - **Wellbeing is now Cycle & Wellbeing, and its Check-ins tab gained a
   Snapshot and energy signals.** The Snapshot is seven bars — mood, energy,
   stress, comfort, social battery, sleep, and a new focus check-in field —

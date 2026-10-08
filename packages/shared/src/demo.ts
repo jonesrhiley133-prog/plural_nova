@@ -403,7 +403,74 @@ export function buildDemoData(options: {
     }, 'not'));
   });
 
+  // A cycle length that varies a little, same as a real one would — not
+  // identical gaps every time, which `/stats/cycle` would otherwise show as a
+  // suspiciously perfect average.
+  const cycleLength = 26 + Math.floor(ctx.rand() * 5);
+  const cycleStartDates: string[] = [];
+  for (let offset = 3; offset <= ctx.days + cycleLength; offset += cycleLength) {
+    cycleStartDates.push(daysAgo(ctx, offset, 12).slice(0, 10));
+  }
+  cycleStartDates.sort();
+
+  function phaseForDate(dateStr: string): { phase: string; daysSinceStart: number } | null {
+    let nearestStart: string | null = null;
+    for (const start of cycleStartDates) {
+      if (start <= dateStr) nearestStart = start;
+    }
+    if (nearestStart === null) return null;
+    const daysSinceStart = Math.round(
+      (Date.parse(`${dateStr}T00:00:00`) - Date.parse(`${nearestStart}T00:00:00`)) / 86_400_000,
+    );
+    const phase =
+      daysSinceStart <= 4 ? 'Period' : daysSinceStart <= 12 ? 'Follicular' : daysSinceStart <= 15 ? 'Ovulation' : 'Luteal';
+    return { phase, daysSinceStart };
+  }
+
   for (let day = ctx.days; day >= 0; day -= 1) {
+    if (chance(ctx, 0.4)) {
+      const dateStr = daysAgo(ctx, day, 12).slice(0, 10);
+      const info = phaseForDate(dateStr);
+      if (info) {
+        const isStart = info.daysSinceStart === 0;
+        const inPeriod = info.phase === 'Period';
+        push('cycleEntries', base(ctx, {
+          id: newId('cyc'),
+          memberId: null,
+          entryDate: dateStr,
+          phase: info.phase,
+          eventType: isStart ? 'start' : inPeriod && chance(ctx, 0.3) ? 'symptom' : 'none',
+          symptoms:
+            inPeriod || info.phase === 'Luteal'
+              ? chance(ctx, 0.5)
+                ? [pick(ctx, ['cramps', 'fatigue', 'headache', 'bloating'])]
+                : []
+              : [],
+          energy: info.phase === 'Luteal' ? 2 + Math.floor(ctx.rand() * 5) : 4 + Math.floor(ctx.rand() * 7),
+          discomfort: inPeriod ? 2 + Math.floor(ctx.rand() * 6) : Math.floor(ctx.rand() * 3),
+          mood: '',
+          note: '',
+          remind: 0,
+          createdAt: daysAgo(ctx, day, 12),
+        }, 'cyc'));
+      }
+    }
+
+    if (chance(ctx, 0.12)) {
+      push('symptomEntries', base(ctx, {
+        id: newId('sym'),
+        memberId: weightedMember()['id'] as string,
+        name: pick(ctx, ['Headache', 'Nausea', 'Fatigue', 'Cramps', 'Low mood', 'Restlessness']),
+        category: pick(ctx, ['physical', 'physical', 'emotional'] as const),
+        intensity: 1 + Math.floor(ctx.rand() * 5),
+        durationMinutes: chance(ctx, 0.5) ? 15 + Math.floor(ctx.rand() * 180) : null,
+        recordedAt: daysAgo(ctx, day, 10 + Math.floor(ctx.rand() * 10)),
+        note: '',
+        tags: [],
+        createdAt: daysAgo(ctx, day, 10),
+      }, 'sym'));
+    }
+
     if (!chance(ctx, 0.8)) continue;
     const mood = pick(ctx, MOODS);
     push('moodEntries', base(ctx, {

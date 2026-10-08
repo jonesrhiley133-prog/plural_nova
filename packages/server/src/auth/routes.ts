@@ -166,7 +166,7 @@ authRouter.post(
     const demo = buildDemoData({ userId: user.id, systemId, days });
     restoreCollections({ userId: user.id, systemId }, demo, 'replace');
     refreshMemberCount(user.id, systemId);
-    writeSettings(withSystem, { ...readSettings(withSystem), appearance: buildDemoAppearance(demo) });
+    writeSettings(withSystem, { ...readSettings(withSystem), appearance: buildDemoAppearance(demo), cycleEnabled: true });
 
     ok(res, { ...startSession(withSystem, req.header('user-agent')), demoDays: days }, 201);
   }),
@@ -195,7 +195,12 @@ authRouter.post(
     const demo = buildDemoData({ userId: context.user.id, systemId, days: 30 });
     restoreCollections({ userId: context.user.id, systemId }, demo, 'replace');
     refreshMemberCount(context.user.id, systemId);
-    const fresh = { ...defaultSettings('system'), appearance: buildDemoAppearance(demo), onboardingCompleted: readSettings(context.user).onboardingCompleted };
+    const fresh = {
+      ...defaultSettings('system'),
+      appearance: buildDemoAppearance(demo),
+      onboardingCompleted: readSettings(context.user).onboardingCompleted,
+      cycleEnabled: true,
+    };
     writeSettings(context.user, fresh);
     ok(res, { reset: true });
   }),

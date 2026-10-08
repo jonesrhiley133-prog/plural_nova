@@ -961,6 +961,95 @@ statsRouter.get(
   }),
 );
 
+/**
+ * Cycle & Wellbeing: one row per completed cycle (the stretch between one
+ * logged "start" and the next), and symptoms grouped by whichever phase was
+ * most recently named as of the day each symptom was logged. The phase link
+ * is computed here, not stored — `cycleEntries.phase` is free text set on
+ * whichever days the user bothers to name one, carried forward day to day,
+ * the same way `Cycle.tsx`'s own "Your phases" list already treats it.
+ */
+statsRouter.get(
+  '/cycle',
+  handler((req, res) => {
+    const context = auth(req);
+    const entries = listRecords('cycleEntries', context.scope, { limit: 2000 }).items;
+    const symptoms = listRecords('symptomEntries', context.scope, { limit: 2000 }).items;
+
+    const sorted = [...entries].sort((a, b) => String(a['entryDate']).localeCompare(String(b['entryDate'])));
+    const starts = sorted.filter((entry) => entry['eventType'] === 'start');
+
+    const cycles = starts.map((start, index) => {
+      const startDate = String(start['entryDate']);
+      const next = starts[index + 1];
+      const endDate = next ? String(next['entryDate']) : null;
+      const inCycle = sorted.filter((entry) => {
+        const date = String(entry['entryDate']);
+        return date >= startDate && (endDate === null || date < endDate);
+      });
+      const energies = inCycle.map((entry) => Number(entry['energy'] ?? 0)).filter((n) => n > 0);
+      const discomforts = inCycle
+        .map((entry) => entry['discomfort'])
+        .filter((value): value is number => typeof value === 'number');
+      const symptomTags = inCycle.flatMap((entry) => (entry['symptoms'] as string[]) ?? []);
+
+      return {
+        startDate,
+        endDate,
+        lengthDays: endDate
+          ? Math.round((Date.parse(`${endDate}T00:00:00`) - Date.parse(`${startDate}T00:00:00`)) / 86_400_000)
+          : null,
+        averageEnergy: energies.length > 0 ? Math.round(average(energies) * 10) / 10 : null,
+        averageDiscomfort: discomforts.length > 0 ? Math.round(average(discomforts) * 10) / 10 : null,
+        symptomDays: inCycle.filter((entry) => ((entry['symptoms'] as string[]) ?? []).length > 0).length,
+        topSymptoms: topEntries(countBy(symptomTags, (tag) => tag || null), 5),
+      };
+    });
+
+    const completedLengths = cycles.map((cycle) => cycle.lengthDays).filter((n): n is number => n !== null);
+
+    // Carried-forward phase lookup: the most recent dated, non-empty phase as
+    // of a given day. `phaseTimeline` is ascending, so the first entry past
+    // the target day means every later one is too — nothing after it can win.
+    const phaseTimeline = sorted
+      .filter((entry) => typeof entry['phase'] === 'string' && (entry['phase'] as string).trim())
+      .map((entry) => ({ date: String(entry['entryDate']), phase: String(entry['phase']) }));
+    const phaseAsOf = (date: string): string | null => {
+      let found: string | null = null;
+      for (const point of phaseTimeline) {
+        if (point.date > date) break;
+        found = point.phase;
+      }
+      return found;
+    };
+
+    const byPhase = new Map<string, Record<string, unknown>[]>();
+    for (const symptom of symptoms) {
+      const date = String(symptom['recordedAt'] ?? '').slice(0, 10);
+      const phase = date ? phaseAsOf(date) : null;
+      if (!phase) continue;
+      const rows = byPhase.get(phase) ?? [];
+      rows.push(symptom);
+      byPhase.set(phase, rows);
+    }
+
+    ok(res, {
+      // Most recent two years or so of cycles — a full history at this
+      // granularity is more than a comparison view needs to show at once.
+      cycles: cycles.slice(-24),
+      cycleCount: cycles.length,
+      averageLengthDays: completedLengths.length > 0 ? Math.round(average(completedLengths)) : null,
+      symptomsByPhase: [...byPhase.entries()]
+        .map(([phase, rows]) => ({
+          phase,
+          count: rows.length,
+          topSymptoms: topEntries(countBy(rows, (row) => String(row['name'] ?? '')), 5),
+        }))
+        .sort((a, b) => b.count - a.count),
+    });
+  }),
+);
+
 /** The activity timeline: system history plus the writes that produced it. */
 statsRouter.get(
   '/activity',

@@ -651,3 +651,106 @@ describe('the Wellbeing Snapshot and energy signals', () => {
     expect(signals[1].percent).toBe(44); // 5 of 1-10, rounded.
   });
 });
+
+/**
+ * /stats/cycle: cycles are derived, not stored — the gap between one logged
+ * "start" and the next — and a symptom's phase is whichever phase was most
+ * recently named as of the day it was logged, carried forward the same way
+ * Cycle.tsx's own "Your phases" list already treats `phase` as free text set
+ * on whichever days the user bothers to fill it in.
+ */
+describe('cycle-to-cycle comparison and symptom-by-phase stats', () => {
+  let client: TestClient;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  function dateAgo(daysAgo: number): string {
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+    return date.toISOString().slice(0, 10);
+  }
+
+  it('closes a cycle at the next start, averaging only the entries inside it', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    await client.request('POST', '/api/records/cycleEntries', {
+      ...headers,
+      body: { entryDate: dateAgo(40), eventType: 'start' },
+    });
+    await client.request('POST', '/api/records/cycleEntries', {
+      ...headers,
+      body: { entryDate: dateAgo(35), eventType: 'none', energy: 8, discomfort: 2 },
+    });
+    await client.request('POST', '/api/records/cycleEntries', {
+      ...headers,
+      body: { entryDate: dateAgo(30), eventType: 'none', energy: 6, discomfort: 0 },
+    });
+    // The next start closes the first cycle and opens a second, still-open one.
+    await client.request('POST', '/api/records/cycleEntries', {
+      ...headers,
+      body: { entryDate: dateAgo(12), eventType: 'start' },
+    });
+
+    const stats = await client.request('GET', '/api/stats/cycle', headers);
+
+    expect(stats.status).toBe(200);
+    expect(stats.body.data.cycleCount).toBe(2);
+    const [first, second] = stats.body.data.cycles;
+    expect(first.startDate).toBe(dateAgo(40));
+    expect(first.endDate).toBe(dateAgo(12));
+    expect(first.lengthDays).toBe(28);
+    expect(first.averageEnergy).toBe(7);
+    expect(first.averageDiscomfort).toBe(1);
+    expect(second.startDate).toBe(dateAgo(12));
+    expect(second.endDate).toBeNull();
+    expect(second.lengthDays).toBeNull();
+    expect(stats.body.data.averageLengthDays).toBe(28);
+  });
+
+  it("carries a symptom's phase forward from whichever phase was most recently named", async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    await client.request('POST', '/api/records/cycleEntries', {
+      ...headers,
+      body: { entryDate: dateAgo(20), phase: 'Luteal', eventType: 'none' },
+    });
+    await client.request('POST', '/api/records/cycleEntries', {
+      ...headers,
+      body: { entryDate: dateAgo(10), phase: 'Period', eventType: 'start' },
+    });
+    // Between the two dated phases — still Luteal as of this day.
+    await client.request('POST', '/api/records/symptomEntries', {
+      ...headers,
+      body: { name: 'Fatigue', category: 'physical', intensity: 3, recordedAt: `${dateAgo(15)}T12:00:00.000Z` },
+    });
+    // After the Period entry.
+    await client.request('POST', '/api/records/symptomEntries', {
+      ...headers,
+      body: { name: 'Cramps', category: 'physical', intensity: 4, recordedAt: `${dateAgo(5)}T12:00:00.000Z` },
+    });
+
+    const stats = await client.request('GET', '/api/stats/cycle', headers);
+    const byPhase = new Map(
+      stats.body.data.symptomsByPhase.map((entry: { phase: string; count: number }) => [entry.phase, entry.count]),
+    );
+    expect(byPhase.get('Luteal')).toBe(1);
+    expect(byPhase.get('Period')).toBe(1);
+  });
+
+  it('returns empty, honest structures rather than guessing when nothing is logged', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    const stats = await client.request('GET', '/api/stats/cycle', headers);
+    expect(stats.body.data.cycles).toEqual([]);
+    expect(stats.body.data.cycleCount).toBe(0);
+    expect(stats.body.data.averageLengthDays).toBeNull();
+    expect(stats.body.data.symptomsByPhase).toEqual([]);
+  });
+});
