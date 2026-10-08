@@ -256,6 +256,18 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **Typing in Messages or In-Sys Chat could freeze the interface on a long
+  conversation.** A prior fix memoized the message list itself but missed the
+  real cause: the composer (what you're typing) lived in the same component
+  as every visible message row, so each keystroke re-rendered all of them —
+  worse the longer the conversation got. The composer is now its own
+  component entirely, so typing never touches the message list at all; a
+  message row also no longer rebuilds its action handlers on every render,
+  for the cases that do legitimately re-render it (a new message arriving).
+  The composer is a growing text box now rather than a single line, with
+  Enter to send and Shift+Enter for a new line — needed regardless, since a
+  one-line field can't hold a code block or a list, both coming in a later
+  update.
 - **An alter who opted out of the shared profile could still leak through four
   narrower gaps.** The main "appear on a shared profile" switch was already
   enforced almost everywhere; a security pass found the rest. A pinned
