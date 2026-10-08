@@ -952,8 +952,52 @@ function Privacy(): JSX.Element {
         />
       </Card>
 
+      <InsightsPrivacyCard />
+
       <AppLockCard />
     </>
+  );
+}
+
+/**
+ * Emotions actually used, each with a switch to keep it out of Insights'
+ * pattern-finding wherever it's logged — a check-in, the Emotions log, the
+ * Constellation's own co-occurrence lines. Listing the account's own history
+ * rather than the full ~230-word catalogue keeps this short: there is
+ * nothing to exclude that was never logged in the first place.
+ */
+function InsightsPrivacyCard(): JSX.Element {
+  const { settings, update } = useOptimisticSettings();
+  const emotions = useQuery<{
+    topEmotions: { key: string; count: number; emotion: { name: string; emoji: string } | null }[];
+  }>('/api/stats/emotions', { days: 730 });
+  const topEmotions = emotions.data?.topEmotions ?? [];
+
+  const setExcluded = (id: string, excluded: boolean): void => {
+    update({
+      insightsExcludedEmotionIds: excluded
+        ? [...settings.insightsExcludedEmotionIds, id]
+        : settings.insightsExcludedEmotionIds.filter((existing) => existing !== id),
+    });
+  };
+
+  return (
+    <Card title="Insights" subtitle="Keep specific emotions out of pattern-finding, wherever they're logged">
+      {topEmotions.length === 0 ? (
+        <DescriptiveNote>
+          Emotions you've logged will be listed here, each with its own switch — there is nothing to exclude yet.
+        </DescriptiveNote>
+      ) : (
+        topEmotions.map((entry) => (
+          <SwitchRow
+            key={entry.key}
+            label={entry.emotion ? `${entry.emotion.emoji} ${entry.emotion.name}` : entry.key}
+            checked={!settings.insightsExcludedEmotionIds.includes(entry.key)}
+            onChange={(included) => setExcluded(entry.key, !included)}
+          />
+        ))
+      )}
+    </Card>
   );
 }
 

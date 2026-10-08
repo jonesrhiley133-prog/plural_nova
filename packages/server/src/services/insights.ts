@@ -5,6 +5,7 @@ import {
   correlation,
   countBy,
   dayKey,
+  emotionIdsOf,
   getEmotionFamily,
   insightConfidence,
   pairByDayOffset,
@@ -45,7 +46,10 @@ function rangeFrom(days: number): string {
  * carry one: `feelingEntries.mood` as recorded, and any `moodEntries` row
  * that is not itself the legacy copy a check-in already wrote — so a
  * check-in's mood counts once, not twice, while years of mood history logged
- * before `feelingEntries` existed still count at all.
+ * before `feelingEntries` existed still count at all. A check-in marked
+ * `excludeFromInsights` is left out here too; its legacy `moodEntries` row
+ * stays excluded along with it rather than quietly reappearing through the
+ * fallback path below.
  */
 export function dailyMoodSeries(scope: Scope, from: string): { at: string; value: number }[] {
   const feelings = listRecords('feelingEntries', scope, { limit: 2000, range: { field: 'recordedAt', from } }).items;
@@ -53,7 +57,9 @@ export function dailyMoodSeries(scope: Scope, from: string): { at: string; value
     feelings.map((entry) => entry['legacyMoodEntryId']).filter((id): id is string => typeof id === 'string'),
   );
   const moods = listRecords('moodEntries', scope, { limit: 2000, range: { field: 'recordedAt', from } }).items;
-  const fromFeelings = feelings.map((entry) => ({ at: String(entry['recordedAt']), value: Number(entry['mood'] ?? 50) }));
+  const fromFeelings = feelings
+    .filter((entry) => entry['excludeFromInsights'] !== true)
+    .map((entry) => ({ at: String(entry['recordedAt']), value: Number(entry['mood'] ?? 50) }));
   const fromLegacyMoods = moods
     .filter((entry) => !legacyMoodIds.has(entry.id) && Number(entry['score'] ?? 0) > 0)
     .map((entry) => ({ at: String(entry['recordedAt']), value: Number(entry['score']) * 10 }));
@@ -297,11 +303,25 @@ function symptomByCyclePhase(symptoms: Row[], phaseAsOf: (date: string) => strin
   return topWithinGroupPattern(rows, 'symptom-by-cycle-phase', 'Symptoms and cycle phase', 'symptoms', 'phase', (key) => key);
 }
 
-function emotionFamilyByCyclePhase(emotionEntries: Row[], phaseAsOf: (date: string) => string | null): PatternCard | null {
+/**
+ * Families come from each entry's own `emotionIdsOf`/`categoriesOf` pair, not
+ * the whole entry — an excluded emotion id drops just its own family out of
+ * this entry's contribution, so logging one private emotion alongside others
+ * that aren't doesn't pull the whole check-in out of the picture.
+ */
+function emotionFamilyByCyclePhase(
+  emotionEntries: Row[],
+  phaseAsOf: (date: string) => string | null,
+  excludedEmotionIds: ReadonlySet<string>,
+): PatternCard | null {
   const rows = emotionEntries.flatMap((entry) => {
     const group = phaseAsOf(String(entry['recordedAt'] ?? '').slice(0, 10));
     if (!group) return [];
-    return categoriesOf(entry).map((family) => ({ group, sub: family }));
+    const families = categoriesOf(entry);
+    return emotionIdsOf(entry)
+      .map((id, index) => ({ id, family: families[index] ?? null }))
+      .filter((pair) => !excludedEmotionIds.has(pair.id))
+      .map((pair) => ({ group, sub: pair.family }));
   });
   return topWithinGroupPattern(
     rows,
@@ -320,7 +340,9 @@ function emotionFamilyByCyclePhase(emotionEntries: Row[], phaseAsOf: (date: stri
  */
 export function buildPatternCards(scope: Scope, settings: AppSettings, days: number): PatternCard[] {
   const from = rangeFrom(days);
-  const feelings = listRecords('feelingEntries', scope, { limit: 2000, range: { field: 'recordedAt', from } }).items;
+  const feelings = listRecords('feelingEntries', scope, { limit: 2000, range: { field: 'recordedAt', from } }).items.filter(
+    (entry) => entry['excludeFromInsights'] !== true,
+  );
   const sleep = listRecords('sleepEntries', scope, { limit: 2000, range: { field: 'startedAt', from } }).items;
   const members = listRecords('members', scope, { limit: 500 }).items;
   const moodSeries = dailyMoodSeries(scope, from);
@@ -337,10 +359,11 @@ export function buildPatternCards(scope: Scope, settings: AppSettings, days: num
     const symptoms = listRecords('symptomEntries', scope, { limit: 2000 }).items;
     const emotionEntries = listRecords('emotionEntries', scope, { limit: 2000, range: { field: 'recordedAt', from } }).items;
     const phaseAsOf = buildPhaseAsOf(cycleEntries);
+    const excludedEmotionIds = new Set(settings.insightsExcludedEmotionIds);
     cards.push(
       moodByCyclePhase(moodSeries, phaseAsOf),
       symptomByCyclePhase(symptoms, phaseAsOf),
-      emotionFamilyByCyclePhase(emotionEntries, phaseAsOf),
+      emotionFamilyByCyclePhase(emotionEntries, phaseAsOf, excludedEmotionIds),
     );
   }
 

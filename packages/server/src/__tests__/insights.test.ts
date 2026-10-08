@@ -280,3 +280,65 @@ describe('insights: landscape', () => {
     expect(res.body.data.cycle).toEqual({ averageLengthDays: 28, cycleCount: 2 });
   });
 });
+
+describe('insights: privacy', () => {
+  let client: TestClient;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('keeps a check-in marked excludeFromInsights out of pattern-finding entirely', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    for (let i = 0; i < 4; i += 1) {
+      await client.request('POST', '/api/records/feelingEntries', {
+        ...headers,
+        body: { mood: 20, socialContext: 'alone', recordedAt: isoAt(i + 1), excludeFromInsights: true },
+      });
+    }
+    for (let i = 0; i < 4; i += 1) {
+      await client.request('POST', '/api/records/feelingEntries', {
+        ...headers,
+        body: { mood: 80, socialContext: 'smallGroup', recordedAt: isoAt(i + 10) },
+      });
+    }
+
+    const res = await client.request('GET', '/api/insights/patterns', headers);
+    // Only one group has any non-excluded evidence, so there is nothing to compare it against.
+    expect(res.body.data.patterns.some((p: { key: string }) => p.key === 'mood-by-social-context')).toBe(false);
+  });
+
+  it('drops an excluded emotion id’s own family, without pulling the rest of the entry out with it', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+    await client.request('PUT', '/api/auth/settings', {
+      ...headers,
+      body: { cycleEnabled: true, insightsExcludedEmotionIds: ['secret.id'] },
+    });
+    await client.request('POST', '/api/records/cycleEntries', { ...headers, body: { entryDate: dateAgo(10), phase: 'Luteal' } });
+
+    for (const d of [9, 8, 7]) {
+      await client.request('POST', '/api/records/emotionEntries', {
+        ...headers,
+        body: {
+          emotionId: 'secret.id',
+          emotionIds: ['secret.id', 'open.id'],
+          category: 'excludedFamily',
+          categories: ['excludedFamily', 'openFamily'],
+          intensity: 3,
+          recordedAt: isoAt(d),
+        },
+      });
+    }
+
+    const res = await client.request('GET', '/api/insights/patterns', headers);
+    const card = res.body.data.patterns.find((p: { key: string }) => p.key === 'emotion-family-by-cycle-phase');
+    expect(card).toBeTruthy();
+    expect(card.description).toContain('openFamily');
+    expect(card.description).not.toContain('excludedFamily');
+  });
+});

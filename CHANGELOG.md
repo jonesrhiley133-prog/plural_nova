@@ -12,6 +12,15 @@ different versions of PluralNova.
 
 ### Added
 
+- **Insights now has its own privacy controls.** A check-in marked "keep
+  out of Insights" (the switch was already on the unified check-in itself)
+  is now actually honoured by every pattern that reads mood — it's left out
+  of Patterns, and its legacy mood entry doesn't quietly reappear through
+  the older collection either. A new "Insights" card on Settings → Privacy
+  lists emotions you've actually logged, each with its own switch, so a
+  specific emotion can be kept out of pattern-finding wherever it shows up
+  — one private feeling logged alongside others doesn't need to pull the
+  whole check-in out of the picture, just its own share of it.
 - **A new Insights area ties mood, sleep, cycle, emotions and fronting
   together.** Patterns surfaces real comparisons — mood against who was
   around, what you were doing, who was fronting, and the night before's
