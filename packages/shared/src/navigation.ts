@@ -97,7 +97,6 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'sleep', path: '/sleep', label: 'Sleep', icon: 'sleep' },
       { id: 'wellbeing', path: '/wellbeing', label: 'Wellbeing', icon: 'wellbeing', quickAction: true },
       { id: 'body-map', path: '/body-map', label: 'Body sensations', icon: 'body' },
-      { id: 'emotion-insights', path: '/emotion-insights', label: 'Emotion insights', icon: 'insight' },
       { id: 'cycle', path: '/cycle', label: 'Cycle & wellness', icon: 'cycle' },
       { id: 'fitness', path: '/fitness', label: 'Fitness', icon: 'fitness' },
       { id: 'finances', path: '/finances', label: 'Finances', icon: 'finance' },

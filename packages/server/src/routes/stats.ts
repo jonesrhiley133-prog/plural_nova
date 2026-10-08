@@ -7,6 +7,7 @@ import {
   bucketByWeek,
   bucketByWeekday,
   categoriesOf,
+  coOccurringPairs,
   countBy,
   currentStreak,
   dayKey,
@@ -18,8 +19,10 @@ import {
   longestStreak,
   memberFrontingStats,
   percentOf,
+  stdev,
   topEntries,
   trendOf,
+  variance,
   type FrontEventLike,
   type GradeCategory,
 } from '@pluralnova/shared';
@@ -97,6 +100,12 @@ statsRouter.get(
         entries: moods.length,
         average: Math.round(average(moodScores) * 10) / 10,
         trend: trendOf(moodScores),
+        // A 1-10 scale makes variance/stdev small, fiddly numbers — scored on
+        // the same 0-100 line the check-in's own slider uses instead.
+        variance: Math.round(variance(moodScores.map((score) => score * 10)) * 10) / 10,
+        stdev: Math.round(stdev(moodScores.map((score) => score * 10)) * 10) / 10,
+        streak: currentStreak(moods.map((m) => String(m['recordedAt']))),
+        longestStreak: longestStreak(moods.map((m) => String(m['recordedAt']))),
         byDay: bucketByDay(
           moods.map((m) => ({ at: String(m['recordedAt']), value: Number(m['score'] ?? 0) })),
           Math.min(days, 90),
@@ -311,6 +320,15 @@ function dayInsights(
   };
 }
 
+/** Three plain bands, wide enough that each one usually has something in it. */
+function moodBand(mood: number): 'low' | 'mid' | 'high' {
+  if (mood < 40) return 'low';
+  if (mood < 70) return 'mid';
+  return 'high';
+}
+
+const MOOD_BAND_LABELS = { low: 'Lower moods', mid: 'Middling moods', high: 'Higher moods' } as const;
+
 /**
  * Emotion insights: which emotions recur, when, and alongside what. Presented
  * as observations about the log, not conclusions about the person.
@@ -338,14 +356,67 @@ statsRouter.get(
     const byActivity = countBy(entries, (entry) => String(entry['activity'] ?? '').trim() || null);
     const byMember = countBy(entries, (entry) => (entry['memberId'] as string) ?? null);
 
+    // An entry's intensity describes the whole entry, not each emotion in it
+    // individually — the same approximation `averageIntensity` above already
+    // makes for a multi-emotion entry, just broken out per emotion here too.
+    const intensityByEmotion = new Map<string, number[]>();
+    for (const entry of entries) {
+      const intensity = Number(entry['intensity'] ?? 0);
+      if (intensity <= 0) continue;
+      for (const id of emotionIdsOf(entry)) {
+        const list = intensityByEmotion.get(id) ?? [];
+        list.push(intensity);
+        intensityByEmotion.set(id, list);
+      }
+    }
+
+    // How often emotions were logged in the same entry as each other — the
+    // Emotional Constellation's connecting lines, nothing more than a count.
+    const coOccurrence = coOccurringPairs(entries.map((entry) => emotionIdsOf(entry)))
+      .slice(0, 16)
+      .map((pair) => ({
+        ...pair,
+        emotionA: getEmotion(pair.a) ?? null,
+        emotionB: getEmotion(pair.b) ?? null,
+      }));
+
+    // Only a check-in links one mood value to a set of emotions in the same
+    // row — `emotionEntries` and `moodEntries` never shared a key, so this
+    // breakdown reads `feelingEntries` on its own rather than the `entries`
+    // fetched above, and says so in its own `source` field.
+    const feelings = listRecords('feelingEntries', context.scope, {
+      limit: 500,
+      range: { field: 'recordedAt', from: rangeFrom(days) },
+    }).items.filter((entry) => entry['excludeFromInsights'] !== true);
+    const byBand = new Map<'low' | 'mid' | 'high', typeof feelings>();
+    for (const feeling of feelings) {
+      const band = moodBand(Number(feeling['mood'] ?? 50));
+      const list = byBand.get(band) ?? [];
+      list.push(feeling);
+      byBand.set(band, list);
+    }
+    const moodLinks = (['low', 'mid', 'high'] as const).map((band) => {
+      const rows = byBand.get(band) ?? [];
+      const emotionCounts = countBy(rows.flatMap((row) => emotionIdsOf(row)), (id) => id || null);
+      return {
+        band,
+        label: MOOD_BAND_LABELS[band],
+        checkIns: rows.length,
+        topEmotions: topEntries(emotionCounts, 6).map((entry) => ({ ...entry, emotion: getEmotion(entry.key) ?? null })),
+      };
+    });
+
     ok(res, {
       rangeDays: days,
       total: entries.length,
       averageIntensity: Math.round(average(intensities) * 10) / 10,
       intensityTrend: trendOf(intensities),
-      topEmotions: topEntries(byEmotion, 12).map((entry) => ({
+      // 40, not a display limit — `RankedBars` already trims its own list to
+      // a readable length, and the Constellation wants more stars than that.
+      topEmotions: topEntries(byEmotion, 40).map((entry) => ({
         ...entry,
         emotion: getEmotion(entry.key) ?? null,
+        averageIntensity: Math.round(average(intensityByEmotion.get(entry.key) ?? []) * 10) / 10,
       })),
       families: topEntries(byFamily, 12).map((entry) => ({
         ...entry,
@@ -357,6 +428,8 @@ statsRouter.get(
         ...entry,
         name: memberNames.get(entry.key) ?? 'Unattributed',
       })),
+      coOccurrence,
+      moodLinks: moodLinks.some((entry) => entry.checkIns >= 3) ? moodLinks : null,
       byHour: bucketByHour(entries.map((entry) => ({ at: String(entry['recordedAt']) }))),
       byWeekday: bucketByWeekday(entries.map((entry) => ({ at: String(entry['recordedAt']) }))),
       byDay: bucketByDay(

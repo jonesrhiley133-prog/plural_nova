@@ -209,7 +209,7 @@ export default function Wellbeing(): JSX.Element {
                   [
                     ['emotion', 'Emotions', '/emotions'],
                     ['body', 'Body sensations', '/body-map'],
-                    ['insight', 'Emotion insights', '/emotion-insights'],
+                    ['insight', 'Mood & Emotions analytics', '/mood-emotions?tab=analytics'],
                     ['sleep', 'Sleep', '/sleep'],
                     ['cycle', 'Cycle & wellness', '/cycle'],
                     ['fitness', 'Fitness', '/fitness'],

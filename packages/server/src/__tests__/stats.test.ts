@@ -413,3 +413,139 @@ describe('emotions logged together in one entry', () => {
     expect(byEmotion.get('joy.happy')).toBe(1);
   });
 });
+
+/**
+ * The Mood & Emotions redesign's Constellation and mood-level breakdown:
+ * per-emotion intensity and co-occurrence stay sourced from `emotionEntries`
+ * (unchanged), but the mood-to-emotion link can only come from
+ * `feelingEntries`, since that is the one collection where a mood and its
+ * emotions share a row.
+ */
+describe('Constellation and mood-emotion link stats', () => {
+  let client: TestClient;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it("gives each top emotion its own average intensity, not the whole log's blended one", async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    for (const intensity of [5, 5]) {
+      await client.request('POST', '/api/records/emotionEntries', {
+        ...headers,
+        body: { emotionId: 'joy.happy', category: 'joy', intensity, recordedAt: new Date().toISOString() },
+      });
+    }
+    await client.request('POST', '/api/records/emotionEntries', {
+      ...headers,
+      body: { emotionId: 'fear.nervous', category: 'fear', intensity: 1, recordedAt: new Date().toISOString() },
+    });
+
+    const stats = await client.request('GET', '/api/stats/emotions', headers);
+    const byEmotion = new Map(
+      stats.body.data.topEmotions.map((e: { key: string; averageIntensity: number }) => [e.key, e.averageIntensity]),
+    );
+    expect(byEmotion.get('joy.happy')).toBe(5);
+    expect(byEmotion.get('fear.nervous')).toBe(1);
+  });
+
+  it('counts how often two emotions were logged in the same entry', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    await client.request('POST', '/api/records/emotionEntries', {
+      ...headers,
+      body: {
+        emotionId: 'joy.happy',
+        emotionIds: ['joy.happy', 'calm.relaxed'],
+        category: 'joy',
+        categories: ['joy', 'calm'],
+        intensity: 3,
+        recordedAt: new Date().toISOString(),
+      },
+    });
+
+    const stats = await client.request('GET', '/api/stats/emotions', headers);
+    const pair = stats.body.data.coOccurrence.find(
+      (p: { a: string; b: string }) => [p.a, p.b].includes('joy.happy') && [p.a, p.b].includes('calm.relaxed'),
+    );
+    expect(pair).toBeDefined();
+    expect(pair.count).toBe(1);
+  });
+
+  it('withholds the mood-emotion breakdown until a mood band has at least three check-ins', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    for (const mood of [85, 90]) {
+      await client.request('POST', '/api/records/feelingEntries', {
+        ...headers,
+        body: { mood, emotionIds: ['joy.happy'], recordedAt: new Date().toISOString() },
+      });
+    }
+    const withTwo = await client.request('GET', '/api/stats/emotions', headers);
+    expect(withTwo.body.data.moodLinks).toBeNull();
+
+    await client.request('POST', '/api/records/feelingEntries', {
+      ...headers,
+      body: { mood: 88, emotionIds: ['joy.happy'], recordedAt: new Date().toISOString() },
+    });
+    const withThree = await client.request('GET', '/api/stats/emotions', headers);
+    const high = withThree.body.data.moodLinks.find((band: { band: string }) => band.band === 'high');
+    expect(high.checkIns).toBe(3);
+    expect(high.topEmotions[0].key).toBe('joy.happy');
+  });
+
+  it('keeps an excludeFromInsights check-in out of the mood-emotion breakdown', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    for (let i = 0; i < 3; i += 1) {
+      await client.request('POST', '/api/records/feelingEntries', {
+        ...headers,
+        body: { mood: 10, emotionIds: ['sadness.sad'], recordedAt: new Date().toISOString() },
+      });
+    }
+    await client.request('POST', '/api/records/feelingEntries', {
+      ...headers,
+      body: { mood: 10, emotionIds: ['anger.furious'], recordedAt: new Date().toISOString(), excludeFromInsights: true },
+    });
+
+    const stats = await client.request('GET', '/api/stats/emotions', headers);
+    const low = stats.body.data.moodLinks.find((band: { band: string }) => band.band === 'low');
+    expect(low.checkIns).toBe(3);
+    expect(low.topEmotions.some((e: { key: string }) => e.key === 'anger.furious')).toBe(false);
+  });
+});
+
+describe('mood variance, stdev and streak on the overview', () => {
+  let client: TestClient;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+  });
+  afterAll(() => client.close());
+  beforeEach(() => client.resetLimits());
+
+  it('scores spread on the 0-100 line the check-in slider uses, not the legacy 1-10 one', async () => {
+    const account = await registerUser(client);
+    const headers = { token: account.token };
+
+    // Every score identical — zero spread either way.
+    for (let i = 0; i < 4; i += 1) {
+      await client.request('POST', '/api/records/moodEntries', {
+        ...headers,
+        body: { label: 'steady', score: 5, recordedAt: new Date().toISOString() },
+      });
+    }
+
+    const overview = await client.request('GET', '/api/stats/overview', headers);
+    expect(overview.body.data.mood.variance).toBe(0);
+    expect(overview.body.data.mood.stdev).toBe(0);
+    expect(overview.body.data.mood.streak).toBeGreaterThanOrEqual(1);
+  });
+});

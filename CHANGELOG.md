@@ -12,6 +12,18 @@ different versions of PluralNova.
 
 ### Added
 
+- **Mood & Emotions grew three more tabs: Constellation, Calendar, and
+  Analytics.** The Constellation groups every emotion you've logged into its
+  family, sized by how intensely it tends to show up and connected by lines
+  to whatever else gets logged alongside it — a shape that's meant to become
+  familiar, not one that rearranges itself every time you check in. The
+  Calendar is a month at a glance, each day tinted by its average mood with
+  that day's most-logged emotion as a small emoji. Analytics replaces the old
+  standalone "Emotion insights" page (which now redirects here) and adds
+  mood's own spread and streaks alongside it, plus — only once a mood band
+  has at least three check-ins behind it — which emotions tend to travel
+  with a low, middling, or high mood. All three read what you've actually
+  logged and describe it; none of it is a diagnosis or a prediction.
 - **Mood and Emotions now share one check-in instead of two separate
   questions.** A new "Mood & Emotions" screen — and its own quick action —
   opens a single flow: how you're feeling on a 0–100 scale, then any

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { BASE, openBrowser, signUp } from './helpers.mjs';
 
 /**
- * The unified check-in.
+ * The unified check-in, and the Snapshot/Constellation/Calendar/Analytics
+ * screen it lives on.
  *
  * `feelingEntries` is additive, not a replacement — these checks exist to
  * prove the one promise the whole design rests on: saving a check-in also
@@ -98,5 +99,36 @@ describe('the unified mood & emotions check-in', () => {
       /an end-to-end check/,
       'deleting the check-in should remove the emotion entry it created',
     );
+  });
+});
+
+describe('the Snapshot/Constellation/Calendar/Analytics tabs', () => {
+  it('switches between all four without erroring, and the retired Emotion insights route redirects into Analytics', async () => {
+    const { page, problems } = session;
+    const before = problems.length;
+
+    await page.goto(`${BASE}/mood-emotions`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(500);
+
+    for (const label of ['Constellation', 'Calendar', 'Analytics', 'Snapshot']) {
+      await page.getByRole('tab', { name: label }).click();
+      await page.waitForTimeout(400);
+      assert.equal(
+        await page.getByRole('tab', { name: label }).getAttribute('aria-selected'),
+        'true',
+        `${label} should become the selected tab`,
+      );
+    }
+
+    await page.goto(`${BASE}/emotion-insights`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(500);
+    assert.match(page.url(), /\/mood-emotions\?tab=analytics$/, 'the old route should redirect into the new Analytics tab');
+    assert.equal(
+      await page.getByRole('tab', { name: 'Analytics' }).getAttribute('aria-selected'),
+      'true',
+      'the redirect should land on the Analytics tab itself, not just the screen',
+    );
+
+    assert.deepEqual(problems.slice(before), [], 'no console/page errors while touring the tabs');
   });
 });

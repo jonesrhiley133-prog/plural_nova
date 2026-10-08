@@ -17,12 +17,24 @@ import { useDateFormat, useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
 import { useActiveMemberId, useSystemMode } from '../core/auth.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, IconButton, Meter } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, IconButton, Meter, Tabs } from '../ui/primitives.js';
 import { Field, SearchField, TagField, TextField, useDebounced } from '../ui/forms.js';
 import { AsyncContent, DescriptiveNote } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
 import { EmotionFace, EmotionOption } from './Emotions.js';
+import { Constellation } from './moodEmotions/Constellation.js';
+import { MoodCalendar } from './moodEmotions/MoodCalendar.js';
+import { Analytics } from './moodEmotions/Analytics.js';
+
+type MoodEmotionsTab = 'snapshot' | 'constellation' | 'calendar' | 'analytics';
+
+const TABS: { value: MoodEmotionsTab; label: string }[] = [
+  { value: 'snapshot', label: 'Snapshot' },
+  { value: 'constellation', label: 'Constellation' },
+  { value: 'calendar', label: 'Calendar' },
+  { value: 'analytics', label: 'Analytics' },
+];
 
 /**
  * The unified check-in.
@@ -64,6 +76,12 @@ export default function MoodEmotions(): JSX.Element {
   const sheet = useDialog();
   const confirm = useDialog<StoredRecord>();
   const [autoOpened, setAutoOpened] = useState(false);
+  // Read once on mount, like Wellbeing's own tab param — a tab is where you
+  // land, not something the URL keeps tracking as you click around.
+  const [tab, setTab] = useState<MoodEmotionsTab>(() => {
+    const requested = params.get('tab');
+    return TABS.some((option) => option.value === requested) ? (requested as MoodEmotionsTab) : 'snapshot';
+  });
 
   if (params.get('new') === '1' && !autoOpened) {
     setAutoOpened(true);
@@ -143,87 +161,103 @@ export default function MoodEmotions(): JSX.Element {
         title="Mood & Emotions"
         description="How you feel, and what's contributing to it, in one place."
         actions={
-          <Button variant="primary" icon="plus" onClick={() => sheet.show()}>
-            New check-in
-          </Button>
+          tab === 'snapshot' ? (
+            <Button variant="primary" icon="plus" onClick={() => sheet.show()}>
+              New check-in
+            </Button>
+          ) : null
         }
       />
 
-      <AsyncContent
-        loading={feelings.loading}
-        error={feelings.error}
-        items={feelings.items}
-        onRetry={feelings.reload}
-        empty={{
-          title: 'Nothing logged yet',
-          body: 'A mood, and anything that goes with it — the chart comes later.',
-          icon: 'mood',
-          action: { label: 'New check-in', run: () => sheet.show() },
-        }}
-      >
-        {(records) => (
-          <Card flush>
-            <div className="list">
-              {records.slice(0, 60).map((entry) => {
-                const emotions = emotionIdsOf(entry)
-                  .map((id) => findEmotion(id))
-                  .filter((item): item is Emotion => item != null);
-                const primary = emotions[0] ?? null;
-                const family = primary ? getEmotionFamily(primary.family) : null;
-                const member = entry['memberId'] ? members.get(String(entry['memberId'])) : null;
-                const mood = Number(entry['mood'] ?? 50);
+      <Tabs value={tab} onChange={setTab} label="Mood & Emotions sections" options={TABS} />
 
-                return (
-                  <div key={entry.id} className="list-row">
-                    <span
-                      className="avatar"
-                      style={{
-                        ['--avatar-size' as never]: '34px',
-                        fontSize: 16,
-                        borderColor: family?.color ?? 'var(--border)',
-                      }}
-                      aria-hidden="true"
-                    >
-                      {primary?.emoji ?? '◍'}
-                    </span>
-                    <span className="list-row__body">
-                      <span className="list-row__title">
-                        {moodLabelFor(mood)}
-                        {emotions.length > 0 ? (
-                          <span className="faint"> · {emotions.map((item) => item.name).join(', ')}</span>
-                        ) : null}
-                      </span>
-                      <span className="list-row__meta">
-                        <span>{dates.relative(String(entry['recordedAt']))}</span>
-                        {member ? (
-                          <Chip color={(member['color'] as string) ?? null}>{String(member['name'])}</Chip>
-                        ) : null}
-                        {entry['activity'] ? <span className="faint">{String(entry['activity'])}</span> : null}
-                      </span>
-                    </span>
-                    <span className="list-row__trailing" style={{ width: 54 }}>
-                      <Meter value={mood} max={100} color={family?.color} label={`Mood ${mood} of 100`} />
-                    </span>
-                    <IconButton
-                      icon="trash"
-                      label="Delete check-in"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => confirm.show(entry)}
-                    />
+      <div style={{ marginTop: 'var(--space-4)' }}>
+        {tab === 'snapshot' ? (
+          <>
+            <AsyncContent
+              loading={feelings.loading}
+              error={feelings.error}
+              items={feelings.items}
+              onRetry={feelings.reload}
+              empty={{
+                title: 'Nothing logged yet',
+                body: 'A mood, and anything that goes with it — the chart comes later.',
+                icon: 'mood',
+                action: { label: 'New check-in', run: () => sheet.show() },
+              }}
+            >
+              {(records) => (
+                <Card flush>
+                  <div className="list">
+                    {records.slice(0, 60).map((entry) => {
+                      const emotions = emotionIdsOf(entry)
+                        .map((id) => findEmotion(id))
+                        .filter((item): item is Emotion => item != null);
+                      const primary = emotions[0] ?? null;
+                      const family = primary ? getEmotionFamily(primary.family) : null;
+                      const member = entry['memberId'] ? members.get(String(entry['memberId'])) : null;
+                      const mood = Number(entry['mood'] ?? 50);
+
+                      return (
+                        <div key={entry.id} className="list-row">
+                          <span
+                            className="avatar"
+                            style={{
+                              ['--avatar-size' as never]: '34px',
+                              fontSize: 16,
+                              borderColor: family?.color ?? 'var(--border)',
+                            }}
+                            aria-hidden="true"
+                          >
+                            {primary?.emoji ?? '◍'}
+                          </span>
+                          <span className="list-row__body">
+                            <span className="list-row__title">
+                              {moodLabelFor(mood)}
+                              {emotions.length > 0 ? (
+                                <span className="faint"> · {emotions.map((item) => item.name).join(', ')}</span>
+                              ) : null}
+                            </span>
+                            <span className="list-row__meta">
+                              <span>{dates.relative(String(entry['recordedAt']))}</span>
+                              {member ? (
+                                <Chip color={(member['color'] as string) ?? null}>{String(member['name'])}</Chip>
+                              ) : null}
+                              {entry['activity'] ? <span className="faint">{String(entry['activity'])}</span> : null}
+                            </span>
+                          </span>
+                          <span className="list-row__trailing" style={{ width: 54 }}>
+                            <Meter value={mood} max={100} color={family?.color} label={`Mood ${mood} of 100`} />
+                          </span>
+                          <IconButton
+                            icon="trash"
+                            label="Delete check-in"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => confirm.show(entry)}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          </Card>
-        )}
-      </AsyncContent>
+                </Card>
+              )}
+            </AsyncContent>
 
-      <div style={{ marginTop: 'var(--space-5)' }}>
-        <DescriptiveNote>
-          This is a log of what you chose. PluralNova does not interpret it, score it, or decide what it says about
-          you or your system.
-        </DescriptiveNote>
+            <div style={{ marginTop: 'var(--space-5)' }}>
+              <DescriptiveNote>
+                This is a log of what you chose. PluralNova does not interpret it, score it, or decide what it says
+                about you or your system.
+              </DescriptiveNote>
+            </div>
+          </>
+        ) : tab === 'constellation' ? (
+          <Constellation />
+        ) : tab === 'calendar' ? (
+          <MoodCalendar feelings={feelings.items} findEmotion={findEmotion} />
+        ) : (
+          <Analytics />
+        )}
       </div>
 
       <FeelingSheet

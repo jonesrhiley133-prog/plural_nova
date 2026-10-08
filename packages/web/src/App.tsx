@@ -65,7 +65,6 @@ const Wellbeing = load(() => import('./modules/Wellbeing.js'));
 const Emotions = load(() => import('./modules/Emotions.js'));
 const MoodEmotions = load(() => import('./modules/MoodEmotions.js'));
 const BodyMap = load(() => import('./modules/BodyMap.js'));
-const EmotionInsights = load(() => import('./modules/EmotionInsights.js'));
 const Sleep = load(() => import('./modules/Sleep.js'));
 const Fitness = load(() => import('./modules/Fitness.js'));
 const Cycle = load(() => import('./modules/Cycle.js'));
@@ -222,7 +221,7 @@ function AppRoutes(): JSX.Element {
           <Route path="wellbeing" element={<Wellbeing />} />
           <Route path="emotions" element={<Emotions />} />
           <Route path="body-map" element={<BodyMap />} />
-          <Route path="emotion-insights" element={<EmotionInsights />} />
+          <Route path="emotion-insights" element={<Navigate to="/mood-emotions?tab=analytics" replace />} />
           <Route path="sleep" element={<Sleep />} />
           <Route path="fitness" element={<Fitness />} />
           <Route path="cycle" element={<Cycle />} />
