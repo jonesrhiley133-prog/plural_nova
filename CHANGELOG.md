@@ -254,6 +254,16 @@ different versions of PluralNova.
   list already worked, rather than every message in the conversation at
   once.
 
+### Added
+
+- **A shared "who is this" contextual card** — a small popover with a
+  picture, name, pronouns, fronting status and flags, plus whatever quick
+  actions make sense from wherever it was opened (message, quick-front, view
+  profile). Positioned the same way the attach menu in Messages already
+  anchors itself to a click. Not used anywhere yet on its own — it's the
+  shared piece the Constellation and Messages identity work coming next both
+  build on, built and tested once rather than once per screen.
+
 ### Fixed
 
 - **Alter flags rendered as text chips, not the flag images they're meant to
