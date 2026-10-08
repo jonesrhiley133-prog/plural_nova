@@ -12,6 +12,17 @@ different versions of PluralNova.
 
 ### Added
 
+- **Wellbeing is now Cycle & Wellbeing, and its Check-ins tab gained a
+  Snapshot and energy signals.** The Snapshot is seven bars — mood, energy,
+  stress, comfort, social battery, sleep, and a new focus check-in field —
+  each one a different place's own most recent log, scaled onto the same
+  0–100 line so they sit together without being blended into one number;
+  an axis with nothing logged for it is left off rather than guessed at.
+  Energy signals does something similar for just energy: PluralNova already
+  asked about it in four separate places (a check-in, a journal entry, after
+  a workout, a cycle log), and this is the first place that lists the most
+  recent reading from each side by side, still labelled by where it came
+  from rather than averaged into something falsely precise.
 - **Mood & Emotions grew three more tabs: Constellation, Calendar, and
   Analytics.** The Constellation groups every emotion you've logged into its
   family, sized by how intensely it tends to show up and connected by lines

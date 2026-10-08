@@ -8,7 +8,7 @@ import { useToast } from '../core/toast.js';
 import { useActiveMemberId, useSystemMode } from '../core/auth.js';
 import { usePrefersReducedMotion } from '../core/theme.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, ListRow, Stat, Tabs } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, ListRow, Meter, Stat, Tabs } from '../ui/primitives.js';
 import { NumberField, TextField, SwitchRow } from '../ui/forms.js';
 import { DescriptiveNote, EmptyState, ErrorPanel, SkeletonCards } from '../ui/feedback.js';
 import { Dialog, useDialog } from '../ui/overlays.js';
@@ -62,6 +62,8 @@ export default function Wellbeing(): JSX.Element {
     mood: { entries: number; average: number; trend: string; byDay: { label: string; value: number; key: string }[] };
     sleep: { averageMinutes: number; averageQuality: number };
     emotions: { entries: number; topFamilies: { key: string; count: number; label: string; color: string | null }[] };
+    snapshot: { axes: { key: string; label: string; percent: number | null }[]; overall: number | null };
+    energySignals: { source: string; label: string; value: number; percent: number; recordedAt: string }[];
   }>('/api/stats/overview', { days: 30 });
 
   const latest = wellness.items[0];
@@ -143,6 +145,57 @@ export default function Wellbeing(): JSX.Element {
 
             <div className="split">
               <Card
+                title="Today's snapshot"
+                subtitle={
+                  overview.data?.snapshot.overall != null
+                    ? `${overview.data.snapshot.overall}% overall — a plain average of what's below`
+                    : "Each bar is its own most recent log, not blended with the others"
+                }
+              >
+                {!overview.data?.snapshot.axes.some((axis) => axis.percent !== null) ? (
+                  <EmptyState
+                    icon="wellbeing"
+                    title="Nothing to show yet"
+                    body="Log a mood or a check-in and the first bars appear."
+                  />
+                ) : (
+                  <div className="stack stack--tight">
+                    {overview.data.snapshot.axes
+                      .filter((axis) => axis.percent !== null)
+                      .map((axis) => (
+                        <div key={axis.key}>
+                          <div className="row row--between tiny" style={{ marginBottom: 3 }}>
+                            <span>{axis.label}</span>
+                            <span className="numeric muted">{axis.percent}%</span>
+                          </div>
+                          <Meter value={axis.percent!} max={100} label={`${axis.label}, ${axis.percent} of 100`} />
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card title="Energy signals" subtitle="The most recent reading from each place energy gets logged, not one blended number">
+                {!overview.data || overview.data.energySignals.length === 0 ? (
+                  <p className="small faint">Nothing logged yet.</p>
+                ) : (
+                  <div className="stack stack--tight">
+                    {overview.data.energySignals.map((signal) => (
+                      <div key={signal.source} className="row row--between small">
+                        <span>{signal.label}</span>
+                        <span className="row row--nowrap" style={{ gap: 'var(--space-2)', alignItems: 'center' }}>
+                          <span className="faint tiny">{dates.relative(signal.recordedAt)}</span>
+                          <span className="numeric muted">{signal.percent}%</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            <div className="split">
+              <Card
                 title="Latest check-in"
                 subtitle={latest ? dates.relative(String(latest['recordedAt'])) : undefined}
               >
@@ -161,6 +214,7 @@ export default function Wellbeing(): JSX.Element {
                         ['Stress', latest['stress'], 10],
                         ['Comfort', latest['comfort'], 10],
                         ['Social battery', latest['socialBattery'], 10],
+                        ['Focus', latest['focus'], 10],
                         ['Water', latest['hydrationGlasses'], null],
                         ['Meals', latest['mealCount'], null],
                       ] as const
@@ -1238,6 +1292,7 @@ function CheckInDialog({
     stress: 5,
     comfort: 5,
     socialBattery: 5,
+    focus: 5,
     hydrationGlasses: null,
     mealCount: null,
     painLevel: null,
@@ -1289,6 +1344,7 @@ function CheckInDialog({
           ['stress', 'Stress', 1, 10],
           ['comfort', 'Comfort', 1, 10],
           ['socialBattery', 'Social battery', 1, 10],
+          ['focus', 'Focus', 1, 10],
           ['painLevel', 'Physical discomfort', 0, 10],
           ['hydrationGlasses', 'Water (glasses)', 0, 30],
           ['mealCount', 'Meals', 0, 12],

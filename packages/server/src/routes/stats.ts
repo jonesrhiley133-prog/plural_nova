@@ -20,6 +20,7 @@ import {
   memberFrontingStats,
   percentOf,
   stdev,
+  toPercent,
   topEntries,
   trendOf,
   variance,
@@ -83,6 +84,81 @@ statsRouter.get(
       .map((m) => Number(m['score'] ?? 0))
       .filter((score) => score > 0);
 
+    // The Snapshot and energy signals below read the single latest row of
+    // each collection — not range-limited by `days`, since "what's the most
+    // recent thing known" is a different question than "what happened in
+    // this window", and the rest of this response already answers that one.
+    const latestWellness = listRecords('wellnessEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestSleepRow = listRecords('sleepEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestFeeling = listRecords('feelingEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestMoodRow = listRecords('moodEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestJournalForEnergy = listRecords('journalEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestFitness = listRecords('fitnessEntries', context.scope, { limit: 1 }).items[0] ?? null;
+    const latestCycle = listRecords('cycleEntries', context.scope, { limit: 1 }).items[0] ?? null;
+
+    const snapshotMood =
+      latestFeeling && typeof latestFeeling['mood'] === 'number'
+        ? Math.round(latestFeeling['mood'] as number)
+        : latestMoodRow && typeof latestMoodRow['score'] === 'number'
+          ? (latestMoodRow['score'] as number) * 10
+          : null;
+    const snapshotAxes: { key: string; label: string; percent: number | null }[] = [
+      { key: 'mood', label: 'Mood', percent: snapshotMood === null ? null : toPercent(snapshotMood, 0, 100) },
+      {
+        key: 'energy',
+        label: 'Energy',
+        percent: latestWellness && typeof latestWellness['energy'] === 'number' ? toPercent(latestWellness['energy'] as number, 1, 10) : null,
+      },
+      {
+        key: 'stress',
+        label: 'Stress',
+        percent: latestWellness && typeof latestWellness['stress'] === 'number' ? toPercent(latestWellness['stress'] as number, 1, 10) : null,
+      },
+      {
+        key: 'comfort',
+        label: 'Comfort',
+        percent: latestWellness && typeof latestWellness['comfort'] === 'number' ? toPercent(latestWellness['comfort'] as number, 1, 10) : null,
+      },
+      {
+        key: 'socialBattery',
+        label: 'Social battery',
+        percent:
+          latestWellness && typeof latestWellness['socialBattery'] === 'number' ? toPercent(latestWellness['socialBattery'] as number, 1, 10) : null,
+      },
+      {
+        key: 'sleep',
+        label: 'Sleep',
+        percent: latestSleepRow && typeof latestSleepRow['quality'] === 'number' ? toPercent(latestSleepRow['quality'] as number, 0, 5) : null,
+      },
+      {
+        key: 'focus',
+        label: 'Focus',
+        percent: latestWellness && typeof latestWellness['focus'] === 'number' ? toPercent(latestWellness['focus'] as number, 1, 10) : null,
+      },
+    ];
+    const presentPercents = snapshotAxes.map((axis) => axis.percent).filter((value): value is number => value !== null);
+
+    const energySources: { source: string; label: string; row: Record<string, unknown> | null; field: string; min: number; max: number }[] = [
+      { source: 'wellness', label: "Today's check-in", row: latestWellness, field: 'energy', min: 1, max: 10 },
+      { source: 'journal', label: 'Journal entry', row: latestJournalForEnergy, field: 'energy', min: 1, max: 5 },
+      { source: 'fitness', label: 'After activity', row: latestFitness, field: 'energyAfter', min: 1, max: 5 },
+      { source: 'cycle', label: 'Cycle log', row: latestCycle, field: 'energy', min: 1, max: 10 },
+    ];
+    const energySignals = energySources
+      .map(({ source, label, row, field, min, max }) => {
+        const raw = row ? row[field] : null;
+        if (typeof raw !== 'number' || !row) return null;
+        return {
+          source,
+          label,
+          value: raw,
+          percent: toPercent(raw, min, max),
+          recordedAt: String(row['recordedAt'] ?? row['startedAt'] ?? row['performedAt'] ?? row['entryDate'] ?? ''),
+        };
+      })
+      .filter((signal): signal is NonNullable<typeof signal> => signal !== null)
+      .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+
     ok(res, {
       rangeDays: days,
       fronting: {
@@ -96,6 +172,15 @@ statsRouter.get(
         byWeekday: bucketByWeekday(fronts.map((event) => ({ at: event.startedAt }))),
         members: memberFrontingStats(fronts).slice(0, 10),
       },
+      // Every axis here is a different collection's own most recent value,
+      // scaled onto the same 0-100 line so they can sit on one bar chart —
+      // nothing is blended across sources, and a missing axis is left out
+      // rather than guessed at.
+      snapshot: {
+        axes: snapshotAxes,
+        overall: presentPercents.length > 0 ? Math.round(average(presentPercents)) : null,
+      },
+      energySignals,
       mood: {
         entries: moods.length,
         average: Math.round(average(moodScores) * 10) / 10,

@@ -95,7 +95,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'locations', path: '/locations', label: 'Locations', icon: 'location' },
       { id: 'mood-emotions', path: '/mood-emotions', label: 'Mood & Emotions', icon: 'mood', quickAction: true },
       { id: 'sleep', path: '/sleep', label: 'Sleep', icon: 'sleep' },
-      { id: 'wellbeing', path: '/wellbeing', label: 'Wellbeing', icon: 'wellbeing', quickAction: true },
+      { id: 'wellbeing', path: '/wellbeing', label: 'Cycle & Wellbeing', icon: 'wellbeing', quickAction: true },
       { id: 'body-map', path: '/body-map', label: 'Body sensations', icon: 'body' },
       { id: 'cycle', path: '/cycle', label: 'Cycle & wellness', icon: 'cycle' },
       { id: 'fitness', path: '/fitness', label: 'Fitness', icon: 'fitness' },
