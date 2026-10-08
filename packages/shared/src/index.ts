@@ -3,6 +3,7 @@ export * from './time.js';
 export * from './types.js';
 export * from './collections/index.js';
 export * from './emotions.js';
+export * from './mood.js';
 export * from './terminology.js';
 export * from './themes.js';
 export * from './appearance.js';

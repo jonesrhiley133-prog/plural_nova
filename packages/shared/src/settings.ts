@@ -242,6 +242,8 @@ export interface AppSettings {
   currency: string;
   /** Which optional life modules the user wants visible at all. */
   hiddenModules: string[];
+  /** Emotion ids kept out of Insights' pattern-finding, regardless of which entry they're logged on. */
+  insightsExcludedEmotionIds: string[];
   /** How the member directory displays its cards — chosen once, kept until changed. */
   memberListLayout: MemberListLayout;
   /** Cycle tracking is entirely opt-in and its fields are user-named. */
@@ -304,6 +306,7 @@ export function defaultSettings(mode: AppMode = 'system'): AppSettings {
     timeFormat: '12h',
     currency: 'USD',
     hiddenModules: [],
+    insightsExcludedEmotionIds: [],
     cycleEnabled: false,
     onboardingCompleted: false,
     lastBackupAt: null,
@@ -370,6 +373,9 @@ export function mergeSettings(stored: Partial<AppSettings> | null | undefined): 
         ? stored.mobileTabs.slice(0, 5)
         : base.mobileTabs,
     hiddenModules: Array.isArray(stored.hiddenModules) ? stored.hiddenModules : [],
+    insightsExcludedEmotionIds: Array.isArray(stored.insightsExcludedEmotionIds)
+      ? stored.insightsExcludedEmotionIds
+      : [],
     memberListLayout: MEMBER_LIST_LAYOUTS.includes(stored.memberListLayout as MemberListLayout)
       ? (stored.memberListLayout as MemberListLayout)
       : base.memberListLayout,

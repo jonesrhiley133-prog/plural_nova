@@ -581,6 +581,58 @@ export const favoriteEmotions: CollectionDef = {
   fields: [f.text('emotionId', 'Emotion', { required: true, inList: true })],
 };
 
+/**
+ * One check-in capturing mood and emotions together, with the context around
+ * them — the richer sibling of `moodEntries`/`emotionEntries`, not a
+ * replacement for either. Saving one of these also writes a `moodEntries` row
+ * and an `emotionEntries` row (see `MoodEmotions.tsx`), so every existing
+ * reader of either collection keeps working unchanged; `legacyMoodEntryId`/
+ * `legacyEmotionEntryId` record which rows those were, so deleting a
+ * check-in can remove the two it created along with it.
+ */
+export const feelingEntries: CollectionDef = {
+  name: 'feelingEntries',
+  label: 'Check-ins',
+  singular: 'Check-in',
+  icon: 'mood',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'recordedAt',
+  sortField: 'recordedAt',
+  sortDir: 'desc',
+  indexes: [['systemId', 'recordedAt']],
+  fields: [
+    f.int('mood', 'Mood', { min: 0, max: 100, required: true, inList: true, hint: '0 lowest — 100 highest.' }),
+    f.tags('emotionIds', 'Emotions'),
+    f.json('emotionIntensities', 'Emotion intensities', {
+      hint: "Each emotion's own 1–5 strength, keyed by emotion id.",
+    }),
+    f.text('activity', 'Activity', { searchable: true }),
+    f.refs('locationIds', 'Where', 'locationEntries'),
+    f.enumOf('socialContext', 'Who was around', [
+      { value: 'alone', label: 'Alone' },
+      { value: 'oneOnOne', label: 'One other person' },
+      { value: 'smallGroup', label: 'A small group' },
+      { value: 'crowd', label: 'A crowd' },
+      { value: 'online', label: 'Online' },
+    ]),
+    f.refs('frontingMemberIds', 'Co-fronting with', 'members', {
+      hint: 'Anyone fronting alongside the member this is attributed to.',
+    }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
+    f.tags('tags', 'Tags'),
+    f.datetime('recordedAt', 'When', { required: true, inList: true }),
+    f.bool('excludeFromInsights', 'Keep out of Insights', { group: 'Details' }),
+    f.ref('legacyMoodEntryId', 'Linked mood entry', 'moodEntries', {
+      hint: 'Set automatically — the moodEntries row this check-in also created.',
+    }),
+    f.ref('legacyEmotionEntryId', 'Linked emotion entry', 'emotionEntries', {
+      hint: 'Set automatically — the emotionEntries row this check-in also created.',
+    }),
+  ],
+};
+
 export const bodySensations: CollectionDef = {
   name: 'bodySensations',
   label: 'Body sensations',
@@ -646,6 +698,7 @@ export const wellnessEntries: CollectionDef = {
     f.int('mealCount', 'Meals', { min: 0, max: 20 }),
     f.int('painLevel', 'Physical discomfort', { min: 0, max: 10 }),
     f.int('socialBattery', 'Social battery', { min: 1, max: 10 }),
+    f.int('focus', 'Focus', { min: 1, max: 10 }),
     f.bool('medicationTaken', 'Medication taken'),
     f.long('note', 'Note', { searchable: true, group: 'Details' }),
     f.json('customMetrics', 'Custom metrics', {
@@ -862,6 +915,38 @@ export const cycleEntries: CollectionDef = {
     f.text('mood', 'Mood'),
     f.long('note', 'Note', { searchable: true, sensitive: true, group: 'Details' }),
     f.bool('remind', 'Remind me next cycle'),
+  ],
+};
+
+/**
+ * A physical, emotional, or other symptom, logged with its own severity and
+ * duration. `cycleEntries.symptoms` stays a bare tag list marking a day — this
+ * is the fuller log that tags can only summarise, and it is not limited to
+ * cycle-related use.
+ */
+export const symptomEntries: CollectionDef = {
+  name: 'symptomEntries',
+  label: 'Symptoms',
+  singular: 'Symptom',
+  icon: 'body',
+  area: 'life',
+  scope: 'system',
+  memberScoped: true,
+  titleField: 'name',
+  sortField: 'recordedAt',
+  sortDir: 'desc',
+  fields: [
+    f.text('name', 'Symptom', { required: true, inList: true, searchable: true }),
+    f.enumOf('category', 'Category', [
+      { value: 'physical', label: 'Physical' },
+      { value: 'emotional', label: 'Emotional' },
+      { value: 'other', label: 'Other' },
+    ], { defaultValue: 'physical', inList: true }),
+    f.int('intensity', 'Intensity', { min: 1, max: 5, defaultValue: 3, inList: true }),
+    f.int('durationMinutes', 'Duration', { min: 0 }),
+    f.datetime('recordedAt', 'When', { required: true, inList: true }),
+    f.long('note', 'Note', { searchable: true, group: 'Details' }),
+    f.tags('tags', 'Tags'),
   ],
 };
 
@@ -1369,6 +1454,7 @@ export const LIFE_COLLECTIONS = [
   mediaItems,
   moodEntries,
   emotionEntries,
+  feelingEntries,
   customEmotions,
   favoriteEmotions,
   bodySensations,
@@ -1377,6 +1463,7 @@ export const LIFE_COLLECTIONS = [
   sleepEntries,
   fitnessEntries,
   cycleEntries,
+  symptomEntries,
   financeAccounts,
   transactions,
   budgets,

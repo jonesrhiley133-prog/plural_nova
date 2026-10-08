@@ -370,3 +370,126 @@ export function topEntries(counts: Map<string, number>, limit = 5): { key: strin
     .sort((a, b) => b.count - a.count)
     .slice(0, limit);
 }
+
+/** Population variance — how spread out `values` are around their own average. */
+export function variance(values: number[]): number {
+  if (values.length === 0) return 0;
+  const mean = average(values);
+  return average(values.map((v) => (v - mean) ** 2));
+}
+
+export function stdev(values: number[]): number {
+  return Math.sqrt(variance(values));
+}
+
+/** Each value's average with the `windowSize - 1` values before it, smoothing out day-to-day noise for a line chart. */
+export function rollingAverage(values: number[], windowSize: number): number[] {
+  if (windowSize < 1) return [...values];
+  return values.map((_, i) => average(values.slice(Math.max(0, i - windowSize + 1), i + 1)));
+}
+
+/** `average`/`countBy` combined — each group's own mean of `value`, alongside how many items it was built from. */
+export function averageBy<T>(
+  items: T[],
+  key: (item: T) => string | null | undefined,
+  value: (item: T) => number,
+): Map<string, { average: number; count: number }> {
+  const byKey = new Map<string, number[]>();
+  for (const item of items) {
+    const k = key(item);
+    if (!k) continue;
+    const values = byKey.get(k) ?? [];
+    values.push(value(item));
+    byKey.set(k, values);
+  }
+  return new Map([...byKey.entries()].map(([k, values]) => [k, { average: average(values), count: values.length }]));
+}
+
+/**
+ * Pearson correlation between two equal-length series, −1 to 1. `null` under
+ * three pairs or when either series never varies — not enough to say
+ * anything, rather than a misleading 0.
+ */
+export function correlation(xs: number[], ys: number[]): number | null {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 3) return null;
+  const xMean = average(xs.slice(0, n));
+  const yMean = average(ys.slice(0, n));
+  let covariance = 0;
+  let xVariance = 0;
+  let yVariance = 0;
+  for (let i = 0; i < n; i += 1) {
+    const dx = xs[i]! - xMean;
+    const dy = ys[i]! - yMean;
+    covariance += dx * dy;
+    xVariance += dx * dx;
+    yVariance += dy * dy;
+  }
+  if (xVariance === 0 || yVariance === 0) return null;
+  return covariance / Math.sqrt(xVariance * yVariance);
+}
+
+/**
+ * Pairs one day-stamped series against another, `offsetDays` later — e.g.
+ * sleep quality on day D against mood on day D+1. Multiple same-day entries
+ * in `after` average together; a `before` day with nothing `offsetDays`
+ * later is dropped rather than guessed.
+ */
+export function pairByDayOffset(
+  before: { at: string; value: number }[],
+  after: { at: string; value: number }[],
+  offsetDays: number,
+): { x: number; y: number }[] {
+  const afterByDay = new Map<string, number[]>();
+  for (const item of after) {
+    const key = dayKey(item.at);
+    const values = afterByDay.get(key) ?? [];
+    values.push(item.value);
+    afterByDay.set(key, values);
+  }
+  const pairs: { x: number; y: number }[] = [];
+  for (const item of before) {
+    const target = new Date(item.at);
+    target.setDate(target.getDate() + offsetDays);
+    const matches = afterByDay.get(dayKey(target));
+    if (matches && matches.length > 0) pairs.push({ x: item.value, y: average(matches) });
+  }
+  return pairs;
+}
+
+/**
+ * How often each pair of strings appears together in the same group — the
+ * same counting `coFrontingPairs` already does for who fronted together,
+ * generalised to any list of string ids (emotions logged in one check-in,
+ * most often).
+ */
+export function coOccurringPairs(groups: readonly string[][]): { a: string; b: string; count: number }[] {
+  const pairs = new Map<string, { a: string; b: string; count: number }>();
+  for (const group of groups) {
+    const unique = [...new Set(group)].sort();
+    for (let i = 0; i < unique.length; i += 1) {
+      for (let j = i + 1; j < unique.length; j += 1) {
+        const a = unique[i]!;
+        const b = unique[j]!;
+        const key = `${a}|${b}`;
+        const existing = pairs.get(key) ?? { a, b, count: 0 };
+        existing.count += 1;
+        pairs.set(key, existing);
+      }
+    }
+  }
+  return [...pairs.values()].sort((x, y) => y.count - x.count);
+}
+
+/** `value` rescaled from its own `[min, max]` onto 0–100, clamped at both ends. */
+export function toPercent(value: number, min: number, max: number): number {
+  if (max <= min) return 0;
+  return Math.min(100, Math.max(0, Math.round(((value - min) / (max - min)) * 100)));
+}
+
+/** How much evidence a pattern has behind it — plain thresholds, not a statistical test, matching the rest of this file. */
+export function insightConfidence(n: number): 'low' | 'moderate' | 'high' {
+  if (n < 5) return 'low';
+  if (n < 15) return 'moderate';
+  return 'high';
+}
