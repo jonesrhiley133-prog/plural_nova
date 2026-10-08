@@ -12,6 +12,18 @@ different versions of PluralNova.
 
 ### Added
 
+- **Mood and Emotions now share one check-in instead of two separate
+  questions.** A new "Mood & Emotions" screen — and its own quick action —
+  opens a single flow: how you're feeling on a 0–100 scale, then any
+  emotions that go with it, each with its own strength, then as much or as
+  little context as you want (what you were doing, who was around,
+  co-fronters, a note). The separate Mood and Emotions screens haven't gone
+  anywhere and keep working exactly as before — a check-in quietly saves an
+  equivalent entry to each of them, so your existing history, stats, and the
+  "How We Feel" card all see it without any changes on their end. Deleting a
+  check-in removes those two linked entries with it, which also makes this
+  the first place a mood or emotion log can be deleted at all. It shows up
+  on the Timeline too, alongside everything else that happened that day.
 - **Flux stops at a page instead of loading every post at once.** The feed
   already asked the server for one page at a time; the screen just never
   asked for a second one. A "Load more" button now appears under the feed

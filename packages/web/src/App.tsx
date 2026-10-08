@@ -63,6 +63,7 @@ const Flags = load(() => import('./modules/Flags.js'));
 const Achievements = load(() => import('./modules/Achievements.js'));
 const Wellbeing = load(() => import('./modules/Wellbeing.js'));
 const Emotions = load(() => import('./modules/Emotions.js'));
+const MoodEmotions = load(() => import('./modules/MoodEmotions.js'));
 const BodyMap = load(() => import('./modules/BodyMap.js'));
 const EmotionInsights = load(() => import('./modules/EmotionInsights.js'));
 const Sleep = load(() => import('./modules/Sleep.js'));
@@ -217,6 +218,7 @@ function AppRoutes(): JSX.Element {
           <Route path="achievements" element={<Achievements />} />
           <Route path="daily-summary" element={<DailySummary />} />
 
+          <Route path="mood-emotions" element={<MoodEmotions />} />
           <Route path="wellbeing" element={<Wellbeing />} />
           <Route path="emotions" element={<Emotions />} />
           <Route path="body-map" element={<BodyMap />} />

@@ -93,6 +93,7 @@ export const NAVIGATION: readonly NavCategory[] = [
       { id: 'contacts', path: '/contacts', label: 'Contacts', icon: 'contact' },
       { id: 'emergency', path: '/emergency', label: 'Emergency contacts', icon: 'emergency' },
       { id: 'locations', path: '/locations', label: 'Locations', icon: 'location' },
+      { id: 'mood-emotions', path: '/mood-emotions', label: 'Mood & Emotions', icon: 'mood', quickAction: true },
       { id: 'sleep', path: '/sleep', label: 'Sleep', icon: 'sleep' },
       { id: 'wellbeing', path: '/wellbeing', label: 'Wellbeing', icon: 'wellbeing', quickAction: true },
       { id: 'body-map', path: '/body-map', label: 'Body sensations', icon: 'body' },
@@ -224,7 +225,7 @@ export const QUICK_ACTIONS: readonly {
 }[] = [
   { id: 'front', label: 'Log a front', icon: 'front', path: '/quick-front', systemOnly: true },
   { id: 'journal', label: 'New journal entry', icon: 'journal', path: '/journal?new=1' },
-  { id: 'mood', label: 'Log a mood', icon: 'mood', path: '/wellbeing?new=mood' },
+  { id: 'mood', label: 'Check in', icon: 'mood', path: '/mood-emotions?new=1' },
   { id: 'emotion', label: 'Log an emotion', icon: 'emotion', path: '/emotions?new=1' },
   { id: 'note', label: 'New note', icon: 'note', path: '/notes?new=1' },
   { id: 'task', label: 'New task', icon: 'task', path: '/tasks?new=1' },
