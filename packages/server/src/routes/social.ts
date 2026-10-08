@@ -218,36 +218,37 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
   // anyone but the account itself, whatever the other toggles say.
   const listShown = profile['showMemberList'] === true || isOwner;
 
-  if (listShown && (profile['showMemberCount'] === true || isOwner)) {
-    const row = db()
-      .prepare('SELECT COUNT(*) AS n FROM "members" WHERE "userId" = ? AND "deletedAt" IS NULL')
-      .get(ownerId) as { n: number };
-    view['memberCount'] = row.n;
-  }
-
-  if (listShown) {
-    const members = listRecords('members', scope, { limit: 200 }).items;
-    view['members'] = members
-      .filter((member) => {
+  // Computed once and reused for both the count and the list itself, so a
+  // hidden alter can never inflate a number the list would never have named
+  // them in — two separate reads of "how many members" previously disagreed.
+  const shownMembers = listShown
+    ? listRecords('members', scope, { limit: 200 }).items.filter((member) => {
         const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
         return isOwner || privacy['showOnProfile'] !== false;
       })
-      .map((member) => {
-        const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
-        return {
-          id: member.id,
-          name: member['name'],
-          pronouns: member['pronouns'],
-          color: member['color'],
-          icon: member['icon'],
-          avatarUrl: privacy['showAvatar'] === false && !isOwner ? '' : member['avatarUrl'],
-          orbitOrder: member['orbitOrder'],
-          frontStatus:
-            profile['showCurrentFronter'] === true && privacy['showFronting'] !== false
-              ? member['frontStatus']
-              : null,
-        };
-      });
+    : [];
+
+  if (listShown && (profile['showMemberCount'] === true || isOwner)) {
+    view['memberCount'] = shownMembers.length;
+  }
+
+  if (listShown) {
+    view['members'] = shownMembers.map((member) => {
+      const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
+      return {
+        id: member.id,
+        name: member['name'],
+        pronouns: member['pronouns'],
+        color: member['color'],
+        icon: member['icon'],
+        avatarUrl: privacy['showAvatar'] === false && !isOwner ? '' : member['avatarUrl'],
+        orbitOrder: member['orbitOrder'],
+        frontStatus:
+          profile['showCurrentFronter'] === true && privacy['showFronting'] !== false
+            ? member['frontStatus']
+            : null,
+      };
+    });
   }
 
   if (listShown && (profile['showCurrentFronter'] === true || isOwner)) {
@@ -256,9 +257,15 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
       .map((event) => {
         const memberId = event['memberId'] as string | null;
         if (!memberId) return null;
-        const member = getRecord('members', scope, memberId);
-        const privacy = (member?.['privacy'] ?? {}) as Record<string, unknown>;
-        if (!member || (privacy['showFronting'] === false && !isOwner)) return null;
+        const rawMember = getRecord('members', scope, memberId);
+        if (!rawMember) return null;
+        // `showOnProfile` is the master per-alter switch (same as the member
+        // list above) — a fronting alter who opted out of the profile must
+        // not surface here just because `showFronting` was never separately
+        // set to false.
+        const member = shareableView('members', rawMember);
+        const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
+        if (!isOwner && (privacy['showOnProfile'] === false || privacy['showFronting'] === false)) return null;
         return { id: member.id, name: member['name'], color: member['color'], icon: member['icon'] };
       })
       .filter(Boolean);
@@ -268,7 +275,7 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
   if (pinned.length > 0) {
     view['pinnedGallery'] = pinned
       .map((id) => getRecord('mediaItems', scope, id))
-      .filter((item): item is StoredRecord => Boolean(item) && item!['visibility'] !== 'private')
+      .filter((item): item is StoredRecord => Boolean(item) && canSee(viewerId, ownerId, item!['visibility'] as Visibility))
       .map((item) => ({ id: item.id, url: item['url'], title: item['title'], mediaType: item['mediaType'] }));
   }
 
@@ -606,8 +613,15 @@ function postView(viewerId: string, post: StoredRecord, includeRepostOf = true):
   return {
     // Spread through shareableView rather than directly: this is the one
     // projection in the codebase that emits a whole stored record to somebody
-    // who does not own it, so it is the one that has to strip first.
+    // who does not own it, so it is the one that has to strip first — though
+    // that backstop only removes fields marked `sensitive` in schema and
+    // cannot see `memberId`, an implicit base column from `memberScoped:
+    // true`, so the two fields after the spread are the real gate for the
+    // alter-identity leak: they override whatever the raw record says with
+    // the same answer `asMember` above already computed.
     ...shareableView('posts', post),
+    memberId: asMember ? post['memberId'] : null,
+    authorKind: asMember ? post['authorKind'] : 'system',
     author,
     asMember,
     isMine: ownerId === viewerId,

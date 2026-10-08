@@ -6,6 +6,7 @@ import { auth, requireAuth } from '../auth/middleware.js';
 import { rateLimit } from '../http/rateLimit.js';
 import { getDb, transaction } from '../db/index.js';
 import { deserialize, getRecord } from '../db/repository.js';
+import { shareableView } from '../services/projection.js';
 import { notify } from '../services/notifications.js';
 import { publish, publishToMany } from '../realtime/hub.js';
 import {
@@ -323,21 +324,30 @@ function messageView(message: StoredRecord, viewerId: string): Record<string, un
   let asMember: Record<string, unknown> | null = null;
   const memberId = message['senderMemberId'] as string | null;
   if (memberId) {
-    const member = getRecord('members', { userId: senderId, systemId: null }, memberId);
-    if (member) {
+    const rawMember = getRecord('members', { userId: senderId, systemId: null }, memberId);
+    if (rawMember) {
+      // Defense in depth, not the gate itself: strips `sensitive` fields
+      // (e.g. `notes`) from a raw record that otherwise never leaves this
+      // function, so a later edit that accidentally returns more of it can't
+      // leak one by itself.
+      const member = shareableView('members', rawMember);
       const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
       // The same gate the public profile's own member list uses: "show head
       // mates" off, or this one alter opted out, means whoever sent this
       // message is never attributed to a specific alter for anyone but the
       // sender's own account — "send as a member" is not a second, ungated
-      // place that identity can reach another account from.
+      // place that identity can leak from.
       if (isMine || (showsMemberList(senderId) && privacy['showOnProfile'] !== false)) {
         asMember = { id: member.id, name: member['name'], color: member['color'], icon: member['icon'] };
       }
     }
   }
   return {
+    // `...message` would otherwise spread the raw `senderMemberId` straight
+    // through regardless of what `asMember` above just decided, making that
+    // gate cosmetic — it must say the same thing `asMember` says, never more.
     ...message,
+    senderMemberId: asMember ? message['senderMemberId'] : null,
     isMine,
     asMember,
   };

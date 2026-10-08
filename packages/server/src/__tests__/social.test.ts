@@ -523,6 +523,11 @@ describe('friends, flux and messaging', () => {
     const strangerFeed = await client.request('GET', '/api/social/flux', { token: alice.token });
     const seenByFriend = strangerFeed.body.data.posts.find((p: any) => p.id === post.body.data.id);
     expect(seenByFriend.asMember).toBeNull();
+    // The raw fields must agree with `asMember`, not just the computed view —
+    // `shareableView('posts', ...)` strips nothing (no `posts` field is
+    // marked sensitive), so these are the actual gate, not a cosmetic extra.
+    expect(seenByFriend.memberId).toBeNull();
+    expect(seenByFriend.authorKind).toBe('system');
 
     const ownFeed = await client.request('GET', '/api/social/flux', { token: dana.token });
     const seenByAuthor = ownFeed.body.data.posts.find((p: any) => p.id === post.body.data.id);

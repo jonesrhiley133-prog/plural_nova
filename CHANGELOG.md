@@ -256,6 +256,20 @@ different versions of PluralNova.
 
 ### Fixed
 
+- **An alter who opted out of the shared profile could still leak through four
+  narrower gaps.** The main "appear on a shared profile" switch was already
+  enforced almost everywhere; a security pass found the rest. A pinned
+  gallery image used a weaker check than the rest of the profile and could
+  show someone else's non-public media. The "currently fronting" line only
+  checked a separate fronting-specific switch, so an opted-out alter who
+  hadn't also hidden fronting specifically could still appear there. The
+  member count on a public profile counted every alter on the account
+  rather than only the ones actually shown. And posts and direct messages
+  sent as a hidden alter still carried that alter's raw internal id in the
+  response even though the name itself was already correctly withheld — not
+  visible on screen, but reachable by anyone looking at the data a page
+  received. All four are closed, backed by a new test suite built around one
+  "canary" alter that stays hidden through every combination.
 - **Mood & Emotions logged a harmless but needless error in Singlet Mode.**
   It fetched the (system-only) member list unconditionally, which the
   server correctly refuses outside System Mode — nothing broke, but the
