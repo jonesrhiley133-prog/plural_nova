@@ -327,12 +327,45 @@
 /* ── Conversation view ──────────────────────────────────────────────── */
 
 .chat-conversation {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   --chat-msg-gap: 2px;
   --chat-bubble-pad-y: var(--space-2);
+}
+
+.chat-loading-older {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  padding: var(--space-2) 0;
+}
+
+.chat-jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lift);
+  cursor: pointer;
+}
+
+.chat-jump-latest:hover {
+  background: var(--surface-sunken);
 }
 
 .chat-conversation[data-spacing='compact'] {

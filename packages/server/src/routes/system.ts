@@ -451,9 +451,11 @@ systemRouter.get(
     if (!thread) throw notFound('That conversation');
 
     const limit = Math.min(200, Math.max(1, Number(req.query['limit'] ?? 100)));
-    // Still unused by any client today — pagination lands in a later phase,
-    // which is also where this switches to a numeric `sequence` cursor to
-    // match the sort field below instead of this `sentAt` shape.
+    // The oldest already-loaded message's own `sequence`, as a string — the
+    // client's pagination cursor. `range.to` compiles to a plain `<`
+    // comparison, which SQLite applies with numeric affinity against this
+    // INTEGER column regardless of the bound value's own string type, so an
+    // older page never re-includes the boundary message itself.
     const before = typeof req.query['before'] === 'string' ? req.query['before'] : undefined;
     const result = listRecords('systemChatMessages', context.scope, {
       limit,
@@ -464,7 +466,7 @@ systemRouter.get(
       // never changes, so sorting by it is both correct and stable.
       sortField: 'sequence',
       sortDir: 'desc',
-      ...(before ? { range: { field: 'sentAt', to: before } } : {}),
+      ...(before ? { range: { field: 'sequence', to: before } } : {}),
     });
 
     // Fetched newest-first for the limit, then reversed so the caller always

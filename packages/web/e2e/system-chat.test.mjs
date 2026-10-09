@@ -54,11 +54,58 @@ async function createGroupThread(page, memberIds, name) {
   );
 }
 
-/** Reads a message's row-level alignment — 'left', 'right', or 'pending' for a send still in flight. Never which alter sent it. */
+/**
+ * Seeds a thread with `count` messages, each with an explicit, correctly
+ * ascending `sequence` — through the generic records API, not the real send
+ * endpoint (`POST .../chat/threads/:id/messages`), which rate-limits to 60
+ * sends/minute to blunt spam and would make seeding more than that
+ * impractically slow for a test. The generic route has no such limit and,
+ * for this collection, accepts `sequence`/`threadId` directly rather than
+ * computing them server-side, so seeded rows land exactly where a real send
+ * would have put them.
+ */
+async function seedMessages(page, threadId, count, prefix) {
+  await page.evaluate(
+    async ({ threadId, count, prefix }) => {
+      const auth = {
+        'content-type': 'application/json',
+        authorization: `Bearer ${localStorage.getItem('pluralnova.token')}`,
+      };
+      const base = Date.now();
+      for (let i = 1; i <= count; i += 1) {
+        await fetch('/api/records/systemChatMessages', {
+          method: 'POST',
+          headers: auth,
+          body: JSON.stringify({
+            threadId,
+            body: `${prefix} ${i}`,
+            sentAt: new Date(base + i * 1000).toISOString(),
+            sequence: i,
+            visibility: 'system',
+          }),
+        });
+      }
+    },
+    { threadId, count, prefix },
+  );
+}
+
+/**
+ * Reads a message's row-level alignment — 'left', 'right', or 'pending' for
+ * a send still in flight. Never which alter sent it. Finds the body text via
+ * Playwright's own `exact: true` matching (handles the whitespace a markdown
+ * renderer adds around a paragraph, which a hand-rolled `^...$` regex against
+ * raw `hasText` does not — that mismatch, not a substring collision, was the
+ * actual cause the one time this used a regex), then walks up to the row:
+ * with numbered seed text like "seeded 11", a *substring* match would also
+ * hit "seeded 110"–"119", which is both the wrong message and, those not
+ * being anywhere near the scrolled-to position, unresolvable within the
+ * virtualizer's rendered window.
+ */
 async function sideOf(page, text) {
   const row = page
-    .locator('.chat-feed-row')
-    .filter({ has: page.locator('.chat-feed__body', { hasText: text }) })
+    .getByText(text, { exact: true })
+    .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " chat-feed-row ")]')
     .last();
   const classes = (await row.getAttribute('class')) ?? '';
   if (classes.includes('chat-feed-row--left')) return 'left';
@@ -270,5 +317,84 @@ describe('active chatter: thread visibility and header identity', () => {
       1,
       "A and B's thread did not come back for A after switching away and back",
     );
+  });
+});
+
+describe('system chat: pagination and jump-to-latest', () => {
+  let threadId;
+
+  it('loads older messages on scroll-up without shifting already-rendered alignment', async () => {
+    const { page } = session;
+    threadId = await createGroupThread(page, [chatterA], 'Pagination check');
+    // More than one page (the client's initial load is the newest 150).
+    await seedMessages(page, threadId, 160, 'seeded');
+
+    await page.goto(`${BASE}/system/chat/${threadId}`, { waitUntil: 'networkidle' });
+    // `.count()` is a snapshot, not an auto-waiting assertion — with 150
+    // messages to fetch, normalize and virtualize, a fixed short delay isn't
+    // reliably enough before the DOM settles, so this waits for the thing
+    // it actually needs to see rather than guessing how long that takes.
+    await page.getByText('seeded 160').waitFor({ timeout: 8000 });
+
+    assert.equal(
+      await page.getByText('seeded 10', { exact: true }).count(),
+      0,
+      'a message older than the first page is already visible before scrolling up',
+    );
+    // Sequence 160 is even, so strict alternation puts it on the right —
+    // checked against the known formula, not a snapshot read back later,
+    // since the view opens scrolled to the bottom and a message far from
+    // the current scroll position (like "seeded 11" would be here) isn't
+    // rendered yet under virtualization — reading it this early isn't a
+    // "did it move" check, it's asking about a row that doesn't exist yet.
+    assert.equal(await sideOf(page, 'seeded 160'), 'right', '"seeded 160" (sequence 160, even) is not on the right');
+
+    // First scroll-to-top: 11 messages short of the full 160, this loads the
+    // one remaining older page (sequence 1-10) and prepends it. The
+    // virtualizer is anchored to keep whatever the user was already looking
+    // at — "seeded 11", at the top of the viewport — exactly where it was,
+    // which is the point of the feature (nothing already on screen jumps),
+    // so scrollTop actually moves *away* from 0 by however tall those 10 new
+    // rows rendered. "seeded 1" isn't on screen yet; it's above the anchored
+    // row, not revealed until scrolling up again finds nothing left to load.
+    await page.locator('.chat-conversation__messages').evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.getByText('seeded 10', { exact: true }).waitFor({ timeout: 5000 });
+
+    // "seeded 11" was already loaded and rendered on the first page — this
+    // is the one that must not have moved once older history loaded above it.
+    assert.equal(
+      await sideOf(page, 'seeded 11'),
+      'left',
+      '"seeded 11" (sequence 11, odd) moved sides once older history loaded above it',
+    );
+    // The newly-loaded older message right next to it continues the exact
+    // same alternating sequence across the page boundary.
+    assert.equal(
+      await sideOf(page, 'seeded 10'),
+      'right',
+      '"seeded 10" (sequence 10, even) does not continue the alternating sequence',
+    );
+
+    // Second scroll-to-top: there's nothing left to load (that was the last
+    // page), so this time the anchor has nothing to correct for and scrollTop
+    // actually lands at 0, finally revealing the true first message.
+    await page.locator('.chat-conversation__messages').evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.getByText('seeded 1', { exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await sideOf(page, 'seeded 1'), 'left', '"seeded 1" (sequence 1, odd) is not on the left');
+  });
+
+  it('offers jump-to-latest while scrolled away from the bottom, and returns there when used', async () => {
+    const { page } = session;
+    // Still scrolled to the top from the previous test, in the same thread.
+    await page.locator('.chat-jump-latest').waitFor({ timeout: 5000 });
+
+    await page.locator('.chat-jump-latest').click();
+    await page.getByText('seeded 160').waitFor({ timeout: 5000 });
+
+    assert.equal(await page.locator('.chat-jump-latest').count(), 0, 'jump-to-latest did not disappear after being used');
   });
 });

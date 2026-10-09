@@ -252,6 +252,9 @@ interface SystemChatConversationState {
   loading: boolean;
   error: string | null;
   sending: boolean;
+  /** Whether the thread has messages older than what's currently loaded. */
+  hasMoreOlder: boolean;
+  loadingOlder: boolean;
   /**
    * Who "mine" means in this open thread: whichever alter is chosen to send
    * as, defaulting to the active chatter but movable by the composer's "send
@@ -285,6 +288,7 @@ export function useSystemChatConversation(
   remove: (messageId: string) => Promise<void>;
   markRead: () => void;
   refreshThread: () => Promise<void>;
+  loadOlder: () => Promise<void>;
   setSendAsMemberId: (memberId: string | null) => void;
 } {
   const members = useCollection('members');
@@ -297,6 +301,8 @@ export function useSystemChatConversation(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const [sendAsMemberId, setSendAsMemberId] = useState<string | null>(viewerMemberId);
   useEffect(() => {
@@ -339,10 +345,12 @@ export function useSystemChatConversation(
         messages: Record<string, unknown>[];
         thread: Record<string, unknown>;
         mentions: MentionMap;
+        hasMore: boolean;
       }>(`/api/system/chat/threads/${threadId}/messages`, { limit: 150 });
       setThread(threadSummary(result.thread));
       setRawMessages(result.messages);
       setMentions(result.mentions);
+      setHasMoreOlder(result.hasMore);
       setError(null);
     } catch (cause) {
       setError(messageFor(cause));
@@ -350,6 +358,58 @@ export function useSystemChatConversation(
       setLoading(false);
     }
   }, [threadId]);
+
+  /**
+   * Fetches the latest page and merges it into what's already loaded, rather
+   * than replacing it the way `load()` does — used by the ambient realtime
+   * and focus/visibility paths below, where a full replace would silently
+   * discard any older history the user had already scrolled up and loaded
+   * via `loadOlder()`. Never touches `hasMoreOlder`: this fetch answers "is
+   * there more than a page in the thread," not "has pagination reached the
+   * beginning yet," which only `loadOlder()` itself can correctly advance.
+   */
+  const mergeLatest = useCallback(async () => {
+    if (!threadId) return;
+    try {
+      const result = await api.get<{
+        messages: Record<string, unknown>[];
+        thread: Record<string, unknown>;
+        mentions: MentionMap;
+      }>(`/api/system/chat/threads/${threadId}/messages`, { limit: 150 });
+      setThread(threadSummary(result.thread));
+      setMentions((current) => ({ ...current, ...result.mentions }));
+      setRawMessages((current) => {
+        const latestById = new Map(result.messages.map((message) => [String(message['id']), message]));
+        const merged = current.map((message) => latestById.get(String(message['id'])) ?? message);
+        const currentIds = new Set(current.map((message) => String(message['id'])));
+        const appended = result.messages.filter((message) => !currentIds.has(String(message['id'])));
+        return [...merged, ...appended];
+      });
+      setError(null);
+    } catch (cause) {
+      setError(messageFor(cause));
+    }
+  }, [threadId]);
+
+  const loadOlder = useCallback(async () => {
+    if (!threadId || loadingOlder || !hasMoreOlder || rawMessages.length === 0) return;
+    const oldestSequence = rawMessages[0]?.['sequence'];
+    if (oldestSequence == null) return;
+    setLoadingOlder(true);
+    try {
+      const result = await api.get<{ messages: Record<string, unknown>[]; hasMore: boolean }>(
+        `/api/system/chat/threads/${threadId}/messages`,
+        { limit: 100, before: oldestSequence as number },
+      );
+      setRawMessages((current) => [...result.messages, ...current]);
+      setHasMoreOlder(result.hasMore);
+    } catch {
+      // Left as-is: hasMoreOlder stays true, so scrolling near the top again
+      // simply retries rather than needing a dedicated error/retry affordance.
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [threadId, loadingOlder, hasMoreOlder, rawMessages]);
 
   // Memoized for the same reason as the Messages equivalent in
   // core/messages.ts: a composer keystroke is local state in the component
@@ -378,22 +438,27 @@ export function useSystemChatConversation(
     setRawMessages([]);
     setPending([]);
     setThread(null);
+    setHasMoreOlder(false);
     setLoading(true);
     void load();
   }, [load]);
 
+  // These two paths use `mergeLatest()`, never `load()` — once the user has
+  // scrolled up and loaded older history via `loadOlder()`, a plain reload
+  // would silently replace the whole array with just the newest page again,
+  // discarding everything older that was already on screen.
   useEffect(
     () =>
       realtime.on((event) => {
         if (!threadId) return;
-        if (event.type === 'systemChat.new' && event.threadId === threadId) void load();
+        if (event.type === 'systemChat.new' && event.threadId === threadId) void mergeLatest();
         // The generic record event carries no threadId, so this reloads on any
         // system chat message deletion rather than just this thread's — an
-        // infrequent action, and load() is cheap and idempotent either way.
-        if (event.type === 'record.changed' && event.collection === 'systemChatMessages') void load();
-        if (event.type === 'reaction.new' && event.kind === 'system' && event.threadId === threadId) void load();
+        // infrequent action, and mergeLatest() is cheap and idempotent either way.
+        if (event.type === 'record.changed' && event.collection === 'systemChatMessages') void mergeLatest();
+        if (event.type === 'reaction.new' && event.kind === 'system' && event.threadId === threadId) void mergeLatest();
       }),
-    [threadId, load],
+    [threadId, mergeLatest],
   );
 
   // A safety net for a conversation left open in a backgrounded tab: realtime
@@ -403,7 +468,7 @@ export function useSystemChatConversation(
   useEffect(() => {
     const onFocusOrVisible = (): void => {
       if (document.visibilityState === 'hidden') return;
-      void load();
+      void mergeLatest();
     };
     window.addEventListener('focus', onFocusOrVisible);
     document.addEventListener('visibilitychange', onFocusOrVisible);
@@ -411,7 +476,7 @@ export function useSystemChatConversation(
       window.removeEventListener('focus', onFocusOrVisible);
       document.removeEventListener('visibilitychange', onFocusOrVisible);
     };
-  }, [load]);
+  }, [mergeLatest]);
 
   const send = useCallback(
     async (text: string, options: SendOptions = {}) => {
@@ -528,6 +593,8 @@ export function useSystemChatConversation(
     loading,
     error,
     sending,
+    hasMoreOlder,
+    loadingOlder,
     sendAsMemberId,
     setSendAsMemberId,
     mentions,
@@ -535,6 +602,7 @@ export function useSystemChatConversation(
     retry,
     react,
     refreshThread: load,
+    loadOlder,
     forward,
     edit,
     remove,

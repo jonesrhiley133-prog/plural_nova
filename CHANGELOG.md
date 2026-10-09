@@ -12,6 +12,14 @@ different versions of PluralNova.
 
 ### Changed
 
+- **System Chat's conversation feed now loads older history as you scroll
+  up**, instead of only ever showing the most recent page of messages.
+  Scrolling to the top fetches the next page back and adds it above what's
+  already there without disturbing anything already on screen — whatever
+  you were already reading stays exactly where it is. A floating "jump to
+  latest" button appears once you've scrolled away from the newest message,
+  and clears itself once you use it or scroll back down on your own.
+
 - **System Chat's conversation feed is now a Discord-style open feed —
   no chat bubbles.** Every message shows its sender's avatar, name,
   timestamp and edited flag directly on the conversation background, and

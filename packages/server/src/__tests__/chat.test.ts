@@ -661,6 +661,32 @@ describe('system chat threads', () => {
 
     expect(forwarded.body.data.forwarded[0].sequence).toBe(2);
   });
+
+  it('paginates older messages with a sequence cursor that never re-includes the boundary message', async () => {
+    const threadId = await isolatedGroupThread('Pagination check');
+    for (let i = 1; i <= 5; i += 1) {
+      await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+        token,
+        body: { body: `msg ${i}`, memberId: ashId },
+      });
+    }
+
+    const firstPage = await client.request('GET', `/api/system/chat/threads/${threadId}/messages?limit=3`, { token });
+    expect(firstPage.body.data.messages.map((m: any) => m.body)).toEqual(['msg 3', 'msg 4', 'msg 5']);
+    expect(firstPage.body.data.hasMore).toBe(true);
+
+    const oldestLoadedSequence = firstPage.body.data.messages[0].sequence;
+    const secondPage = await client.request(
+      'GET',
+      `/api/system/chat/threads/${threadId}/messages?limit=3&before=${oldestLoadedSequence}`,
+      { token },
+    );
+    expect(secondPage.body.data.messages.map((m: any) => m.body)).toEqual(['msg 1', 'msg 2']);
+    expect(secondPage.body.data.hasMore).toBe(false);
+
+    // The cursor's own boundary message ("msg 3") must not reappear on the older page.
+    expect(secondPage.body.data.messages.some((m: any) => m.body === 'msg 3')).toBe(false);
+  });
 });
 
 describe('active-chatter thread visibility', () => {

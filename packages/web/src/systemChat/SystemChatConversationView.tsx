@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readableTextOn, resolveChatAppearance } from '@pluralnova/shared';
 import { useAuth } from '../core/auth.js';
 import { useCollection } from '../core/data.js';
@@ -13,6 +13,7 @@ import {
   type SystemChatMessage,
 } from '../core/systemChat.js';
 import { Avatar, AvatarStack, IconButton } from '../ui/primitives.js';
+import { Icon } from '../ui/Icon.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { SystemChatMessageRow } from './SystemChatMessageRow.js';
@@ -107,21 +108,71 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   // Every row now always shows its full avatar/name/timestamp header (no
   // collapsing for a repeated sender), so the average row is a bit taller
   // than the old mixed collapsed/full-row estimate.
-  const { scrollRef, virtualizer, userScrolledUp, handleScroll, scrollToBottom, scrollToId } = useVirtualizedChat(
-    messagesByOldestFirst,
-    { estimateSize: 84 },
-  );
+  const { scrollRef, virtualizer, userScrolledUp, handleScroll, scrollToBottom, scrollToId, getScrollMetrics } =
+    useVirtualizedChat(messagesByOldestFirst, { estimateSize: 84 });
+
+  // Reactive mirror of `userScrolledUp` (a ref, so it doesn't itself trigger a
+  // render) — only needed for the jump-to-latest affordance below, which has
+  // to show and hide as the user scrolls.
+  const [scrolledUp, setScrolledUp] = useState(false);
+  const [hasNewBelow, setHasNewBelow] = useState(false);
+  const latestMessageIdRef = useRef<string | null>(null);
+  const loadingOlderRef = useRef(false);
 
   useEffect(() => {
     setReplyTo(null);
     setEditingMessage(null);
     userScrolledUp.current = false;
+    setScrolledUp(false);
+    setHasNewBelow(false);
   }, [threadId, viewerMemberId, userScrolledUp]);
 
   useEffect(() => {
     if (userScrolledUp.current) return;
     scrollToBottom();
   }, [messagesByOldestFirst.length, userScrolledUp, scrollToBottom]);
+
+  // Flags the jump-to-latest affordance as "new messages below" specifically
+  // when a genuinely new message lands at the tail while scrolled away from
+  // it — never when `loadOlder()` prepends older ones, which never changes
+  // the last message, and never while already at the bottom.
+  useEffect(() => {
+    const latest = messagesByOldestFirst[messagesByOldestFirst.length - 1]?.id ?? null;
+    if (latest !== latestMessageIdRef.current) {
+      if (latestMessageIdRef.current !== null && userScrolledUp.current) setHasNewBelow(true);
+      latestMessageIdRef.current = latest;
+    }
+  }, [messagesByOldestFirst, userScrolledUp]);
+
+  // No manual scroll-anchor dance needed around the prepend: the virtualizer
+  // itself is configured with `anchorTo: 'end'` (see useVirtualizedChat),
+  // which keeps the viewport pinned to what the user was already looking at
+  // as soon as the longer `messagesByOldestFirst` array renders.
+  const loadOlderIfNearTop = useCallback(async () => {
+    if (loadingOlderRef.current || !conversation.hasMoreOlder || conversation.loadingOlder) return;
+    const metrics = getScrollMetrics();
+    if (!metrics || metrics.scrollTop > 150) return;
+    loadingOlderRef.current = true;
+    try {
+      await conversation.loadOlder();
+    } finally {
+      loadingOlderRef.current = false;
+    }
+  }, [conversation, getScrollMetrics]);
+
+  const onMessagesScroll = useCallback(() => {
+    handleScroll();
+    setScrolledUp(userScrolledUp.current);
+    if (!userScrolledUp.current) setHasNewBelow(false);
+    void loadOlderIfNearTop();
+  }, [handleScroll, userScrolledUp, loadOlderIfNearTop]);
+
+  const jumpToLatest = useCallback(() => {
+    scrollToBottom();
+    userScrolledUp.current = false;
+    setScrolledUp(false);
+    setHasNewBelow(false);
+  }, [scrollToBottom, userScrolledUp]);
 
   useEffect(() => {
     conversation.markRead();
@@ -287,7 +338,8 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
         <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
       </header>
 
-      <div className="chat-conversation__messages" ref={scrollRef} onScroll={handleScroll}>
+      <div className="chat-conversation__messages" ref={scrollRef} onScroll={onMessagesScroll}>
+        {conversation.loadingOlder ? <div className="chat-loading-older">Loading earlier messages…</div> : null}
         {rows.length === 0 ? (
           <EmptyState icon="chat" title="Say hello" body="Nothing here yet — the first message starts the conversation." />
         ) : (
@@ -328,6 +380,13 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
           </div>
         )}
       </div>
+
+      {scrolledUp ? (
+        <button type="button" className="chat-jump-latest" onClick={jumpToLatest}>
+          <Icon name="chevronDown" size={14} />
+          {hasNewBelow ? 'New messages' : 'Jump to latest'}
+        </button>
+      ) : null}
 
       <ChatComposer
         replyTo={replyTarget}
