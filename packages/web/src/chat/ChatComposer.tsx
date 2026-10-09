@@ -5,6 +5,12 @@ import { useToast } from '../core/toast.js';
 import { Button, IconButton } from '../ui/primitives.js';
 import { ActionMenu, useActionMenu, type ActionMenuPosition } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
+import {
+  MentionAutocompleteList,
+  mentionQueryBefore,
+  useMentionAutocomplete,
+  type MentionCandidate,
+} from '../ui/MentionAutocomplete.js';
 import { PendingAttachmentChip } from './ChatAttachmentView.js';
 import { GifPickerDialog } from './GifPickerDialog.js';
 import { useVoiceRecorder, VoiceRecorderPanel } from './VoiceRecorder.js';
@@ -98,6 +104,7 @@ export function ChatComposer({
   const colorMenu = useActionMenu();
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
   const [draftColor, setDraftColor] = useState('#e53e3e');
+  const mentionAutocomplete = useMentionAutocomplete();
   // Set by a toolbar/shortcut insertion, consumed by the effect right below
   // it — restoring focus and the wrapped selection has to wait until React
   // has actually re-rendered the textarea with the new `draft` value.
@@ -136,6 +143,19 @@ export function ChatComposer({
     // re-clobber whatever's since been typed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing?.id]);
+
+  /** Replaces the in-progress `@query` the autocomplete was opened for with the real stable-id token. */
+  const insertMention = (candidate: MentionCandidate): void => {
+    const el = textareaRef.current;
+    const cursor = el?.selectionStart ?? draft.length;
+    const mention = mentionQueryBefore(draft, cursor);
+    mentionAutocomplete.close();
+    if (!mention) return;
+    const token = `@[${candidate.kind}:${candidate.id}] `;
+    setDraft(draft.slice(0, mention.atIndex) + token + draft.slice(cursor));
+    const cursorAfter = mention.atIndex + token.length;
+    pendingSelection.current = { start: cursorAfter, end: cursorAfter };
+  };
 
   const insertAroundSelection = (before: string, after: string, placeholder: string): void => {
     const el = textareaRef.current;
@@ -354,10 +374,30 @@ export function ChatComposer({
                 rows={1}
                 value={draft}
                 onChange={(event) => {
-                  setDraft(event.target.value);
+                  const value = event.target.value;
+                  setDraft(value);
                   onTyping?.();
+                  const cursor = event.target.selectionStart ?? value.length;
+                  const mention = mentionQueryBefore(value, cursor);
+                  if (mention) mentionAutocomplete.search(mention.query);
+                  else mentionAutocomplete.close();
                 }}
                 onKeyDown={(event) => {
+                  if (mentionAutocomplete.open && mentionAutocomplete.results.length > 0) {
+                    if (event.key === 'ArrowDown') { event.preventDefault(); mentionAutocomplete.moveHighlight(1); return; }
+                    if (event.key === 'ArrowUp') { event.preventDefault(); mentionAutocomplete.moveHighlight(-1); return; }
+                    if (event.key === 'Enter' || event.key === 'Tab') {
+                      event.preventDefault();
+                      const picked = mentionAutocomplete.pickHighlighted();
+                      if (picked) insertMention(picked);
+                      return;
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      mentionAutocomplete.close();
+                      return;
+                    }
+                  }
                   // IME composition (accents, CJK input, …) sends its own Enter
                   // to confirm a candidate — that must only ever insert text,
                   // never submit, or a composed character is silently dropped
@@ -384,6 +424,11 @@ export function ChatComposer({
                 placeholder={editing ? 'Edit your message…' : 'Type a message…'}
                 aria-label="Message"
                 autoComplete="off"
+              />
+              <MentionAutocompleteList
+                state={mentionAutocomplete}
+                onHover={(index) => mentionAutocomplete.moveHighlight(index - mentionAutocomplete.highlightedIndex)}
+                onPick={insertMention}
               />
             </div>
             {editing ? (

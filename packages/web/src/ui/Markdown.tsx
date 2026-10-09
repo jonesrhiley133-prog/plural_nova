@@ -6,6 +6,10 @@ import DOMPurify from 'dompurify';
 import { imageWithSize } from './markdownImageSize.js';
 import { colorSyntax } from './markdownColorSyntax.js';
 import { spoiler } from './markdownSpoiler.js';
+import { mentions, type MentionResolution } from './markdownMentions.js';
+
+/** `kind:id` → the live name to render — built once per message/post by whichever screen has the member/profile data on hand, passed through to both renderers below as markdown-it's `env`. */
+export type MentionMap = Record<string, MentionResolution>;
 
 /**
  * Markdown, rendered safely.
@@ -38,6 +42,7 @@ const md = new MarkdownIt({
   // render would be a lie the UI tells.
   .use(taskLists, { label: true })
   .use(imageWithSize)
+  .use(mentions)
   .use(container, 'grid', {
     // `::: grid` / `:::` wraps whatever markdown is between them in a CSS
     // grid — each block inside (a paragraph, an image, …) becomes its own
@@ -89,8 +94,8 @@ const ALLOWED_ATTR = [
 ];
 
 /** The sanitized HTML a `Markdown` component would render, for a caller that needs the string itself (e.g. a preview or a search index). */
-export function renderMarkdown(source: string): string {
-  const rawHtml = md.render(source);
+export function renderMarkdown(source: string, mentions?: MentionMap): string {
+  const rawHtml = md.render(source, { mentions });
   return DOMPurify.sanitize(rawHtml, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
@@ -102,12 +107,14 @@ export function Markdown({
   text,
   className,
   style,
+  mentions,
 }: {
   text: string;
   className?: string;
   style?: CSSProperties;
+  mentions?: MentionMap;
 }): JSX.Element {
-  const html = useMemo(() => renderMarkdown(text), [text]);
+  const html = useMemo(() => renderMarkdown(text, mentions), [text, mentions]);
   return (
     // eslint-disable-next-line react/no-danger -- built through renderMarkdown's two-stage escape+sanitize, not raw user input
     <div
@@ -177,7 +184,8 @@ const chatMd = new MarkdownIt({
   .disable('image')
   .use(haltTextAtChatDelimiters)
   .use(colorSyntax)
-  .use(spoiler);
+  .use(spoiler)
+  .use(mentions);
 openLinksInNewTab(chatMd);
 
 const defaultStrongOpen: RenderRule =
@@ -200,8 +208,8 @@ const CHAT_ALLOWED_ATTR = ALLOWED_ATTR.filter((attr) => attr !== 'src' && attr !
 );
 
 /** The sanitized HTML a `ChatMarkdown` would render, for a caller that needs the string itself (a plain-text preview, a search index). */
-export function renderChatMarkdown(source: string): string {
-  const rawHtml = chatMd.render(source);
+export function renderChatMarkdown(source: string, mentions?: MentionMap): string {
+  const rawHtml = chatMd.render(source, { mentions });
   return DOMPurify.sanitize(rawHtml, {
     ALLOWED_TAGS: CHAT_ALLOWED_TAGS,
     ALLOWED_ATTR: CHAT_ALLOWED_ATTR,
@@ -221,8 +229,16 @@ function toggleSpoiler(target: EventTarget | null): void {
  * once sanitized, since `dangerouslySetInnerHTML` carries no React event
  * handlers of its own.
  */
-export function ChatMarkdown({ text, className }: { text: string; className?: string }): JSX.Element {
-  const html = useMemo(() => renderChatMarkdown(text), [text]);
+export function ChatMarkdown({
+  text,
+  className,
+  mentions,
+}: {
+  text: string;
+  className?: string;
+  mentions?: MentionMap;
+}): JSX.Element {
+  const html = useMemo(() => renderChatMarkdown(text, mentions), [text, mentions]);
   return (
     // eslint-disable-next-line react/no-danger -- built through renderChatMarkdown's two-stage escape+sanitize, not raw user input
     <div

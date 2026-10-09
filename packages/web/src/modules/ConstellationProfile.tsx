@@ -13,6 +13,7 @@ import { Markdown } from '../ui/Markdown.js';
 import { ContextualCard, useContextualCard, type ContextualCardAction, type ContextualCardSubject } from '../ui/ContextualCard.js';
 import { FlagImageRow, type FlagImageItem } from '../ui/FlagImage.js';
 import { PostCard, QuoteDialog, type Post } from './Flux.js';
+import type { MentionMap } from '../ui/Markdown.js';
 
 /**
  * Someone else's profile.
@@ -105,6 +106,7 @@ export default function ConstellationProfile(): JSX.Element {
   }, [load]);
 
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postMentions, setPostMentions] = useState<MentionMap>({});
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsError, setPostsError] = useState<string | null>(null);
   const quoting = useDialog<Post>();
@@ -114,8 +116,11 @@ export default function ConstellationProfile(): JSX.Element {
     if (!profile) return;
     setPostsLoading(true);
     try {
-      const result = await api.get<{ posts: Post[] }>('/api/social/flux', { authorUserId: profile.userId });
+      const result = await api.get<{ posts: Post[]; mentions: MentionMap }>('/api/social/flux', {
+        authorUserId: profile.userId,
+      });
       setPosts(result.posts);
+      setPostMentions(result.mentions);
       setPostsError(null);
     } catch (cause) {
       setPostsError(messageFor(cause));
@@ -478,6 +483,7 @@ export default function ConstellationProfile(): JSX.Element {
                 onDelete={() => confirm.show(post)}
                 onOpen={() => navigate(`/flux/${post.id}`)}
                 expanded={false}
+                mentions={postMentions}
               />
             ))}
           </div>

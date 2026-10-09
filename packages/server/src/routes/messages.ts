@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { newId, now, plainTextPreview, requireCollection, type StoredRecord } from '@pluralnova/shared';
+import { extractMentionTokens, newId, now, plainTextPreview, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { badRequest, forbidden, notFound } from '../http/errors.js';
 import { auth, requireAuth } from '../auth/middleware.js';
@@ -360,6 +360,53 @@ function messageView(message: StoredRecord, viewerId: string): Record<string, un
 }
 
 /**
+ * One `env.mentions`-shaped map (see `Markdown.tsx`) covering every token
+ * across a batch of messages about to render for one participant. A 1:1
+ * conversation only ever has these two accounts, so unlike Flux's
+ * cross-friend-graph case, "does the viewer already have a channel to this
+ * account" reduces to "is it one of the two people already in this
+ * conversation" — no separate friendship check needed on top of that.
+ */
+function buildMentionMap(
+  messages: Record<string, unknown>[],
+  viewerId: string,
+  otherUserId: string,
+): Record<string, { name: string }> {
+  const map: Record<string, { name: string }> = {};
+  for (const message of messages) {
+    const senderId = message['senderUserId'] as string;
+    for (const token of extractMentionTokens(String(message['body'] ?? ''))) {
+      const key = `${token.kind}:${token.id}`;
+      if (key in map) continue;
+      if (token.kind === 'u') {
+        if (token.id !== viewerId && token.id !== otherUserId) continue;
+        const name = String(counterpartSummary(token.id)['displayName'] ?? '');
+        if (name) map[key] = { name };
+      } else if (token.kind === 'm') {
+        const ownRow = getRecord('members', { userId: viewerId, systemId: null }, token.id);
+        if (ownRow) {
+          map[key] = { name: String(ownRow['name']) };
+          continue;
+        }
+        const theirRow = getRecord('members', { userId: otherUserId, systemId: null }, token.id);
+        const theirPrivacy = (theirRow?.['privacy'] ?? {}) as Record<string, unknown>;
+        if (theirRow && showsMemberList(otherUserId) && theirPrivacy['showOnProfile'] !== false) {
+          map[key] = { name: String(theirRow['name']) };
+        }
+      } else {
+        // 'g' — a group is one account's own folder of alters, so only the
+        // message's own sender's groups are ever a valid target here.
+        const row = getDb()
+          .prepare('SELECT "name" FROM "memberGroups" WHERE "id" = ? AND "userId" = ? AND "deletedAt" IS NULL')
+          .get(token.id, senderId) as { name: string } | undefined;
+        if (row) map[key] = { name: row.name };
+      }
+    }
+  }
+  return map;
+}
+
+/**
  * Returns messages in ascending sequence: oldest first, newest last. Paging
  * backwards uses `before`, so loading history prepends rather than reversing
  * the list the reader is already looking at.
@@ -394,6 +441,7 @@ messagesRouter.get(
       messages,
       hasMore: rows.length === limit,
       oldestSequence: messages[0]?.['sequence'] ?? null,
+      mentions: buildMentionMap(messages, context.user.id, conversation['otherUserId'] as string),
     });
   }),
 );

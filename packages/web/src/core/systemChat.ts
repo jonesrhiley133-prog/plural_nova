@@ -4,6 +4,10 @@ import { api, messageFor } from './api.js';
 import { realtime } from './realtime.js';
 import { useCollection } from './data.js';
 import { useActiveMemberId } from './auth.js';
+// A local copy of `ui/Markdown.tsx`'s `MentionMap` shape rather than an
+// import from it — `core/` is the data layer and never reaches into `ui/`,
+// even for a type-only, one-line shape like this one.
+type MentionMap = Record<string, { name: string }>;
 
 /**
  * In-Sys Chat: alter-to-alter conversation, entirely internal to the account.
@@ -224,6 +228,8 @@ interface SystemChatConversationState {
    * composing as someone else here never changes which threads are listed.
    */
   sendAsMemberId: string | null;
+  /** `@[m:id]`/`@[g:id]` → live name, server-resolved — see `Markdown.tsx`'s `MentionMap`. `@[u:id]` never resolves here; system chat has no second account. */
+  mentions: MentionMap;
 }
 
 export interface SendOptions {
@@ -251,6 +257,7 @@ export function useSystemChatConversation(
 
   const [thread, setThread] = useState<SystemChatThreadSummary | null>(null);
   const [rawMessages, setRawMessages] = useState<Record<string, unknown>[]>([]);
+  const [mentions, setMentions] = useState<MentionMap>({});
   /** Optimistic sends, kept only until the real row (same clientId) comes back from a reload. */
   const [pending, setPending] = useState<SystemChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -295,12 +302,14 @@ export function useSystemChatConversation(
   const load = useCallback(async () => {
     if (!threadId) return;
     try {
-      const result = await api.get<{ messages: Record<string, unknown>[]; thread: Record<string, unknown> }>(
-        `/api/system/chat/threads/${threadId}/messages`,
-        { limit: 150 },
-      );
+      const result = await api.get<{
+        messages: Record<string, unknown>[];
+        thread: Record<string, unknown>;
+        mentions: MentionMap;
+      }>(`/api/system/chat/threads/${threadId}/messages`, { limit: 150 });
       setThread(threadSummary(result.thread));
       setRawMessages(result.messages);
+      setMentions(result.mentions);
       setError(null);
     } catch (cause) {
       setError(messageFor(cause));
@@ -460,6 +469,7 @@ export function useSystemChatConversation(
     sending,
     sendAsMemberId,
     setSendAsMemberId,
+    mentions,
     send,
     retry,
     react,

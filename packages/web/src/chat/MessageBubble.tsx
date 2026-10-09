@@ -4,7 +4,7 @@ import { plainTextPreview } from '@pluralnova/shared';
 import { Avatar, IconButton } from '../ui/primitives.js';
 import { ActionMenu, useActionMenu, type ActionMenuItem, type ActionMenuPosition } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
-import { ChatMarkdown } from '../ui/Markdown.js';
+import { ChatMarkdown, type MentionMap } from '../ui/Markdown.js';
 import { ChatAttachmentView, type ChatAttachmentLike } from './ChatAttachmentView.js';
 
 /** Common reactions, in the order most chat apps settle on. */
@@ -46,6 +46,7 @@ interface MessageBubbleProps {
   showName: boolean;
   quotedMessage: ChatBubbleMessage | null;
   timeLabel: string;
+  mentions?: MentionMap;
   onReact: (emoji: string) => void;
   onRetry: () => void;
   onReply: () => void;
@@ -63,6 +64,7 @@ function MessageBubbleImpl({
   showName,
   quotedMessage,
   timeLabel,
+  mentions,
   onReact,
   onRetry,
   onReply,
@@ -146,7 +148,9 @@ function MessageBubbleImpl({
             {message.attachments.map((attachment) => (
               <ChatAttachmentView key={attachment.id} attachment={attachment} onOpen={() => onOpenAttachment(attachment)} />
             ))}
-            {message.body ? <ChatMarkdown text={message.body} className="chat-bubble__text" /> : null}
+            {message.body ? (
+              <ChatMarkdown text={message.body} mentions={mentions} className="chat-bubble__text" />
+            ) : null}
             <span className="chat-bubble__meta">
               {message.edited ? <span className="chat-bubble__edited">(edited)</span> : null}
               <span className="chat-bubble__time">{timeLabel}</span>

@@ -12,6 +12,21 @@ different versions of PluralNova.
 
 ### Added
 
+- **@-mentions in Direct Messages, System Chat, and Flux posts/comments.**
+  Typing `@` in any composer (or the Flux comment box) opens an autocomplete
+  listing your own alters and groups, plus — in Flux and DMs — friends and
+  the alters they've chosen to show on their profile. Picking one inserts a
+  stable id token rather than a name, so the mention still resolves
+  correctly even after someone renames their alter. A new "Allow
+  @-mentions" privacy switch on each alter's profile controls whether they
+  can be mentioned at all; it gates notifications only; a mention still
+  renders as a name wherever that name was already visible, the same as any
+  other reference to it would. Mentioning a friend on a Flux post or
+  comment notifies them once, through the same notification settings as
+  everything else — never for a stranger, never for an alter who opted out,
+  and never twice for the same mention. An id that doesn't resolve (deleted,
+  or something you were never allowed to see) just shows as plain text
+  instead of breaking the message.
 - **Chat messages now support real formatting, and can be edited after
   sending.** Both Direct Messages and System Chat gained a small toolbar
   above the composer — bold, italic, underline, strikethrough, code,

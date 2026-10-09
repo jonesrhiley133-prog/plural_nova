@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { newId, now, plainTextPreview, requireCollection, type StoredRecord } from '@pluralnova/shared';
+import { extractMentionTokens, newId, now, plainTextPreview, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { badRequest, conflict, notFound } from '../http/errors.js';
 import { auth, requireAuth, requireSystemMode } from '../auth/middleware.js';
@@ -390,6 +390,28 @@ systemRouter.post(
   }),
 );
 
+/**
+ * One `env.mentions`-shaped map (see `Markdown.tsx`) covering every token
+ * across a batch of system chat messages. Everything here is one account's
+ * own data — no cross-account visibility question the way Flux and DMs
+ * have — so a `@[m:id]`/`@[g:id]` resolves whenever that member/group
+ * actually exists in this scope, and `@[u:id]` has no meaning at all (no
+ * second account is ever part of system chat).
+ */
+function buildMentionMap(scope: Scope, messages: Record<string, unknown>[]): Record<string, { name: string }> {
+  const map: Record<string, { name: string }> = {};
+  for (const message of messages) {
+    for (const token of extractMentionTokens(String(message['body'] ?? ''))) {
+      if (token.kind === 'u') continue;
+      const key = `${token.kind}:${token.id}`;
+      if (key in map) continue;
+      const row = getRecord(token.kind === 'm' ? 'members' : 'memberGroups', scope, token.id);
+      if (row) map[key] = { name: String(row['name']) };
+    }
+  }
+  return map;
+}
+
 systemRouter.get(
   '/chat/threads/:threadId/messages',
   handler((req, res) => {
@@ -410,11 +432,13 @@ systemRouter.get(
 
     // Fetched newest-first for the limit, then reversed so the caller always
     // gets OLD → NEW and can append at the bottom.
+    const messages = [...result.items].reverse().map((message) => withAttachments(context.scope, message));
     ok(res, {
       threadId,
       thread: withParticipants(context.scope, thread, context.user.activeMemberId),
-      messages: [...result.items].reverse().map((message) => withAttachments(context.scope, message)),
+      messages,
       hasMore: result.items.length === limit,
+      mentions: buildMentionMap(context.scope, messages),
     });
   }),
 );

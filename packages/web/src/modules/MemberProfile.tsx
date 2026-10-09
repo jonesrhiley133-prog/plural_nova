@@ -1017,6 +1017,12 @@ function Privacy({
         onChange={(value) => set('showFronting', value)}
       />
       <SwitchRow
+        label={term('Let a friend @-mention them by name')}
+        hint={term("Only applies where this {{member}} is already listed above — a friend who can't see this {{member}} can never mention them regardless.")}
+        checked={privacy['allowMentions'] !== false}
+        onChange={(value) => set('allowMentions', value)}
+      />
+      <SwitchRow
         label={term('Show their {{journal}} entries')}
         hint="Off by default. Individual entries still have their own visibility."
         checked={privacy['showJournal'] === true}

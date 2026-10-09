@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { newId, type StoredRecord } from '@pluralnova/shared';
 import { api, messageFor } from './api.js';
+// A local copy of `ui/Markdown.tsx`'s `MentionMap` shape rather than an
+// import from it — `core/` is the data layer and never reaches into `ui/`,
+// even for a type-only, one-line shape like this one.
+type MentionMap = Record<string, { name: string }>;
 import { useAuth } from './auth.js';
 import { realtime } from './realtime.js';
 import { DecryptionFailed, cryptoAvailable, loadOrCreateKeyPair, openMessage, type KeyPairRecord } from './crypto.js';
@@ -304,6 +308,8 @@ interface MessageConversationState {
   sending: boolean;
   /** The other person is actively typing right now — expires on its own if a "stopped" signal never arrives. */
   theirTyping: boolean;
+  /** `@[u:id]`/`@[m:id]`/`@[g:id]` → live name, server-resolved — see `Markdown.tsx`'s `MentionMap`. */
+  mentions: MentionMap;
 }
 
 export interface SendOptions {
@@ -337,6 +343,7 @@ export function useMessageConversation(
 } {
   const [thread, setThread] = useState<MessageThreadSummary | null>(null);
   const [rawMessages, setRawMessages] = useState<Record<string, unknown>[]>([]);
+  const [mentions, setMentions] = useState<MentionMap>({});
   /** Optimistic sends, kept only until the real row (same clientId) comes back from a reload. */
   const [pending, setPending] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -396,12 +403,14 @@ export function useMessageConversation(
   const load = useCallback(async () => {
     if (!threadId) return;
     try {
-      const result = await api.get<{ messages: Record<string, unknown>[]; conversation: Record<string, unknown> }>(
-        `/api/messages/threads/${threadId}`,
-        { limit: 80 },
-      );
+      const result = await api.get<{
+        messages: Record<string, unknown>[];
+        conversation: Record<string, unknown>;
+        mentions: MentionMap;
+      }>(`/api/messages/threads/${threadId}`, { limit: 80 });
       setThread(threadSummary(result.conversation));
       setRawMessages(result.messages);
+      setMentions(result.mentions);
       setError(null);
     } catch (cause) {
       setError(messageFor(cause));
@@ -712,6 +721,7 @@ export function useMessageConversation(
     error,
     sending,
     theirTyping,
+    mentions,
     send,
     retry,
     react,

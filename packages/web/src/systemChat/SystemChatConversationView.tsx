@@ -14,6 +14,7 @@ import { Avatar, AvatarStack, IconButton } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { MessageBubble } from '../chat/MessageBubble.js';
+import { type MentionMap } from '../ui/Markdown.js';
 import { type ChatAttachmentLike } from '../chat/ChatAttachmentView.js';
 import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
 import { useVirtualizedChat } from '../chat/useVirtualizedChat.js';
@@ -50,12 +51,14 @@ const MessageRow = memo(function MessageRow({
   row,
   dayLabel,
   timeLabel,
+  mentions,
   actions,
   onQuoteClick,
 }: {
   row: ConversationRow;
   dayLabel: string;
   timeLabel: string;
+  mentions: MentionMap;
   actions: ReturnType<typeof useStableRowActions<SystemChatMessage>>;
   onQuoteClick: ((id: string) => void) | undefined;
 }): JSX.Element {
@@ -69,6 +72,7 @@ const MessageRow = memo(function MessageRow({
         showName={showName}
         quotedMessage={quoted}
         timeLabel={timeLabel}
+        mentions={mentions}
         onReact={(emoji) => actions.onReact(message.id, emoji)}
         onRetry={() => actions.onRetry(message)}
         onReply={() => actions.onReply(message)}
@@ -302,6 +306,7 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
                     row={row}
                     dayLabel={dates.date(row.message.sentAt)}
                     timeLabel={dates.time(row.message.sentAt)}
+                    mentions={conversation.mentions}
                     actions={rowActions}
                     onQuoteClick={scrollToMessage}
                   />

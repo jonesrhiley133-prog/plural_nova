@@ -147,6 +147,16 @@
   accent-color: var(--accent);
 }
 
+/* A resolved `@[u:id]`/`@[m:id]`/`@[g:id]` mention — shared by bios/posts and
+   chat, unlike colour spans and spoilers below, which are chat-only. */
+.markdown-body .md-mention {
+  padding: 0 0.3em;
+  border-radius: var(--radius-xs);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
 /* The `::: grid` container — each direct block becomes its own cell. */
 .markdown-body .md-grid {
   display: grid;

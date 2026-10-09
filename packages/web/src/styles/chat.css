@@ -600,6 +600,25 @@
   word-break: break-word;
 }
 
+/* `||spoiler text||` — obscured until clicked/activated; the text itself
+   stays in the DOM throughout (never removed or swapped), so a screen
+   reader or a copy-paste always has the real content, just visually hidden
+   until `.md-spoiler--revealed` is toggled on. */
+.chat-markdown .md-spoiler {
+  background: var(--surface-sunken);
+  border-radius: var(--radius-xs);
+  color: transparent;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chat-markdown .md-spoiler--revealed {
+  background: var(--surface-raised);
+  color: inherit;
+  cursor: text;
+  user-select: text;
+}
+
 .chat-bubble__meta {
   display: flex;
   align-items: center;
@@ -691,12 +710,70 @@
   flex-shrink: 0;
 }
 
+.chat-composer__field {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  /* Anchors the mention autocomplete list below, which positions itself
+     against this field rather than the caret — a plain textarea has no
+     cheap way to measure where the caret actually sits on screen. */
+  position: relative;
+}
+
+.chat-composer__toolbar {
+  display: flex;
+  gap: var(--space-1);
+  padding-bottom: var(--space-1);
+  overflow-x: auto;
+}
+
 .chat-composer__input {
   flex: 1;
   /* A textarea, not an input — grown and capped in JS (ChatComposer.tsx), so
      the browser's own drag-resize handle would only fight that. */
   resize: none;
   overflow-y: auto;
+}
+
+.mention-autocomplete {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: var(--space-1);
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  z-index: 5;
+}
+
+.mention-autocomplete__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.mention-autocomplete__item:hover,
+.mention-autocomplete__item--active {
+  background: var(--surface-sunken);
+}
+
+.mention-autocomplete__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-send-as {
