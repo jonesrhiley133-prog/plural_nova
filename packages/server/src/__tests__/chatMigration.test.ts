@@ -191,3 +191,73 @@ describe('thread participant backfill', () => {
     expect(JSON.parse(thread.participantMemberIds)).toEqual(['mem_juniper']);
   });
 });
+
+/**
+ * `systemChatMessages.sequence` is new — every row written before it existed
+ * defaults to 0, same as any other column added to an existing table. This
+ * proves the boot-time backfill turns that into each thread's real send
+ * order, seeds the counter so a live send afterward continues from the
+ * right number, and that running it twice adds nothing extra.
+ */
+describe('system chat message sequence backfill', () => {
+  let client: TestClient;
+
+  beforeAll(async () => {
+    client = await createTestApp();
+  });
+  afterAll(() => client.close());
+
+  it('assigns 1, 2, 3... in sentAt order and seeds the counter for the next live send', async () => {
+    const account = await registerUser(client, { email: 'sequence-backfill@example.com' });
+    const db = getDb();
+    const base = Date.parse('2026-01-01T00:00:00.000Z');
+
+    db.prepare(
+      `INSERT INTO systemChatThreads
+         (id, userId, systemId, memberId, visibility, createdAt, updatedAt, deletedAt, version,
+          kind, name, participantMemberIds, lastMessageAt, lastMessagePreview, lastReadAt,
+          pinned, muted, archived, settings)
+       VALUES ('sct_seq_backfill', @userId, @systemId, NULL, 'private', @timestamp, @timestamp, NULL, 1,
+          'group', 'Pre-sequence group', '[]', @timestamp, 'hi', NULL, 0, 0, 0, NULL)`,
+    ).run({ userId: account.userId, systemId: account.systemId, timestamp: new Date(base).toISOString() });
+
+    // Inserted out of chronological order on purpose — sentAt, not insert
+    // order, is what the backfill goes by, same as a live send already does.
+    const insert = db.prepare(
+      `INSERT INTO systemChatMessages
+         (id, userId, systemId, memberId, visibility, createdAt, updatedAt, deletedAt, version,
+          body, sentAt, replyToId, channel, reactions, attachmentIds, edited, threadId, forwardedFrom)
+       VALUES (@id, @userId, @systemId, NULL, 'system', @timestamp, @timestamp, NULL, 1,
+          @body, @timestamp, NULL, NULL, NULL, '[]', 0, 'sct_seq_backfill', NULL)`,
+    );
+    insert.run({ id: 'msg_seq_c', userId: account.userId, systemId: account.systemId, body: 'third', timestamp: new Date(base + 2000).toISOString() });
+    insert.run({ id: 'msg_seq_a', userId: account.userId, systemId: account.systemId, body: 'first', timestamp: new Date(base).toISOString() });
+    insert.run({ id: 'msg_seq_b', userId: account.userId, systemId: account.systemId, body: 'second', timestamp: new Date(base + 1000).toISOString() });
+
+    const result = migrate(db);
+    expect(result.backfilledChatSequence).toBe(3);
+
+    const rows = db
+      .prepare(`SELECT id, sequence FROM systemChatMessages WHERE threadId = 'sct_seq_backfill' ORDER BY sentAt ASC`)
+      .all() as { id: string; sequence: number }[];
+    expect(rows.map((r) => r.id)).toEqual(['msg_seq_a', 'msg_seq_b', 'msg_seq_c']);
+    expect(rows.map((r) => r.sequence)).toEqual([1, 2, 3]);
+
+    const threadRow = db.prepare(`SELECT nextSequence FROM threads WHERE id = 'sct_seq_backfill'`).get() as
+      | { nextSequence: number }
+      | undefined;
+    expect(threadRow?.nextSequence).toBe(4);
+
+    // Idempotent: nothing left sitting at the default, so nothing to redo.
+    const second = migrate(db);
+    expect(second.backfilledChatSequence).toBe(0);
+
+    // The real proof: a live send through the actual route continues the
+    // count from where the backfill left it, rather than starting over.
+    const sent = await client.request('POST', '/api/system/chat/threads/sct_seq_backfill/messages', {
+      token: account.token,
+      body: { body: 'fourth, sent live' },
+    });
+    expect(sent.body.data.sequence).toBe(4);
+  });
+});

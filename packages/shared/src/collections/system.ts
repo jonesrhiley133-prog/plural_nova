@@ -648,10 +648,11 @@ export const systemChatMessages: CollectionDef = {
   systemOnly: true,
   memberScoped: true,
   titleField: 'body',
-  sortField: 'sentAt',
+  sortField: 'sequence',
   sortDir: 'asc',
-  indexes: [['systemId', 'sentAt'], ['threadId', 'sentAt']],
-  description: 'Internal, system-only conversation. Never leaves the account.',
+  indexes: [['systemId', 'sentAt'], ['threadId', 'sentAt'], ['threadId', 'sequence']],
+  description:
+    'Internal, system-only conversation. Never leaves the account. Ordered by a server-assigned sequence, the same way dm messages already are, so two messages sent in the same millisecond still land in a deterministic order.',
   neverPublic: true,
   fields: [
     // Not required: an attachment-only message (a voice note, a photo with no
@@ -659,11 +660,17 @@ export const systemChatMessages: CollectionDef = {
     // still refuses a message with neither text nor an attachment.
     f.long('body', 'Message', { searchable: true }),
     f.datetime('sentAt', 'Sent', { required: true, inList: true }),
+    f.int('sequence', 'Sequence', { required: true, defaultValue: 0 }),
     f.ref('replyToId', 'In reply to', 'systemChatMessages'),
     f.text('channel', 'Channel', { defaultValue: 'general', inList: true }),
     f.json('reactions', 'Reactions'),
     f.refs('attachmentIds', 'Attachments', 'mediaItems'),
     f.bool('edited', 'Edited'),
+    // Set instead of a real delete: a removed message keeps its row and its
+    // sequence slot (its body/attachments/reactions cleared) rather than
+    // vanishing, so every later message's alternating side stays exactly
+    // where it already was rather than shifting to fill the gap.
+    f.bool('removed', 'Removed'),
     f.ref('threadId', 'Thread', 'systemChatThreads', {
       hint: 'Replaces the free-text channel for new messages; channel is kept for older rows.',
     }),

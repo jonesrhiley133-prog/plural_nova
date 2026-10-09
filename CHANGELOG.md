@@ -12,6 +12,22 @@ different versions of PluralNova.
 
 ### Changed
 
+- **System Chat messages now carry a real, server-assigned sequence
+  number within their thread**, laying the foundation for a Discord-style
+  redesign of the conversation feed. This release is server-only — nothing
+  changes yet in what System Chat looks or feels like to use. Under the
+  hood: each thread gets its own atomically-incremented counter (the same
+  mechanism Direct Messages already use), existing message history is
+  backfilled with sequence numbers in their original order on first boot
+  after upgrading, and the conversation API now returns messages ordered
+  by that sequence instead of an insertion order that was never actually
+  guaranteed to be stable. Sending the same message twice in a row (a
+  retried send after a dropped connection) now resolves to the one
+  message already stored instead of creating a duplicate. Removing a
+  message no longer deletes its row — it clears the message's content in
+  place and marks it removed, so its position in the conversation is
+  never left empty for anything after it to shift into.
+
 - **Games split out of Wellbeing into their own tab.** The calm,
   non-competitive games — breathing, bubbles, grounding, memory match, and
   the rest — used to live inside Wellbeing alongside check-ins and cycle

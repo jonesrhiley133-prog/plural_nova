@@ -29,6 +29,9 @@ if (schema.backfilledChatThreads > 0) {
 if (schema.backfilledThreadParticipants > 0) {
   console.log(`[pluralnova] system chat: ${schema.backfilledThreadParticipants} thread(s) had a participant backfilled`);
 }
+if (schema.backfilledChatSequence > 0) {
+  console.log(`[pluralnova] system chat: ${schema.backfilledChatSequence} message(s) assigned a sequence number`);
+}
 
 const app = createApp();
 const server = createServer(app);

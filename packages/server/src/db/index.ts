@@ -154,6 +154,66 @@ function backfillThreadParticipants(db: Db): number {
 }
 
 /**
+ * `systemChatMessages.sequence` is new. The generic column-add step above
+ * (`ALTER TABLE ... ADD COLUMN`, no SQL-level `DEFAULT`) leaves it `NULL` on
+ * every row that already existed when this ran; a message created through
+ * the normal API without one explicitly set gets the field's declared
+ * default of `0` instead, via `validateFields`. Either way it means "never
+ * sequenced" and is backfilled the same way: 1, 2, 3... in the order these
+ * messages already rendered in (`sentAt`, tied-broken by `id` — the only
+ * ordering that ever existed before this), then seeds that thread's row in
+ * the generic `threads` support table (already created above by this same
+ * migration, the first time it ever runs) so the next real send continues
+ * the count correctly instead of starting back at 1.
+ *
+ * Idempotent: only ever looks at messages still sitting at `NULL`/`0`, so a
+ * thread nothing is pending for is one query that finds zero rows.
+ */
+function backfillSystemChatMessageSequence(db: Db): number {
+  const threads = db
+    .prepare(
+      `SELECT DISTINCT threadId FROM systemChatMessages
+       WHERE deletedAt IS NULL AND (sequence IS NULL OR sequence = 0) AND threadId IS NOT NULL AND threadId != ''`,
+    )
+    .all() as { threadId: string }[];
+
+  let migrated = 0;
+  for (const { threadId } of threads) {
+    const pending = db
+      .prepare(
+        `SELECT id FROM systemChatMessages
+         WHERE threadId = ? AND deletedAt IS NULL AND (sequence IS NULL OR sequence = 0)
+         ORDER BY sentAt ASC, id ASC`,
+      )
+      .all(threadId) as { id: string }[];
+    if (pending.length === 0) continue;
+
+    let sequence = 1;
+    for (const { id } of pending) {
+      db.prepare('UPDATE systemChatMessages SET sequence = ? WHERE id = ?').run(sequence, id);
+      sequence += 1;
+    }
+
+    const existing = db.prepare('SELECT nextSequence FROM threads WHERE id = ?').get(threadId) as
+      | { nextSequence: number }
+      | undefined;
+    if (existing) {
+      if (existing.nextSequence < sequence) {
+        db.prepare('UPDATE threads SET nextSequence = ? WHERE id = ?').run(sequence, threadId);
+      }
+    } else {
+      db.prepare('INSERT INTO threads (id, createdAt, lastMessageAt, nextSequence) VALUES (?, ?, NULL, ?)').run(
+        threadId,
+        now(),
+        sequence,
+      );
+    }
+    migrated += pending.length;
+  }
+  return migrated;
+}
+
+/**
  * Brings the database up to the registry's shape.
  *
  * Tables are created if missing and columns are added if the registry grew,
@@ -166,11 +226,18 @@ function backfillThreadParticipants(db: Db): number {
  */
 export function migrate(
   db: Db,
-): { created: string[]; addedColumns: string[]; backfilledChatThreads: number; backfilledThreadParticipants: number } {
+): {
+  created: string[];
+  addedColumns: string[];
+  backfilledChatThreads: number;
+  backfilledThreadParticipants: number;
+  backfilledChatSequence: number;
+} {
   const created: string[] = [];
   const addedColumns: string[] = [];
   let backfilledChatThreads = 0;
   let backfilledThreadParticipants = 0;
+  let backfilledChatSequence = 0;
 
   db.exec('BEGIN');
   try {
@@ -229,6 +296,9 @@ export function migrate(
     // definitely exist from the steps above.
     backfilledChatThreads = backfillSystemChatThreads(db);
     backfilledThreadParticipants = backfillThreadParticipants(db);
+    // Needs every message already pointed at a real threadId (the backfill
+    // just above), since it assigns sequence numbers per thread.
+    backfilledChatSequence = backfillSystemChatMessageSequence(db);
 
     db.exec('COMMIT');
   } catch (error) {
@@ -236,7 +306,7 @@ export function migrate(
     throw error;
   }
 
-  return { created, addedColumns, backfilledChatThreads, backfilledThreadParticipants };
+  return { created, addedColumns, backfilledChatThreads, backfilledThreadParticipants, backfilledChatSequence };
 }
 
 export function getMeta(key: string): string | null {

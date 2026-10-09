@@ -4,7 +4,7 @@ import { handler, ok } from '../http/respond.js';
 import { badRequest, conflict, notFound } from '../http/errors.js';
 import { auth, requireAuth, requireSystemMode } from '../auth/middleware.js';
 import { rateLimit } from '../http/rateLimit.js';
-import { getDb } from '../db/index.js';
+import { getDb, transaction } from '../db/index.js';
 import {
   createRecord,
   deleteRecord,
@@ -412,6 +412,36 @@ function buildMentionMap(scope: Scope, messages: Record<string, unknown>[]): Rec
   return map;
 }
 
+/**
+ * A message's position within its thread, assigned once and never reused —
+ * what every message's left/right side is ultimately derived from on the
+ * client, so two messages sent in the same millisecond still land in a
+ * deterministic order and a message's side never depends on when it happens
+ * to be fetched. Reuses the exact same generic `threads` support table dm
+ * messages already rely on (`packages/server/src/db/ddl.ts`), keyed here by
+ * the systemChatThreads id itself — there is already a stable id to key by,
+ * nothing needs deriving the way a dm pair-id does — and the two features
+ * can never collide in this one shared table (different id prefixes,
+ * `sct_` vs dm's `thr_`). Read-increment-write happens inside one
+ * transaction so two near-simultaneous sends to a brand-new thread can't
+ * both mint sequence 1.
+ */
+function nextSystemThreadSequence(threadId: string): number {
+  return transaction(() => {
+    const existing = getDb().prepare('SELECT "nextSequence" FROM threads WHERE id = ?').get(threadId) as
+      | { nextSequence: number }
+      | undefined;
+    if (existing) {
+      getDb().prepare('UPDATE threads SET nextSequence = ? WHERE id = ?').run(existing.nextSequence + 1, threadId);
+      return existing.nextSequence;
+    }
+    getDb()
+      .prepare('INSERT INTO threads (id, createdAt, lastMessageAt, nextSequence) VALUES (?, ?, NULL, 2)')
+      .run(threadId, now());
+    return 1;
+  });
+}
+
 systemRouter.get(
   '/chat/threads/:threadId/messages',
   handler((req, res) => {
@@ -421,11 +451,18 @@ systemRouter.get(
     if (!thread) throw notFound('That conversation');
 
     const limit = Math.min(200, Math.max(1, Number(req.query['limit'] ?? 100)));
+    // Still unused by any client today — pagination lands in a later phase,
+    // which is also where this switches to a numeric `sequence` cursor to
+    // match the sort field below instead of this `sentAt` shape.
     const before = typeof req.query['before'] === 'string' ? req.query['before'] : undefined;
     const result = listRecords('systemChatMessages', context.scope, {
       limit,
       filters: { threadId },
-      sortField: 'sentAt',
+      // Sequence, not sentAt: two messages sent in the same millisecond
+      // used to tiebreak on their random id, which is as good as no
+      // tiebreak at all. Sequence is assigned once, in send order, and
+      // never changes, so sorting by it is both correct and stable.
+      sortField: 'sequence',
       sortDir: 'desc',
       ...(before ? { range: { field: 'sentAt', to: before } } : {}),
     });
@@ -463,18 +500,35 @@ systemRouter.post(
     const text = body.body?.trim() ?? '';
     if (!text && (body.attachmentIds?.length ?? 0) === 0) throw badRequest('Write something first.');
 
+    // A retried send — the client's own network retry, or a replayed
+    // offline write — carries the same clientId as the attempt that
+    // actually went through. Resolve to that stored message instead of
+    // creating a second one, the same protection dm messages already have.
+    if (body.clientId) {
+      const duplicate = listRecords('systemChatMessages', context.scope, {
+        limit: 1,
+        filters: { threadId, clientId: body.clientId },
+      }).items[0];
+      if (duplicate) {
+        ok(res, withAttachments(context.scope, duplicate));
+        return;
+      }
+    }
+
     const message = createRecord(
       'systemChatMessages',
       context.scope,
       {
         body: text,
         sentAt: now(),
+        sequence: nextSystemThreadSequence(threadId),
         threadId,
         replyToId: body.replyToId ?? null,
         attachmentIds: body.attachmentIds ?? [],
         reactions: null,
         forwardedFrom: body.forwardedFrom ?? null,
         edited: false,
+        removed: false,
         clientId: body.clientId ?? '',
       },
       { memberId: body.memberId ?? context.user.activeMemberId, visibility: 'system' },
@@ -544,7 +598,8 @@ systemRouter.post(
  * every message here already belongs to whoever is asking). Publishes the
  * same generic `record.changed` event the collection's own CRUD route would
  * have, so the existing listeners for "a systemChatMessages row changed"
- * (already covering delete, via that same generic route) also cover this.
+ * also cover this. Delete is its own dedicated route below, not the generic
+ * one — see that route's own comment for why.
  */
 systemRouter.patch(
   '/chat/messages/:id',
@@ -562,6 +617,41 @@ systemRouter.patch(
     const threadId = message['threadId'] as string | null;
     if (threadId && message['sentAt'] === getRecord('systemChatThreads', context.scope, threadId)?.['lastMessageAt']) {
       updateRecord('systemChatThreads', context.scope, threadId, { lastMessagePreview: plainTextPreview(text).slice(0, 120) });
+    }
+
+    publish(context.user.id, { type: 'record.changed', collection: 'systemChatMessages', id: message.id, action: 'updated' });
+    ok(res, updated);
+  }),
+);
+
+/**
+ * A dedicated route rather than the generic `DELETE /api/records/...` one
+ * every other collection gets: a real delete would drop the row entirely,
+ * and every later message's side in the redesigned feed is derived purely
+ * from its own, permanent `sequence` number — removing a row from the
+ * middle of a thread would make the two messages that used to sandwich it
+ * suddenly sit next to each other on the same side. So this redacts the
+ * message's content in place instead of deleting it: the row, and the
+ * sequence slot it occupies, stay exactly where they were, forever: nothing
+ * downstream of it ever shifts or re-renders differently.
+ */
+systemRouter.delete(
+  '/chat/messages/:id',
+  handler((req, res) => {
+    const context = requireSystemMode(req);
+    const message = getRecord('systemChatMessages', context.scope, String(req.params['id']));
+    if (!message) throw notFound('That message');
+
+    const updated = updateRecord('systemChatMessages', context.scope, message.id, {
+      body: '',
+      attachmentIds: [],
+      reactions: null,
+      removed: true,
+    });
+
+    const threadId = message['threadId'] as string | null;
+    if (threadId && message['sentAt'] === getRecord('systemChatThreads', context.scope, threadId)?.['lastMessageAt']) {
+      updateRecord('systemChatThreads', context.scope, threadId, { lastMessagePreview: 'Message removed' });
     }
 
     publish(context.user.id, { type: 'record.changed', collection: 'systemChatMessages', id: message.id, action: 'updated' });
@@ -590,11 +680,13 @@ systemRouter.post(
         {
           body: String(original['body'] ?? ''),
           sentAt: now(),
+          sequence: nextSystemThreadSequence(threadId),
           threadId,
           replyToId: null,
           attachmentIds: original['attachmentIds'] ?? [],
           reactions: null,
           edited: false,
+          removed: false,
           forwardedFrom: {
             kind: 'system',
             threadId: original['threadId'] ?? null,
