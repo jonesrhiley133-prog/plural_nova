@@ -193,3 +193,19 @@ export function allStatements(): string[] {
   }
   return statements;
 }
+
+const INDEX_SQL = /^\s*CREATE\s+(UNIQUE\s+)?INDEX/i;
+
+/** Every CREATE TABLE (support tables and registry collections), with no indexes, safe to run before any ALTER TABLE ADD COLUMN. */
+export function tableStatements(): string[] {
+  const statements = SUPPORT_TABLES.filter((sql) => !INDEX_SQL.test(sql));
+  for (const collection of COLLECTIONS) statements.push(createTableSql(collection));
+  return statements;
+}
+
+/** Every CREATE INDEX, must run only after migrate() has added any new columns. */
+export function indexOnlyStatements(): string[] {
+  const statements = SUPPORT_TABLES.filter((sql) => INDEX_SQL.test(sql));
+  for (const collection of COLLECTIONS) statements.push(...indexStatements(collection));
+  return statements;
+}
