@@ -12,6 +12,24 @@ different versions of PluralNova.
 
 ### Changed
 
+- **System Chat's conversation feed is now a Discord-style open feed —
+  no chat bubbles.** Every message shows its sender's avatar, name,
+  timestamp and edited flag directly on the conversation background, and
+  alternates sides strictly by its fixed position in the conversation
+  (message 1 left, 2 right, 3 left...), never by who sent it or who the
+  composer is currently set to send as. Switching who you're sending as,
+  or who the account's active profile is, no longer retroactively flips
+  which side any already-sent message is on — every message's side is
+  permanent from the moment it's sent. A message still sending renders in
+  a neutral, uncommitted state rather than guessing a side ahead of the
+  server. Deleting a message replaces its content with a plain "Message
+  removed" line in the same spot rather than removing it, so neighboring
+  messages never shift sides. Reactions, replies, forwarding, editing and
+  attachments all still work exactly as before, just without a bubble
+  around them. Group and direct chat creation, thread settings, and
+  Direct Messages (the separate account-to-account feature) are
+  unchanged.
+
 - **System Chat messages now carry a real, server-assigned sequence
   number within their thread**, laying the foundation for a Discord-style
   redesign of the conversation feed. This release is server-only — nothing

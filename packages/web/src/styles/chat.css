@@ -473,6 +473,137 @@
   margin: var(--space-3) auto;
 }
 
+/*
+ * System Chat's feed row — Discord-inspired, never a chat bubble. Entirely
+ * separate from `.chat-message`/`.chat-bubble` below: Direct Messages keep
+ * those untouched. `--left`/`--right` come from `sideForSequence()`
+ * (core/systemChat.ts) — a message's permanent position in the
+ * conversation, never who sent it or who's fronting. `--pending` is its own,
+ * deliberately neutral third state for a send still in flight, so nothing
+ * ever has to guess a side before the server confirms one.
+ *
+ * Same reason as `.chat-message-row` below: `align-items` lives on this row,
+ * the real flex child of `.chat-conversation__messages`, not on `.chat-feed`
+ * underneath it — putting it a level deeper is a no-op.
+ */
+.chat-feed-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-feed-row--left {
+  align-items: flex-start;
+}
+
+.chat-feed-row--right {
+  align-items: flex-end;
+}
+
+.chat-feed-row--pending {
+  align-items: center;
+}
+
+.chat-feed {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  /* Wider than a bubble ever needed to be — an open row reads comfortably
+     at a much larger share of the pane than a bubble did. */
+  max-width: min(86%, 640px);
+  margin-bottom: var(--chat-msg-gap, 2px);
+}
+
+.chat-feed--right {
+  flex-direction: row-reverse;
+}
+
+.chat-feed--right .chat-feed__column {
+  align-items: flex-end;
+}
+
+.chat-feed--right .chat-feed__header {
+  flex-direction: row-reverse;
+}
+
+.chat-feed--pending {
+  opacity: 0.8;
+}
+
+.chat-feed--removed {
+  max-width: none;
+}
+
+.chat-message--highlight .chat-feed {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.chat-feed__avatar {
+  flex-shrink: 0;
+}
+
+.chat-feed__column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-feed__header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.chat-feed__name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  gap: 4px;
+}
+
+.chat-feed__time,
+.chat-feed__edited {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+}
+
+.chat-feed__body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-feed__attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-feed__removed {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-faint);
+}
+
+.chat-feed__more {
+  opacity: 0;
+  align-self: flex-start;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.chat-feed:hover .chat-feed__more,
+.chat-feed__more:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .chat-feed__more {
+    opacity: 0.6;
+  }
+}
+
 .chat-message {
   display: flex;
   align-items: flex-end;

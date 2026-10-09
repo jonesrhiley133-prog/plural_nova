@@ -73,17 +73,39 @@ export interface SystemChatMessage {
   threadId: string;
   body: string;
   sentAt: string;
-  isMine: boolean;
   sender: SystemChatPerson | null;
   replyToId: string | null;
   reactions: Record<string, string[]>;
   attachments: SystemChatAttachment[];
   forwardedFrom: SystemChatForwardInfo | null;
+  /**
+   * This message's permanent position in the thread, assigned once by the
+   * server and never renumbered — the single source of truth for which side
+   * it renders on (see `sideForSequence` below). `0` on an optimistic send
+   * that hasn't been confirmed yet, which is never a real sequence (the
+   * server starts every thread at `1`) and must never be fed to
+   * `sideForSequence`; check `pending`/`failed` first.
+   */
   sequence: number;
   edited: boolean;
+  /** Content redacted in place by a delete — the slot stays, so nothing after it shifts side. */
+  removed: boolean;
   clientId?: string;
   pending?: boolean;
   failed?: string;
+}
+
+export type MessageSide = 'left' | 'right';
+
+/**
+ * Where a message sits in the conversation, derived purely from its position
+ * in the thread's permanent sequence — never sender, fronting state, viewer,
+ * or how many messages happen to be loaded right now. Message 1 is always
+ * left, 2 always right, 3 always left... for the life of the conversation,
+ * regardless of who sent what or how it's paginated.
+ */
+export function sideForSequence(sequence: number): MessageSide {
+  return (sequence - 1) % 2 === 0 ? 'left' : 'right';
 }
 
 /**
@@ -134,10 +156,20 @@ function toAttachments(raw: unknown): SystemChatAttachment[] {
     .filter((attachment) => attachment.url);
 }
 
-/** Oldest first, by when a message (or an optimistic send) actually happened; `sequence` only breaks a tie. */
-function compareBySentAt(a: SystemChatMessage, b: SystemChatMessage): number {
-  const bySentAt = Date.parse(a.sentAt) - Date.parse(b.sentAt);
-  return bySentAt !== 0 ? bySentAt : a.sequence - b.sequence;
+/**
+ * Oldest first. Confirmed messages sort by their real, permanent `sequence`
+ * — never by `sentAt`, which is only a display timestamp and was never the
+ * thing guaranteeing order. An optimistic send has no real sequence yet, so
+ * it always sorts after every confirmed message (it can only ever be the
+ * newest thing in the conversation); among themselves, pending/failed sends
+ * fall back to when they were created.
+ */
+function compareForDisplay(a: SystemChatMessage, b: SystemChatMessage): number {
+  const aConfirmed = !a.pending && !a.failed;
+  const bConfirmed = !b.pending && !b.failed;
+  if (aConfirmed && bConfirmed) return a.sequence - b.sequence;
+  if (aConfirmed !== bConfirmed) return aConfirmed ? -1 : 1;
+  return Date.parse(a.sentAt) - Date.parse(b.sentAt);
 }
 
 function toForwardedFrom(raw: unknown): SystemChatForwardInfo | null {
@@ -236,6 +268,8 @@ export interface SendOptions {
   replyToId?: string | null;
   forwardedFrom?: SystemChatForwardInfo | null;
   attachments?: SystemChatAttachment[];
+  /** Reuse a previous attempt's id instead of minting a new one — how `retry()` avoids sending a second, server-dedup-defeating copy of the same message. */
+  clientId?: string;
 }
 
 /** One open In-Sys Chat conversation: loading, live updates, sending, reacting and forwarding. */
@@ -278,14 +312,12 @@ export function useSystemChatConversation(
   const normalize = useCallback(
     (raw: Record<string, unknown>, currentThread: SystemChatThreadSummary | null): SystemChatMessage => {
       const senderMemberId = (raw['memberId'] as string | null) ?? null;
-      const isMine = Boolean(sendAsMemberId) && senderMemberId === sendAsMemberId;
       const sender = memberFor(senderMemberId) ?? (currentThread?.kind === 'direct' ? currentThread.person : null);
       return {
         id: String(raw['id']),
         threadId: String(raw['threadId'] ?? threadId),
         body: String(raw['body'] ?? ''),
         sentAt: String(raw['sentAt']),
-        isMine,
         sender,
         replyToId: (raw['replyToId'] as string) ?? null,
         reactions: toReactions(raw['reactions']),
@@ -293,10 +325,11 @@ export function useSystemChatConversation(
         forwardedFrom: toForwardedFrom(raw['forwardedFrom']),
         sequence: Number(raw['sequence'] ?? 0),
         edited: raw['edited'] === true,
+        removed: raw['removed'] === true,
         clientId: (raw['clientId'] as string) ?? undefined,
       };
     },
-    [threadId, memberFor, sendAsMemberId],
+    [threadId, memberFor],
   );
 
   const load = useCallback(async () => {
@@ -326,7 +359,7 @@ export function useSystemChatConversation(
     const list = rawMessages.map((message) => normalize(message, thread));
     const confirmedClientIds = new Set(list.map((message) => message.clientId).filter(Boolean));
     const stillPending = pending.filter((message) => !confirmedClientIds.has(message.clientId));
-    return [...list, ...stillPending].sort(compareBySentAt);
+    return [...list, ...stillPending].sort(compareForDisplay);
   }, [rawMessages, pending, normalize, thread]);
 
   // Confirmed optimistic sends are only ever hidden by the filter above, not
@@ -363,24 +396,43 @@ export function useSystemChatConversation(
     [threadId, load],
   );
 
+  // A safety net for a conversation left open in a backgrounded tab: realtime
+  // events are best-effort, so this re-fetches whenever the tab becomes
+  // visible or focused again rather than requiring a reload to see what
+  // arrived while it wasn't being watched.
+  useEffect(() => {
+    const onFocusOrVisible = (): void => {
+      if (document.visibilityState === 'hidden') return;
+      void load();
+    };
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
+    return () => {
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+    };
+  }, [load]);
+
   const send = useCallback(
     async (text: string, options: SendOptions = {}) => {
       const body = text.trim();
       if ((!body && (options.attachments?.length ?? 0) === 0) || !threadId) return;
-      const clientId = newId('cli').slice(4);
+      const clientId = options.clientId ?? newId('cli').slice(4);
       const optimistic: SystemChatMessage = {
         id: `pending-${clientId}`,
         threadId,
         body,
         sentAt: new Date().toISOString(),
-        isMine: true,
         sender: memberFor(sendAsMemberId),
         replyToId: options.replyToId ?? null,
         reactions: {},
         attachments: options.attachments ?? [],
         forwardedFrom: options.forwardedFrom ?? null,
-        sequence: Number.MAX_SAFE_INTEGER,
+        // Never a real sequence (the server starts a thread at 1) — stays
+        // pending, so nothing ever reads this for alignment.
+        sequence: 0,
         edited: false,
+        removed: false,
         clientId,
         pending: true,
       };
@@ -415,6 +467,11 @@ export function useSystemChatConversation(
         replyToId: message.replyToId,
         forwardedFrom: message.forwardedFrom,
         attachments: message.attachments,
+        // Reuses the original attempt's id — if that send actually reached
+        // the server the first time and only the response was lost, this
+        // resolves back to the message already stored instead of the server
+        // seeing a brand-new clientId and creating a duplicate.
+        clientId: message.clientId,
       });
     },
     [send],
@@ -446,8 +503,12 @@ export function useSystemChatConversation(
   }, []);
 
   const remove = useCallback(async (messageId: string) => {
-    await api.delete(`/api/records/systemChatMessages/${messageId}`);
-    setRawMessages((current) => current.filter((message) => String(message['id']) !== messageId));
+    // Redacts in place rather than deleting the row — the message's slot,
+    // and so its side, must stay exactly where it was.
+    const updated = await api.delete<Record<string, unknown>>(`/api/system/chat/messages/${messageId}`);
+    setRawMessages((current) =>
+      current.map((message) => (String(message['id']) === messageId ? { ...message, ...updated } : message)),
+    );
     setPending((current) => current.filter((message) => message.id !== messageId));
   }, []);
 

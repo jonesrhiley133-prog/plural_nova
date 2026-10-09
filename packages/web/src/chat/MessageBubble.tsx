@@ -223,7 +223,8 @@ function lastOpenEvent(position: ActionMenuPosition): { clientX: number; clientY
   };
 }
 
-function ReactionPicker({
+/** Also used by System Chat's bubble-free `SystemChatMessageRow` — the reaction picker itself has nothing bubble-shaped about it. */
+export function ReactionPicker({
   position,
   onClose,
   onPick,

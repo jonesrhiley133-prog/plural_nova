@@ -8,12 +8,14 @@ import {
   useSystemChatConversation,
   useSystemChatThreads,
   uploadSystemChatAttachment,
+  sideForSequence,
+  type MessageSide,
   type SystemChatMessage,
 } from '../core/systemChat.js';
 import { Avatar, AvatarStack, IconButton } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
-import { MessageBubble } from '../chat/MessageBubble.js';
+import { SystemChatMessageRow } from './SystemChatMessageRow.js';
 import { type MentionMap } from '../ui/Markdown.js';
 import { type ChatAttachmentLike } from '../chat/ChatAttachmentView.js';
 import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
@@ -42,8 +44,8 @@ function dayKey(iso: string): string {
 interface ConversationRow {
   message: SystemChatMessage;
   showDayHeading: boolean;
-  showAvatar: boolean;
-  showName: boolean;
+  /** The message's permanent position, never who sent it — see `sideForSequence`. */
+  side: MessageSide;
   quoted: SystemChatMessage | null;
 }
 
@@ -62,14 +64,13 @@ const MessageRow = memo(function MessageRow({
   actions: ReturnType<typeof useStableRowActions<SystemChatMessage>>;
   onQuoteClick: ((id: string) => void) | undefined;
 }): JSX.Element {
-  const { message, showDayHeading, showAvatar, showName, quoted } = row;
+  const { message, showDayHeading, side, quoted } = row;
   return (
     <>
       {showDayHeading ? <div className="chat-day-heading">{dayLabel}</div> : null}
-      <MessageBubble
+      <SystemChatMessageRow
         message={message}
-        showAvatar={showAvatar}
-        showName={showName}
+        side={side}
         quotedMessage={quoted}
         timeLabel={timeLabel}
         mentions={mentions}
@@ -103,9 +104,12 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   const deleteDialog = useDialog<SystemChatMessage>();
 
   const messagesByOldestFirst = conversation.messages;
+  // Every row now always shows its full avatar/name/timestamp header (no
+  // collapsing for a repeated sender), so the average row is a bit taller
+  // than the old mixed collapsed/full-row estimate.
   const { scrollRef, virtualizer, userScrolledUp, handleScroll, scrollToBottom, scrollToId } = useVirtualizedChat(
     messagesByOldestFirst,
-    { estimateSize: 76 },
+    { estimateSize: 84 },
   );
 
   useEffect(() => {
@@ -129,26 +133,23 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
 
   const byId = useMemo(() => new Map(messagesByOldestFirst.map((message) => [message.id, message])), [messagesByOldestFirst]);
 
-  // Grouping (day headings, whether to repeat an avatar) depends on the
-  // previous message in the full, oldest-first order — computed once here,
-  // over every message, rather than from whatever the virtualizer currently
-  // has mounted, which is only ever a scrolled-to slice of the conversation.
+  // Day headings depend on the previous message in the full, oldest-first
+  // order — computed once here, over every message, rather than from
+  // whatever the virtualizer currently has mounted, which is only ever a
+  // scrolled-to slice of the conversation. Unlike the old bubble layout,
+  // there is no sender-grouping to track alongside it: strict alternation
+  // means two messages from the same sender can never land adjacent and
+  // same-sided, so every message always shows its own avatar and name.
   const rows = useMemo<ConversationRow[]>(() => {
     let lastDay = '';
-    let lastSenderKey = '';
     return messagesByOldestFirst.map((message) => {
       const day = dayKey(message.sentAt);
-      const senderKey = `${message.isMine}:${message.sender?.id ?? ''}`;
       const showDayHeading = day !== lastDay;
-      const showAvatar = showDayHeading || senderKey !== lastSenderKey;
-      const showName = showAvatar && !message.isMine;
       lastDay = day;
-      lastSenderKey = senderKey;
       return {
         message,
         showDayHeading,
-        showAvatar,
-        showName,
+        side: sideForSequence(message.sequence),
         quoted: message.replyToId ? byId.get(message.replyToId) ?? null : null,
       };
     });
@@ -193,7 +194,14 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   });
 
   const replyTarget: ComposerReplyTarget | null = replyTo
-    ? { id: replyTo.id, body: replyTo.body, isMine: replyTo.isMine, senderName: replyTo.sender?.name ?? null }
+    ? {
+        id: replyTo.id,
+        body: replyTo.body,
+        // Purely a cosmetic "yourself" label on the reply preview — unrelated
+        // to alignment, which never depends on who's currently sending as whom.
+        isMine: Boolean(conversation.sendAsMemberId) && replyTo.sender?.id === conversation.sendAsMemberId,
+        senderName: replyTo.sender?.name ?? null,
+      }
     : null;
   const editTarget: ComposerEditTarget | null = editingMessage
     ? { id: editingMessage.id, body: editingMessage.body }
@@ -286,13 +294,17 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
           <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const row = rows[virtualRow.index]!;
+              // A send still in flight never commits to a side — it would
+              // only be a guess, and could visibly flip once the server
+              // assigns the real sequence. See `sideForSequence`.
+              const unsettled = Boolean(row.message.pending || row.message.failed);
               return (
                 <div
                   key={virtualRow.key}
                   ref={virtualizer.measureElement}
                   data-index={virtualRow.index}
                   id={`chat-message-${row.message.id}`}
-                  className={`chat-message-row ${row.message.isMine ? 'chat-message-row--mine' : 'chat-message-row--theirs'}`}
+                  className={`chat-feed-row chat-feed-row--${unsettled ? 'pending' : row.side}`}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -339,7 +351,10 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
         onClose={forwardDialog.hide}
         candidates={forwardCandidates}
         excludeThreadId={threadId}
-        message={forwardDialog.value}
+        // `ForwardDialog` is shared with Messages (DMs), whose "You"/sender-name
+        // quote preview reads `isMine` — System Chat has no such notion on the
+        // message itself, so this always shows the real sender's name instead.
+        message={forwardDialog.value ? { ...forwardDialog.value, isMine: false } : null}
         onForward={(targetThreadIds) => conversation.forward(forwardDialog.value!.id, targetThreadIds)}
       />
 

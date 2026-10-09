@@ -5,13 +5,12 @@ import { BASE, openBrowser, signUp } from './helpers.mjs';
 /**
  * System Chat, one system, two alters.
  *
- * "Mine" here has no second account to lean on the way a dm does — it is
- * whichever alter the send-as strip currently has selected, and every
- * message's side has to be judged against that fresh each time, not against
- * whichever alter happened to send it first. Switching who is sending is the
- * whole point of the feature, so a message flipping sides when it does is
- * correct, not a bug — the bug this covers is it not flipping, or not saving
- * as the alter actually chosen.
+ * Alignment is a Discord-style open feed, never a chat bubble, and every
+ * message's side is strictly its position in the conversation's permanent
+ * sequence — message 1 left, 2 right, 3 left... — regardless of who sent
+ * it, who is currently chosen to send as, or how many messages happen to be
+ * loaded. A message changing sides after it has already rendered, for any
+ * reason, is exactly the bug this file guards against.
  */
 
 let session;
@@ -55,7 +54,18 @@ async function createGroupThread(page, memberIds, name) {
   );
 }
 
-const mineOf = async (locator) => (await locator.getAttribute('class') ?? '').includes('chat-message--mine');
+/** Reads a message's row-level alignment — 'left', 'right', or 'pending' for a send still in flight. Never which alter sent it. */
+async function sideOf(page, text) {
+  const row = page
+    .locator('.chat-feed-row')
+    .filter({ has: page.locator('.chat-feed__body', { hasText: text }) })
+    .last();
+  const classes = (await row.getAttribute('class')) ?? '';
+  if (classes.includes('chat-feed-row--left')) return 'left';
+  if (classes.includes('chat-feed-row--right')) return 'right';
+  if (classes.includes('chat-feed-row--pending')) return 'pending';
+  return 'unknown';
+}
 
 before(async () => {
   session = await openBrowser();
@@ -74,43 +84,71 @@ after(async () => {
   await session.browser.close();
 });
 
-describe('system chat: sender identity and ordering', () => {
-  it('sends as the chosen chatter and puts it on the right', async () => {
-    const { page } = session;
-    await page.getByRole('radio', { name: 'Send as Chatter A' }).click();
-    await page.getByRole('textbox', { name: 'Message' }).fill('hello from A');
-    await page.getByRole('button', { name: 'Send' }).click();
-    await page.waitForTimeout(1200);
+describe('system chat: strict positional alternation', () => {
+  const SIX = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
+  const EXPECTED = ['left', 'right', 'left', 'right', 'left', 'right'];
+  // Mixed and repeated senders on purpose — alignment must ignore all of it.
+  const SENDERS = ['Chatter A', 'Chatter A', 'Chatter B', 'Chatter A', 'Chatter B', 'Chatter B'];
 
-    const bubble = page.locator('.chat-message', { hasText: 'hello from A' }).last();
-    assert.ok(await mineOf(bubble), "A's own message did not render as mine");
+  it('alternates left, right, left, right, left, right by position, never by sender', async () => {
+    const { page } = session;
+    const box = page.getByRole('textbox', { name: 'Message' });
+    const send = page.getByRole('button', { name: 'Send' });
+
+    for (let i = 0; i < SIX.length; i += 1) {
+      await page.getByRole('radio', { name: `Send as ${SENDERS[i]}` }).click();
+      await box.fill(SIX[i]);
+      await send.click();
+      await page.waitForTimeout(900);
+    }
+
+    for (let i = 0; i < SIX.length; i += 1) {
+      assert.equal(await sideOf(page, SIX[i]), EXPECTED[i], `"${SIX[i]}" (position ${i + 1}) is not ${EXPECTED[i]}`);
+    }
   });
 
-  it('reclassifies it — without moving it — the moment the active chatter changes', async () => {
+  it('never moves once rendered — not when who is sending changes, not after leaving and returning — and continues correctly', async () => {
     const { page } = session;
+
+    // Toggling who the composer sends as must never retroactively reclassify
+    // already-rendered history — exactly the bug this redesign replaces.
     await page.getByRole('radio', { name: 'Send as Chatter B' }).click();
     await page.waitForTimeout(400);
+    for (let i = 0; i < SIX.length; i += 1) {
+      assert.equal(await sideOf(page, SIX[i]), EXPECTED[i], `"${SIX[i]}" moved after switching who is sending`);
+    }
 
-    const fromA = page.locator('.chat-message', { hasText: 'hello from A' }).last();
-    assert.ok(!(await mineOf(fromA)), "A's message still reads as mine after switching to B");
+    // Leave the conversation entirely and come back to it.
+    await page.goto(`${BASE}/system/chat`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(600);
+    await page.getByRole('button', { name: /General/i }).first().click();
+    await page.waitForTimeout(800);
+    for (let i = 0; i < SIX.length; i += 1) {
+      assert.equal(await sideOf(page, SIX[i]), EXPECTED[i], `"${SIX[i]}" moved after leaving and returning`);
+    }
 
-    await page.getByRole('textbox', { name: 'Message' }).fill('hello from B');
+    // A 7th message must continue the exact same sequence: left, since the 6th was right.
+    await page.getByRole('textbox', { name: 'Message' }).fill('seventh');
     await page.getByRole('button', { name: 'Send' }).click();
     await page.waitForTimeout(1200);
-
-    const fromB = page.locator('.chat-message', { hasText: 'hello from B' }).last();
-    assert.ok(await mineOf(fromB), "B's own message did not render as mine");
+    assert.equal(await sideOf(page, 'seventh'), 'left', '"seventh" did not land on the correct next side');
   });
 
-  it('attributes correctly again on switching back', async () => {
+  it("redacts a deleted message in place, leaving its neighbors exactly where they were", async () => {
     const { page } = session;
-    await page.getByRole('radio', { name: 'Send as Chatter A' }).click();
-    await page.waitForTimeout(400);
+    // "third" sits at position 3 (left). Removing it must not pull "second"
+    // (right) and "fourth" (right) together onto adjacent, same-sided slots —
+    // its slot has to stay occupied by a tombstone, not disappear.
+    const row = page.locator('.chat-feed-row').filter({ has: page.locator('.chat-feed__body', { hasText: 'third' }) }).last();
+    await row.hover();
+    await row.getByLabel('Message actions').click();
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.waitForTimeout(800);
 
-    const fromA = page.locator('.chat-message', { hasText: 'hello from A' }).last();
-    const fromB = page.locator('.chat-message', { hasText: 'hello from B' }).last();
-    assert.ok(await mineOf(fromA), "A's message did not go back to reading as mine");
-    assert.ok(!(await mineOf(fromB)), "B's message still reads as mine once A is active again");
+    assert.equal(await sideOf(page, 'second'), 'right', '"second" moved after its neighbor was deleted');
+    assert.equal(await sideOf(page, 'fourth'), 'right', '"fourth" moved after its neighbor was deleted');
+    assert.ok((await page.getByText('Message removed').count()) >= 1, 'the removed message tombstone did not appear');
   });
 
   const RAPID = ['rapid one', 'rapid two', 'rapid three', 'rapid four'];
