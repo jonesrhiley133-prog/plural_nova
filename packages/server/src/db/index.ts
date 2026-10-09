@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { COLLECTIONS, newId, now } from '@pluralnova/shared';
 import { config, ensureDirectories } from '../config.js';
-import { allStatements, BASE_COLUMNS, columnDefinition, ownFields } from './ddl.js';
+import { tableStatements, indexOnlyStatements, BASE_COLUMNS, columnDefinition, ownFields } from './ddl.js';
 
 export type Db = Database.Database;
 
@@ -241,7 +241,7 @@ export function migrate(
 
   db.exec('BEGIN');
   try {
-    for (const statement of allStatements()) db.exec(statement);
+    for (const statement of tableStatements()) db.exec(statement);
 
     for (const collection of COLLECTIONS) {
       const existing = new Set(
@@ -283,6 +283,9 @@ export function migrate(
         addedColumns.push(`${table}.${name}`);
       }
     }
+
+    // Indexes go last: one may reference a column the ALTER TABLE steps above just added to an existing table.
+    for (const statement of indexOnlyStatements()) db.exec(statement);
 
     const version = db.prepare('SELECT value FROM meta WHERE key = ?').get('schemaVersion') as
       | { value: string }
