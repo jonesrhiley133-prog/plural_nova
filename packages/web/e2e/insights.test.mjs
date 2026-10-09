@@ -57,7 +57,7 @@ describe('Insights', () => {
     const { page, problems } = session;
     const before = problems.length;
 
-    await page.goto(`${BASE}/cycle`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/wellbeing?tab=cycle`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(500);
     const enableButton = page.getByRole('button', { name: 'Turn on cycle tracking' });
     if (await enableButton.count()) {

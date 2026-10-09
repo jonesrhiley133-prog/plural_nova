@@ -184,12 +184,18 @@ function hasMigratableValue(raw: unknown): boolean {
  * already carrying one of these labels is reused rather than duplicated, and
  * a member who already has a value for that definition — whether from this
  * migration running before, or from answering it directly afterward through
- * the normal custom-fields editor — is never overwritten. A field nobody on
- * the account ever filled in gets no definition at all, rather than an empty
- * one cluttering every profile. The old columns on `members` are left
- * exactly as they are; once the editor stops rendering them there is
- * nothing left to read them, so there is nothing to keep in sync — the same
- * place `cardStyle` already sits in this schema.
+ * the normal custom-fields editor — is never overwritten. Every field in
+ * `MEMBER_FIELD_MIGRATIONS` gets its definition created regardless of
+ * whether any existing member has a legacy value to carry forward — these
+ * are meant to be the standing set of fields every profile can answer, not
+ * just a vehicle for moving old data, so a brand-new system still gets a
+ * Biography field to fill in. A blank one never clutters a *view*
+ * (`FieldGroup` already hides a definition nobody has answered there); it
+ * only shows up where editing happens, same as any other optional field.
+ * The old columns on `members` are left exactly as they are; once the
+ * editor stops rendering them there is nothing left to read them, so there
+ * is nothing to keep in sync — the same place `cardStyle` already sits in
+ * this schema.
  */
 export function migrateMemberFieldsToCustomFields(scope: Scope): MigrationResult {
   const existingDefinitions = listRecords('customFieldDefinitions', scope, { limit: 500 }).items;
@@ -208,8 +214,6 @@ export function migrateMemberFieldsToCustomFields(scope: Scope): MigrationResult
     let definitionId = definitionIdByLabel.get(key);
 
     if (!definitionId) {
-      const hasAnyValue = members.some((member) => hasMigratableValue(member[spec.memberField]));
-      if (!hasAnyValue) continue;
       const created = createRecord('customFieldDefinitions', scope, {
         label: spec.label,
         type: spec.type,

@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
+  Astro,
   customFieldValues,
   emotionIdsOf,
   formatDuration,
   isBirthdayToday,
+  parseDateOnly,
   valueForDefinition,
   type StoredRecord,
 } from '@pluralnova/shared';
@@ -21,8 +23,8 @@ import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { AstroSummaryCard } from './astro/AstroSummary.js';
 import { MemberEditorForm } from '../ui/MemberEditorForm.js';
 import { SelectField, SwitchRow } from '../ui/forms.js';
-import { MemberCustomFieldsEditor, MemberCustomFieldsView } from '../ui/CustomFields.js';
-import { GiveBadgePicker, MemberBadgeRow, createBadge, parseBadges } from '../ui/MemberBadges.js';
+import { FieldGroup, MemberCustomFieldsEditor, MemberCustomFieldsView, groupCustomFieldDefinitions } from '../ui/CustomFields.js';
+import { GiveBadgePicker, MemberBadgeRow, createBadge, parseBadges, type MemberBadge } from '../ui/MemberBadges.js';
 import { Icon } from '../ui/Icon.js';
 import { FlagImage, FlagImageRow, type FlagImageItem } from '../ui/FlagImage.js';
 import { ThemeScope, useAssignedTheme } from '../core/appearance.js';
@@ -240,18 +242,6 @@ export default function MemberProfile(): JSX.Element {
         </Card>
       ) : null}
 
-      <Card
-        title="Badges"
-        subtitle={badges.length > 0 ? undefined : 'Pick a sticker for their profile'}
-        style={{ marginBottom: 'var(--space-4)' }}
-      >
-        <MemberBadgeRow badges={badges} />
-        <p className="tiny faint" style={{ marginTop: badges.length > 0 ? 'var(--space-3)' : 0 }}>
-          Tap one to add it
-        </p>
-        <GiveBadgePicker onGive={(emoji, label) => void addSticker(emoji, label)} />
-      </Card>
-
       <Tabs
         value={tab}
         onChange={setTab}
@@ -259,7 +249,9 @@ export default function MemberProfile(): JSX.Element {
         options={TABS.map((option) => ({ value: option, label: term(tabLabel(option)) }))}
       />
 
-      {tab === 'identity-about' ? <IdentityAbout member={member} onChange={update} /> : null}
+      {tab === 'identity-about' ? (
+        <IdentityAbout member={member} onChange={update} badges={badges} onGiveBadge={addSticker} />
+      ) : null}
       {tab === 'boundaries' ? <Boundaries member={member} /> : null}
       {tab === 'fronting' ? <FrontingTab member={member} /> : null}
       {tab === 'statistics' ? <Statistics member={member} /> : null}
@@ -307,9 +299,13 @@ export default function MemberProfile(): JSX.Element {
 function IdentityAbout({
   member,
   onChange,
+  badges,
+  onGiveBadge,
 }: {
   member: StoredRecord;
   onChange: (id: string, patch: Record<string, unknown>) => Promise<StoredRecord>;
+  badges: MemberBadge[];
+  onGiveBadge: (emoji: string, label: string) => Promise<void>;
 }): JSX.Element {
   const toast = useToast();
   const navigate = useNavigate();
@@ -318,6 +314,29 @@ function IdentityAbout({
   const definitions = useCollection('customFieldDefinitions');
   const members = useCollection('members');
   const values = useMemo(() => customFieldValues(member['customFieldValues']), [member]);
+
+  // The ~14 fields `customFieldMigration.ts` moved out of this member's raw
+  // columns carry `group: 'Identity'` / `'About'` — the same two names this
+  // tab already uses for its own hand-built cards. Pulling those two groups
+  // out here and rendering them inside the existing cards (instead of
+  // letting `MemberCustomFieldsView` render its own matching card below)
+  // keeps each heading appearing once; everything else it still owns.
+  const { groups } = useMemo(() => groupCustomFieldDefinitions(definitions.items), [definitions.items]);
+  const identityFields = groups.find((group) => group.key === 'identity')?.definitions ?? [];
+  const aboutFields = groups.find((group) => group.key === 'about')?.definitions ?? [];
+  const remainingDefinitions = useMemo(
+    () =>
+      definitions.items.filter((definition) => {
+        const key = String(definition['group'] ?? '').trim().toLowerCase();
+        return key !== 'identity' && key !== 'about';
+      }),
+    [definitions.items],
+  );
+
+  const born = member['birthday'] ? parseDateOnly(String(member['birthday'])) : null;
+  const zodiac = born && !Number.isNaN(born.getTime()) ? Astro.signInfo(Astro.sunSignFor(born.getMonth() + 1, born.getDate())) : null;
+
+  const origin = Array.isArray(member['source']) ? (member['source'] as string[]) : [];
 
   const flags = useCollection('flags');
   const assignments = useCollection('flagAssignments', {
@@ -356,8 +375,22 @@ function IdentityAbout({
             ['Pronouns', member['pronouns']],
             ['Age', member['age']],
             ['Birthday', member['birthday']],
+            ...(zodiac ? [['Zodiac sign', `${zodiac.glyph} ${zodiac.name}`] as [string, unknown]] : []),
           ]}
         />
+        {identityFields.length > 0 ? (
+          <div style={{ marginTop: 'var(--space-3)' }}>
+            <FieldGroup definitions={identityFields} values={values} members={members.items} />
+          </div>
+        ) : null}
+      </Card>
+
+      <Card title="Badges" subtitle={badges.length > 0 ? undefined : 'Pick a sticker for their profile'}>
+        <MemberBadgeRow badges={badges} />
+        <p className="tiny faint" style={{ marginTop: badges.length > 0 ? 'var(--space-3)' : 0 }}>
+          Tap one to add it
+        </p>
+        <GiveBadgePicker onGive={(emoji, label) => void onGiveBadge(emoji, label)} />
       </Card>
 
       <Card
@@ -435,11 +468,31 @@ function IdentityAbout({
       </Card>
 
       <Card title="About">
-        <FieldList rows={[['Source / origin', member['source']]]} />
+        {origin.length > 0 ? (
+          <div className="row row--between" style={{ alignItems: 'flex-start' }}>
+            <span className="small muted" style={{ minWidth: 120 }}>
+              Source / origin
+            </span>
+            <span className="row" style={{ justifyContent: 'flex-end', flex: 1 }}>
+              {origin.map((tag) => (
+                <Chip key={tag} color="var(--info)">
+                  {tag}
+                </Chip>
+              ))}
+            </span>
+          </div>
+        ) : (
+          <p className="small faint">No source or origin recorded.</p>
+        )}
+        {aboutFields.length > 0 ? (
+          <div style={{ marginTop: 'var(--space-3)' }}>
+            <FieldGroup definitions={aboutFields} values={values} members={members.items} />
+          </div>
+        ) : null}
       </Card>
 
       <MemberCustomFieldsView
-        definitions={definitions.items}
+        definitions={remainingDefinitions}
         values={values}
         members={members.items}
         actions={

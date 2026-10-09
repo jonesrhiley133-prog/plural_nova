@@ -51,7 +51,11 @@ function decodeValue(field: FieldDef, value: unknown): unknown {
     try {
       return JSON.parse(value);
     } catch {
-      // A malformed JSON column should not take the whole list down with it.
+      // A malformed JSON column should not take the whole list down with
+      // it. For a `tags` field specifically, a value written before it held
+      // tags (plain text, not JSON — e.g. `source`'s text-to-tags change)
+      // is kept as a single tag rather than silently dropped.
+      if (field.kind === 'tags' && value) return [value];
       return field.kind === 'json' ? null : [];
     }
   }

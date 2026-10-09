@@ -10,6 +10,56 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+### Changed
+
+- **Games split out of Wellbeing into their own tab.** The calm,
+  non-competitive games — breathing, bubbles, grounding, memory match, and
+  the rest — used to live inside Wellbeing alongside check-ins and cycle
+  tracking. They now have their own "Games" entry in the navigation,
+  unchanged otherwise — nothing timed or scored, stay as long as it helps —
+  just out from under Wellbeing, which now holds check-ins and Cycle &
+  Wellbeing only.
+- **The old stand-alone "Cycle & wellness" page is gone — its tracking
+  moved inside Wellbeing instead of disappearing.** It sat at its own
+  address under a name almost identical to the Wellbeing page's own title
+  ("Cycle & Wellbeing"), confusing enough that the two read as duplicates
+  of each other even though only one of them actually tracked anything.
+  The calendar, cycle-start averages, phases and entry log all still work
+  exactly as before; they are just a "Cycle" tab inside Wellbeing now,
+  alongside Check-ins and Symptoms, instead of a separate page with a
+  near-identical name.
+- **Badges moved off the alter profile header.** They used to sit in a
+  card above the tabs, visible no matter which tab was open. They're now
+  part of the Identity & About tab instead, so they no longer crowd
+  Boundaries, Fronting, Media, or any other tab.
+- **The alter editor no longer asks for birth time, birth place, or
+  coordinates.** Those fields still exist, but only in the dedicated Astro
+  section, where they unlock Rising sign and houses for anyone who wants
+  that depth. The basic editor now only asks for a birthday — saving one
+  automatically shows the alter's zodiac sign alongside the rest of their
+  identity details.
+- **Origin is now a tag box, like Roles.** Press Enter (or type a comma)
+  to add one, so an alter can have more than one origin at once. Origin
+  tags render in a different shade than Roles tags, so the two stay
+  visually distinct at a glance.
+
+### Fixed
+
+- **Biography and other standard fields could be entirely missing when
+  editing an alter.** A system created after custom fields shipped — or
+  any alter added since — never got Biography, Notes, or the rest of the
+  standard fields unless an existing alter already had data in the old
+  version of that field. Every system now always gets the full standard
+  set created for it, ready to fill in.
+- **Biography and other long-text fields rendered squeezed against the
+  right edge instead of readable top-to-bottom on the left.** They now lay
+  out the same way Markdown and gallery fields already did: label on top,
+  full-width content below.
+- **Identity and About briefly showed the same field twice.** A handful of
+  custom fields could appear once in their own labelled group and a
+  second time in the general field list below it. Each field now appears
+  in exactly one place.
+
 ### Added
 
 - **@-mentions in Direct Messages, System Chat, and Flux posts/comments.**

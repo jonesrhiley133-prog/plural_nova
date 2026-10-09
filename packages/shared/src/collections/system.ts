@@ -140,7 +140,9 @@ export const members: CollectionDef = {
     f.ref('subsystemId', 'Subsystem', 'subsystems', { group: 'About' }),
     f.ref('groupId', 'Group', 'memberGroups', { group: 'About' }),
     // Ungrouped for the same reason — one of the five kept standard fields.
-    f.text('source', 'Origin', { hint: 'Only if this concept applies to them.' }),
+    // A tag list, like `roles` just above, rather than one free-text line —
+    // an alter's origin is often more than one thing at once.
+    f.tags('source', 'Origin', { hint: 'Only if this concept applies to them.' }),
     f.tags('tags', 'Tags', { group: 'About' }),
     f.long('notes', 'Notes', { group: 'About', sensitive: true }),
     f.long('boundaries', 'Boundaries', { group: 'About' }),

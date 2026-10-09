@@ -1,16 +1,15 @@
 import { useMemo, useState } from 'react';
 import { dayKey, type StoredRecord } from '@pluralnova/shared';
-import { useAuth } from '../core/auth.js';
-import { useCollection } from '../core/data.js';
-import { useDateFormat } from '../core/i18n.js';
-import { useToast } from '../core/toast.js';
-import { PageHeader } from '../app/PageHeader.js';
-import { Button, Card, Chip, IconButton, Stat } from '../ui/primitives.js';
-import { NumberField, SwitchRow, TagField, TextField, DateTimeField } from '../ui/forms.js';
-import { AsyncContent, DescriptiveNote, EmptyState } from '../ui/feedback.js';
-import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
-import { Heatmap, Sparkline } from '../charts/index.js';
-import { Icon } from '../ui/Icon.js';
+import { useAuth } from '../../core/auth.js';
+import { useCollection } from '../../core/data.js';
+import { useDateFormat } from '../../core/i18n.js';
+import { useToast } from '../../core/toast.js';
+import { Button, Card, Chip, IconButton, Stat } from '../../ui/primitives.js';
+import { NumberField, SwitchRow, TagField, TextField, DateTimeField } from '../../ui/forms.js';
+import { AsyncContent, DescriptiveNote, EmptyState } from '../../ui/feedback.js';
+import { ConfirmDialog, Dialog, useDialog } from '../../ui/overlays.js';
+import { Heatmap, Sparkline } from '../../charts/index.js';
+import { Icon } from '../../ui/Icon.js';
 
 const EVENT_META: Record<string, { icon: 'flag' | 'sparkle' | 'note' | 'cycle'; color: string }> = {
   start: { icon: 'flag', color: 'var(--accent)' },
@@ -21,14 +20,14 @@ const EVENT_META: Record<string, { icon: 'flag' | 'sparkle' | 'note' | 'cycle'; 
 };
 
 /**
- * Cycle & wellness.
+ * Cycle.
  *
  * Off by default and named by the user. The phases are free text rather than a
  * fixed menstrual model, because the people who want this feature do not all
  * want the same version of it, and the people who do not want it should not
  * have to see it.
  */
-export default function Cycle(): JSX.Element {
+export function Cycle(): JSX.Element {
   const { settings, saveSettings } = useAuth();
   const dates = useDateFormat();
   const toast = useToast();
@@ -102,38 +101,34 @@ export default function Cycle(): JSX.Element {
 
   if (!settings.cycleEnabled) {
     return (
-      <>
-        <PageHeader title="Cycle & wellness" />
-        <Card>
-          <EmptyState
-            icon="cycle"
-            title="This section is off"
-            body="Cycle tracking is entirely optional, and nothing about it is assumed. Turn it on and you choose what the phases are called and which fields you use — including none of them."
-            action={{
-              label: 'Turn on cycle tracking',
-              run: () => {
-                void saveSettings({ cycleEnabled: true })
-                  .then(() => toast.success('Cycle tracking is on'))
-                  .catch((cause: unknown) => toast.fromError(cause, 'Could not turn that on'));
-              },
-            }}
-          />
-        </Card>
-      </>
+      <Card>
+        <EmptyState
+          icon="cycle"
+          title="This section is off"
+          body="Cycle tracking is entirely optional, and nothing about it is assumed. Turn it on and you choose what the phases are called and which fields you use — including none of them."
+          action={{
+            label: 'Turn on cycle tracking',
+            run: () => {
+              void saveSettings({ cycleEnabled: true })
+                .then(() => toast.success('Cycle tracking is on'))
+                .catch((cause: unknown) => toast.fromError(cause, 'Could not turn that on'));
+            },
+          }}
+        />
+      </Card>
     );
   }
 
   return (
     <>
-      <PageHeader
-        title="Cycle & wellness"
-        description="Your own labels, your own fields. Nothing here is required."
-        actions={
-          <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
-            Add an entry
-          </Button>
-        }
-      />
+      <div className="row row--between" style={{ marginBottom: 'var(--space-4)', alignItems: 'flex-start' }}>
+        <p className="small faint" style={{ margin: 0, maxWidth: 260 }}>
+          Your own labels, your own fields. Nothing here is required.
+        </p>
+        <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
+          Add an entry
+        </Button>
+      </div>
 
       <div className="stat-grid" style={{ marginBottom: 'var(--space-4)' }}>
         <Stat

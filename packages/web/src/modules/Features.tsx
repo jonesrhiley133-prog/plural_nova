@@ -39,8 +39,8 @@ const AREAS = [
   {
     icon: 'wellbeing' as const,
     title: 'Wellbeing',
-    body: `${EMOTIONS.length} emotions in twelve families, body sensations on an anatomy outline, sleep, cycle, fitness, daily check-ins with metrics you name yourself — and insights that describe the log without interpreting it.`,
-    items: ['Wellbeing', 'Emotions', 'Body sensations', 'Emotion insights', 'Sleep', 'Cycle', 'Fitness'],
+    body: `${EMOTIONS.length} emotions in twelve families, body sensations on an anatomy outline, sleep, cycle, fitness, daily check-ins with metrics you name yourself, a set of calm low-stakes games, and insights that describe the log without interpreting it.`,
+    items: ['Wellbeing', 'Games', 'Cycle', 'Emotions', 'Body sensations', 'Emotion insights', 'Sleep', 'Fitness'],
     path: '/wellbeing',
   },
   {
