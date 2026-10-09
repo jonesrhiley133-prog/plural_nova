@@ -1,6 +1,9 @@
+import Database from 'better-sqlite3';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { COLLECTIONS } from '@pluralnova/shared';
 import { createTestApp, registerUser, type TestClient } from './harness.js';
 import { getDb, migrate } from '../db/index.js';
+import { BASE_COLUMNS, ownFields, columnDefinition } from '../db/ddl.js';
 
 /**
  * The old System Chat was one shared room per system with named channels
@@ -259,5 +262,47 @@ describe('system chat message sequence backfill', () => {
       body: { body: 'fourth, sent live' },
     });
     expect(sent.body.data.sequence).toBe(4);
+  });
+});
+
+/**
+ * Regression test for the production crash Railway's own deploy-fix bot
+ * caught and patched (PR #48): `migrate()` used to run every CREATE INDEX
+ * before the ALTER TABLE steps that add new columns, so an index on a
+ * column only an ALTER adds — `systemChatMessages`'s `(threadId, sequence)`,
+ * added alongside `sequence` itself — failed with "no such column: sequence"
+ * against any database that predated that column. Reproduces that exact
+ * shape (a table missing a column its own index references) directly,
+ * rather than trusting the ordering to stay right.
+ */
+describe('migrate() against a table missing a column its own index references', () => {
+  it('adds the column and builds the index without crashing', () => {
+    const db = new Database(':memory:');
+    const collection = COLLECTIONS.find((c) => c.name === 'systemChatMessages');
+    if (!collection) throw new Error('systemChatMessages collection not found');
+    const staleColumns = [
+      ...BASE_COLUMNS.map((c) => c.sql),
+      ...ownFields(collection)
+        .filter((field) => field.name !== 'sequence' && field.name !== 'removed')
+        .map(columnDefinition),
+    ];
+    db.exec(`CREATE TABLE "systemChatMessages" (\n  ${staleColumns.join(',\n  ')}\n)`);
+
+    expect(() => migrate(db)).not.toThrow();
+
+    const columns = db
+      .prepare(`PRAGMA table_info("systemChatMessages")`)
+      .all()
+      .map((row) => (row as { name: string }).name);
+    expect(columns).toContain('sequence');
+    expect(columns).toContain('removed');
+
+    const indexes = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'systemChatMessages'`)
+      .all()
+      .map((row) => (row as { name: string }).name);
+    expect(indexes.some((name) => name.includes('threadId_sequence'))).toBe(true);
+
+    db.close();
   });
 });
