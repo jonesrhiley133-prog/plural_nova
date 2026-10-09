@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
-import { Markdown, renderMarkdown } from '../Markdown.js';
+import { ChatMarkdown, Markdown, renderChatMarkdown, renderMarkdown } from '../Markdown.js';
 
 /**
  * `renderMarkdown` carries two independent defenses — markdown-it parsing
@@ -121,5 +121,88 @@ describe('Markdown component', () => {
   it('appends a caller-provided className alongside markdown-body', () => {
     const { container } = render(<Markdown text="hi" className="bio" />);
     expect(container.querySelector('.markdown-body.bio')).not.toBeNull();
+  });
+});
+
+/**
+ * Chat's own renderer — a separate `MarkdownIt` instance and DOMPurify
+ * allowlist from the one above, so these are their own describe blocks
+ * rather than cases bolted onto `renderMarkdown`'s.
+ */
+describe('renderChatMarkdown — colour syntax', () => {
+  it('colours text given a bare hex spec', () => {
+    const html = renderChatMarkdown('%#ff5733%hello%%');
+    expect(html).toContain('style="color:#ff5733"');
+    expect(html).toContain('>hello<');
+  });
+
+  it('colours text given a curated name', () => {
+    const html = renderChatMarkdown('%red%hello%%');
+    expect(html).toContain('style="color:#e53e3e"');
+  });
+
+  it('tries the hex half of a combined hex/name spec first', () => {
+    const html = renderChatMarkdown('%#336699/red%hello%%');
+    expect(html).toContain('style="color:#336699"');
+  });
+
+  it('falls back to the name half when the hex half does not validate', () => {
+    const html = renderChatMarkdown('%notahex/red%hello%%');
+    expect(html).toContain('style="color:#e53e3e"');
+  });
+
+  it('renders an unresolvable colour spec as plain, unstyled text rather than dropping it', () => {
+    const html = renderChatMarkdown('%notacolor%hello%%');
+    expect(html).not.toContain('<span');
+    expect(html).toContain('hello');
+  });
+
+  it('leaves an ordinary % in a sentence alone', () => {
+    const html = renderChatMarkdown('that was 90% done');
+    expect(html).toContain('90% done');
+    expect(html).not.toContain('<span');
+  });
+
+  it('nests formatting inside a coloured span', () => {
+    const html = renderChatMarkdown('%red%**bold** and *em*%%');
+    expect(html).toContain('style="color:#e53e3e"');
+    expect(html).toContain('<strong>bold</strong>');
+    expect(html).toContain('<em>em</em>');
+  });
+});
+
+describe('renderChatMarkdown — Discord-style conventions', () => {
+  it('renders a double underscore as underline, not bold', () => {
+    const html = renderChatMarkdown('__under__');
+    expect(html).toContain('<u>under</u>');
+    expect(html).not.toContain('<strong>');
+  });
+
+  it('still renders double asterisks as bold', () => {
+    const html = renderChatMarkdown('**bold**');
+    expect(html).toContain('<strong>bold</strong>');
+  });
+
+  it('renders a spoiler span that hides its text until revealed', () => {
+    const html = renderChatMarkdown('||secret||');
+    expect(html).toContain('class="md-spoiler"');
+    expect(html).toContain('secret');
+    expect(html).not.toContain('md-spoiler--revealed');
+  });
+
+  it('never renders an image, even for a real image URL', () => {
+    const html = renderChatMarkdown('![a photo](https://example.com/pic.png)');
+    expect(html).not.toContain('<img');
+  });
+});
+
+describe('ChatMarkdown component', () => {
+  it('reveals a spoiler on click and only that one', () => {
+    const { container } = render(<ChatMarkdown text="||one|| and ||two||" />);
+    const spoilers = container.querySelectorAll('.md-spoiler');
+    expect(spoilers).toHaveLength(2);
+    (spoilers[0] as HTMLElement).click();
+    expect(spoilers[0]?.classList.contains('md-spoiler--revealed')).toBe(true);
+    expect(spoilers[1]?.classList.contains('md-spoiler--revealed')).toBe(false);
   });
 });

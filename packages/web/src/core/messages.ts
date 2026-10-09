@@ -79,6 +79,7 @@ export interface Message {
   sequence: number;
   /** Every userId who has read this message — empty until the other side opens the conversation. */
   readBy: string[];
+  edited: boolean;
   clientId?: string;
   pending?: boolean;
   failed?: string;
@@ -204,7 +205,13 @@ export function useMessageThreads(): {
   useEffect(() => {
     void load();
     return realtime.on((event) => {
-      if (event.type === 'message.new' || event.type === 'message.read' || event.type === 'message.deleted') void load();
+      if (
+        event.type === 'message.new' ||
+        event.type === 'message.read' ||
+        event.type === 'message.deleted' ||
+        event.type === 'message.edited'
+      )
+        void load();
       if (event.type === 'reaction.new' && event.kind === 'dm') void load();
     });
   }, [load]);
@@ -321,6 +328,7 @@ export function useMessageConversation(
   retry: (message: Message) => Promise<void>;
   react: (messageId: string, emoji: string) => Promise<void>;
   forward: (messageId: string, targetThreadIds: string[]) => Promise<void>;
+  edit: (messageId: string, text: string) => Promise<void>;
   remove: (messageId: string) => Promise<void>;
   markRead: () => void;
   refreshThread: () => Promise<void>;
@@ -379,6 +387,7 @@ export function useMessageConversation(
       encrypted: raw['encrypted'] === true,
       sequence: Number(raw['sequence'] ?? 0),
       readBy: toReadBy(raw['readBy']),
+      edited: raw['edited'] === true,
       clientId: (raw['clientId'] as string) ?? undefined,
     }),
     [threadId],
@@ -457,6 +466,7 @@ export function useMessageConversation(
           setTheirTyping(false);
         }
         if (event.type === 'message.deleted' && event.threadId === threadId) void load();
+        if (event.type === 'message.edited' && event.threadId === threadId) void load();
         if (event.type === 'reaction.new' && event.kind === 'dm' && event.threadId === threadId) void load();
         // Reloads to pick up the server's own updated `readBy` rather than
         // guessing which messages just became read.
@@ -596,6 +606,7 @@ export function useMessageConversation(
         encrypted: false,
         sequence: Number.MAX_SAFE_INTEGER,
         readBy: [],
+        edited: false,
         clientId,
         pending: true,
       };
@@ -676,6 +687,14 @@ export function useMessageConversation(
     setPending((current) => current.filter((message) => message.id !== messageId));
   }, []);
 
+  const edit = useCallback(async (messageId: string, text: string) => {
+    const body = text.trim();
+    await api.patch(`/api/messages/messages/${messageId}`, { body });
+    setRawMessages((current) =>
+      current.map((message) => (String(message['id']) === messageId ? { ...message, body, edited: true } : message)),
+    );
+  }, []);
+
   const markedRead = useRef<string | null>(null);
   const markRead = useCallback(() => {
     if (!threadId || !thread?.unread) return;
@@ -698,6 +717,7 @@ export function useMessageConversation(
     react,
     refreshThread: load,
     forward,
+    edit,
     remove,
     markRead,
     sendTyping,

@@ -171,6 +171,74 @@ describe('direct messages: replies, reactions, forwarding', () => {
     expect(revived).toBeDefined();
     expect(revived.lastMessagePreview).toBe('still here?');
   });
+
+  it('lets the sender edit their own message, and no one else', async () => {
+    const sent = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: alice.token,
+      body: { body: 'this has a typo' },
+    });
+    const messageId = sent.body.data.message.id;
+
+    const refused = await client.request('PATCH', `/api/messages/messages/${messageId}`, {
+      token: bob.token,
+      body: { body: 'bob tries to rewrite alice' },
+    });
+    expect(refused.status).toBe(404);
+
+    const edited = await client.request('PATCH', `/api/messages/messages/${messageId}`, {
+      token: alice.token,
+      body: { body: 'this has no typo' },
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.message.body).toBe('this has no typo');
+    expect(edited.body.data.message.edited).toBe(true);
+
+    const fetched = await client.request('GET', `/api/messages/threads/${threadId}`, { token: bob.token });
+    const stored = fetched.body.data.messages.find((m: any) => m.id === messageId);
+    expect(stored.body).toBe('this has no typo');
+    expect(stored.edited).toBe(true);
+  });
+
+  it('only refreshes the conversation preview when the edited message is still the latest one', async () => {
+    const older = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: alice.token,
+      body: { body: 'older message' },
+    });
+    const newer = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: bob.token,
+      body: { body: 'newer message' },
+    });
+
+    await client.request('PATCH', `/api/messages/messages/${older.body.data.message.id}`, {
+      token: alice.token,
+      body: { body: 'older message, fixed' },
+    });
+    const afterOlderEdit = await client.request('GET', '/api/messages/conversations', { token: alice.token });
+    expect(
+      afterOlderEdit.body.data.conversations.find((c: any) => c.threadId === threadId).lastMessagePreview,
+    ).toBe('newer message');
+
+    await client.request('PATCH', `/api/messages/messages/${newer.body.data.message.id}`, {
+      token: bob.token,
+      body: { body: 'newer message, fixed' },
+    });
+    const afterNewerEdit = await client.request('GET', '/api/messages/conversations', { token: alice.token });
+    expect(
+      afterNewerEdit.body.data.conversations.find((c: any) => c.threadId === threadId).lastMessagePreview,
+    ).toBe('newer message, fixed');
+  });
+
+  it('rejects an edit that would leave the message empty', async () => {
+    const sent = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: alice.token,
+      body: { body: 'keep me' },
+    });
+    const blanked = await client.request('PATCH', `/api/messages/messages/${sent.body.data.message.id}`, {
+      token: alice.token,
+      body: { body: '   ' },
+    });
+    expect(blanked.status).toBe(400);
+  });
 });
 
 describe('system chat threads', () => {
@@ -374,6 +442,83 @@ describe('system chat threads', () => {
     });
     const threads = await client.request('GET', '/api/system/chat/threads', { token });
     expect(threads.body.data.threads.some((t: any) => t.id === created.body.data.thread.id)).toBe(false);
+  });
+
+  it('lets any alter on the account edit a system chat message, not just whoever sent it', async () => {
+    const threads = await client.request('GET', '/api/system/chat/threads', { token });
+    const threadId = threads.body.data.threads[0].id;
+    const sent = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'sent by ash', memberId: ashId },
+    });
+    const messageId = sent.body.data.id;
+
+    // Switching the active member to Birch must not block editing a message Ash
+    // sent — system chat has no second account to protect this from, so edit
+    // access is account-scoped, not tied to whichever alter originally sent it.
+    await client.request('POST', '/api/system/active-member', { token, body: { memberId: birchId } });
+
+    const edited = await client.request('PATCH', `/api/system/chat/messages/${messageId}`, {
+      token,
+      body: { body: 'edited while birch is active' },
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.body).toBe('edited while birch is active');
+    expect(edited.body.data.edited).toBe(true);
+
+    const messages = await client.request('GET', `/api/system/chat/threads/${threadId}/messages`, { token });
+    const stored = messages.body.data.messages.find((m: any) => m.id === messageId);
+    expect(stored.body).toBe('edited while birch is active');
+    expect(stored.edited).toBe(true);
+  });
+
+  it('only refreshes the thread preview when the edited message is still the latest one', async () => {
+    const created = await client.request('POST', '/api/system/chat/threads', {
+      token,
+      body: { kind: 'group', name: 'Edit preview check', participantMemberIds: [ashId, birchId] },
+    });
+    const threadId = created.body.data.thread.id;
+
+    const older = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'older one', memberId: ashId },
+    });
+    const newer = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'newer one', memberId: birchId },
+    });
+
+    await client.request('PATCH', `/api/system/chat/messages/${older.body.data.id}`, {
+      token,
+      body: { body: 'older one, fixed' },
+    });
+    const afterOlderEdit = await client.request('GET', '/api/system/chat/threads', { token });
+    expect(afterOlderEdit.body.data.threads.find((t: any) => t.id === threadId).lastMessagePreview).toBe(
+      'newer one',
+    );
+
+    await client.request('PATCH', `/api/system/chat/messages/${newer.body.data.id}`, {
+      token,
+      body: { body: 'newer one, fixed' },
+    });
+    const afterNewerEdit = await client.request('GET', '/api/system/chat/threads', { token });
+    expect(afterNewerEdit.body.data.threads.find((t: any) => t.id === threadId).lastMessagePreview).toBe(
+      'newer one, fixed',
+    );
+  });
+
+  it('rejects an edit that would leave the message empty', async () => {
+    const threads = await client.request('GET', '/api/system/chat/threads', { token });
+    const threadId = threads.body.data.threads[0].id;
+    const sent = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'keep me', memberId: ashId },
+    });
+    const blanked = await client.request('PATCH', `/api/system/chat/messages/${sent.body.data.id}`, {
+      token,
+      body: { body: '' },
+    });
+    expect(blanked.status).toBe(400);
   });
 });
 

@@ -7,6 +7,7 @@ export interface RowActions<TMessage> {
   onReply: (message: TMessage) => void;
   onForward: (message: TMessage) => void;
   onCopy: (message: TMessage) => void;
+  onEdit: (message: TMessage) => void;
   onDelete: (message: TMessage) => void;
   onOpenAttachment: (attachment: ChatAttachmentLike) => void;
 }
@@ -31,6 +32,7 @@ export function useStableRowActions<TMessage>(actions: RowActions<TMessage>): Ro
       onReply: (message) => latest.current.onReply(message),
       onForward: (message) => latest.current.onForward(message),
       onCopy: (message) => latest.current.onCopy(message),
+      onEdit: (message) => latest.current.onEdit(message),
       onDelete: (message) => latest.current.onDelete(message),
       onOpenAttachment: (attachment) => latest.current.onOpenAttachment(attachment),
     }),

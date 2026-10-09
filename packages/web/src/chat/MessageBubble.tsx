@@ -1,8 +1,10 @@
 import { memo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { plainTextPreview } from '@pluralnova/shared';
 import { Avatar, IconButton } from '../ui/primitives.js';
 import { ActionMenu, useActionMenu, type ActionMenuItem, type ActionMenuPosition } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
+import { ChatMarkdown } from '../ui/Markdown.js';
 import { ChatAttachmentView, type ChatAttachmentLike } from './ChatAttachmentView.js';
 
 /** Common reactions, in the order most chat apps settle on. */
@@ -22,6 +24,7 @@ export interface ChatBubbleMessage {
   reactions: Record<string, string[]>;
   attachments: ChatAttachmentLike[];
   forwardedFrom: { senderLabel: string } | null;
+  edited?: boolean;
   /** Only ever set on a message this account sent — absent entirely where read receipts don't exist, such as System Chat. */
   readStatus?: 'sent' | 'read';
   pending?: boolean;
@@ -48,6 +51,7 @@ interface MessageBubbleProps {
   onReply: () => void;
   onForward: () => void;
   onCopy: () => void;
+  onEdit: () => void;
   onDelete: () => void;
   onOpenAttachment: (attachment: ChatAttachmentLike) => void;
   onQuoteClick?: () => void;
@@ -64,6 +68,7 @@ function MessageBubbleImpl({
   onReply,
   onForward,
   onCopy,
+  onEdit,
   onDelete,
   onOpenAttachment,
   onQuoteClick,
@@ -78,7 +83,10 @@ function MessageBubbleImpl({
     { key: 'forward', label: 'Forward', icon: 'forward', onSelect: onForward },
     ...(message.body ? [{ key: 'copy', label: 'Copy text', icon: 'duplicate' as const, onSelect: onCopy }] : []),
     ...(message.isMine
-      ? [{ key: 'delete', label: 'Delete', icon: 'trash' as const, tone: 'danger' as const, onSelect: onDelete }]
+      ? [
+          { key: 'edit', label: 'Edit', icon: 'edit' as const, onSelect: onEdit },
+          { key: 'delete', label: 'Delete', icon: 'trash' as const, tone: 'danger' as const, onSelect: onDelete },
+        ]
       : []),
   ];
 
@@ -126,7 +134,9 @@ function MessageBubbleImpl({
               {quotedMessage.sender?.name ?? (quotedMessage.isMine ? 'You' : 'Them')}
             </span>
             <span className="chat-message__quote-body truncate">
-              {quotedMessage.attachments.length > 0 && !quotedMessage.body ? 'Attachment' : quotedMessage.body}
+              {quotedMessage.attachments.length > 0 && !quotedMessage.body
+                ? 'Attachment'
+                : plainTextPreview(quotedMessage.body)}
             </span>
           </button>
         ) : null}
@@ -136,8 +146,9 @@ function MessageBubbleImpl({
             {message.attachments.map((attachment) => (
               <ChatAttachmentView key={attachment.id} attachment={attachment} onOpen={() => onOpenAttachment(attachment)} />
             ))}
-            {message.body ? <p className="chat-bubble__text">{message.body}</p> : null}
+            {message.body ? <ChatMarkdown text={message.body} className="chat-bubble__text" /> : null}
             <span className="chat-bubble__meta">
+              {message.edited ? <span className="chat-bubble__edited">(edited)</span> : null}
               <span className="chat-bubble__time">{timeLabel}</span>
               {message.readStatus !== undefined ? (
                 <Icon

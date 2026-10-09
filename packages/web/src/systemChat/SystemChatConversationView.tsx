@@ -17,7 +17,7 @@ import { MessageBubble } from '../chat/MessageBubble.js';
 import { type ChatAttachmentLike } from '../chat/ChatAttachmentView.js';
 import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
 import { useVirtualizedChat } from '../chat/useVirtualizedChat.js';
-import { ChatComposer, type ComposerReplyTarget } from '../chat/ChatComposer.js';
+import { ChatComposer, type ComposerEditTarget, type ComposerReplyTarget } from '../chat/ChatComposer.js';
 import { useStableRowActions } from '../chat/useStableRowActions.js';
 import { SendAsStrip } from './SendAsStrip.js';
 import { SystemChatInfoDialog } from './SystemChatInfoDialog.js';
@@ -74,6 +74,7 @@ const MessageRow = memo(function MessageRow({
         onReply={() => actions.onReply(message)}
         onForward={() => actions.onForward(message)}
         onCopy={() => actions.onCopy(message)}
+        onEdit={() => actions.onEdit(message)}
         onDelete={() => actions.onDelete(message)}
         onOpenAttachment={actions.onOpenAttachment}
         onQuoteClick={quoted && onQuoteClick ? () => onQuoteClick(quoted.id) : undefined}
@@ -91,6 +92,7 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   const { threads: allThreads } = useSystemChatThreads();
 
   const [replyTo, setReplyTo] = useState<SystemChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<SystemChatMessage | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [lightbox, setLightbox] = useState<ChatAttachmentLike | null>(null);
   const forwardDialog = useDialog<SystemChatMessage>();
@@ -104,6 +106,7 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
 
   useEffect(() => {
     setReplyTo(null);
+    setEditingMessage(null);
     userScrolledUp.current = false;
   }, [threadId, viewerMemberId, userScrolledUp]);
 
@@ -178,6 +181,7 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
         .then(() => toast.success('Copied'))
         .catch(() => toast.fromError(new Error('Copy failed'), 'Could not copy that message'));
     },
+    onEdit: (message) => setEditingMessage(message),
     onDelete: (message) => deleteDialog.show(message),
     onOpenAttachment: (attachment) => {
       if (attachment.mediaType === 'image') setLightbox(attachment);
@@ -186,6 +190,9 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
 
   const replyTarget: ComposerReplyTarget | null = replyTo
     ? { id: replyTo.id, body: replyTo.body, isMine: replyTo.isMine, senderName: replyTo.sender?.name ?? null }
+    : null;
+  const editTarget: ComposerEditTarget | null = editingMessage
+    ? { id: editingMessage.id, body: editingMessage.body }
     : null;
 
   if (conversation.loading && !conversation.thread) {
@@ -309,6 +316,9 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
         replyTo={replyTarget}
         onCancelReply={() => setReplyTo(null)}
         onSend={(text, options) => conversation.send(text, options)}
+        editing={editTarget}
+        onCancelEdit={() => setEditingMessage(null)}
+        onEditSubmit={(messageId, text) => conversation.edit(messageId, text)}
         uploadAttachment={uploadSystemChatAttachment}
         sending={conversation.sending}
       />

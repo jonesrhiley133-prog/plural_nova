@@ -126,6 +126,14 @@ const PATHS = {
   camera: 'M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1M12 18a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
   backspace: 'M9 6h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-6-6zM11 10l6 4M17 10l-6 4',
   bookmark: 'M6 4h12v16l-6-4-6 4z',
+  bold: 'M7 4v16M7 4h5.5a3 3 0 1 1 0 6H7M7 12h6a3 3 0 1 1 0 8H7',
+  italic: 'M11 4h5M8 20h5M13 4 10 20',
+  underline: 'M6 4v8a6 6 0 0 0 12 0V4M4 20h16',
+  strikethrough: 'M4 12h16M8 7c1-1.3 2.8-2 4-2 2 0 3.3.8 3.3 2M8 17c1 1.3 2.8 2 4.3 2 1.8 0 3.2-.8 3.2-2.2',
+  code: 'M9 7 4 12l5 5M15 7l5 5-5 5',
+  quote: 'M5 4v16M9 7h11M9 12h11M9 17h7',
+  palette:
+    'M12 3a9 8 0 0 0 0 16c1.5 0 2-1 2-2s.5-1.5 2-1.5h1a3.5 3.5 0 0 0 0-7A9 8 0 0 0 12 3M8 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2M12 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2M16 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2',
 } as const;
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

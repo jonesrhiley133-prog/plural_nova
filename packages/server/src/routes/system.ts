@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { newId, now, requireCollection, type StoredRecord } from '@pluralnova/shared';
+import { newId, now, plainTextPreview, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { badRequest, conflict, notFound } from '../http/errors.js';
 import { auth, requireAuth, requireSystemMode } from '../auth/middleware.js';
@@ -456,7 +456,7 @@ systemRouter.post(
       { memberId: body.memberId ?? context.user.activeMemberId, visibility: 'system' },
     );
 
-    const preview = text.slice(0, 120) || 'Sent an attachment';
+    const preview = plainTextPreview(text).slice(0, 120) || 'Sent an attachment';
     updateRecord('systemChatThreads', context.scope, threadId, {
       lastMessageAt: message['sentAt'] as string,
       lastMessagePreview: preview,
@@ -513,6 +513,38 @@ systemRouter.post(
   }),
 );
 
+/**
+ * Only the body changes, and only on this account's own message — the same
+ * scope check every other message route here already relies on, since
+ * system chat has no second account to protect this from (unlike a DM,
+ * every message here already belongs to whoever is asking). Publishes the
+ * same generic `record.changed` event the collection's own CRUD route would
+ * have, so the existing listeners for "a systemChatMessages row changed"
+ * (already covering delete, via that same generic route) also cover this.
+ */
+systemRouter.patch(
+  '/chat/messages/:id',
+  handler((req, res) => {
+    const context = requireSystemMode(req);
+    const message = getRecord('systemChatMessages', context.scope, String(req.params['id']));
+    if (!message) throw notFound('That message');
+
+    const { body } = req.body as { body?: string };
+    const text = body?.trim() ?? '';
+    if (!text) throw badRequest('Write something first.');
+
+    const updated = updateRecord('systemChatMessages', context.scope, message.id, { body: text, edited: true });
+
+    const threadId = message['threadId'] as string | null;
+    if (threadId && message['sentAt'] === getRecord('systemChatThreads', context.scope, threadId)?.['lastMessageAt']) {
+      updateRecord('systemChatThreads', context.scope, threadId, { lastMessagePreview: plainTextPreview(text).slice(0, 120) });
+    }
+
+    publish(context.user.id, { type: 'record.changed', collection: 'systemChatMessages', id: message.id, action: 'updated' });
+    ok(res, updated);
+  }),
+);
+
 /** Copies a message into one or more other threads, tagged with where it came from. */
 systemRouter.post(
   '/chat/messages/:id/forward',
@@ -527,7 +559,7 @@ systemRouter.post(
     const forwarded: StoredRecord[] = [];
     for (const threadId of threadIds) {
       if (!getRecord('systemChatThreads', context.scope, threadId)) continue;
-      const preview = String(original['body'] ?? '').slice(0, 120) || 'Sent an attachment';
+      const preview = plainTextPreview(String(original['body'] ?? '')).slice(0, 120) || 'Sent an attachment';
       const message = createRecord(
         'systemChatMessages',
         context.scope,

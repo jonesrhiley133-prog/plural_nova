@@ -1,6 +1,6 @@
 {
   "name": "@pluralnova/server",
-  "version": "1.0.71",
+  "version": "1.0.72",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

@@ -12,6 +12,24 @@ different versions of PluralNova.
 
 ### Added
 
+- **Chat messages now support real formatting, and can be edited after
+  sending.** Both Direct Messages and System Chat gained a small toolbar
+  above the composer — bold, italic, underline, strikethrough, code,
+  quote, list, spoiler, and colour — each inserting its own markup at the
+  cursor, with Ctrl/Cmd+B/I/U as shortcuts. `__text__` now means underline
+  rather than bold, matching the convention most chat apps already use, so
+  it no longer collides with `**bold**`. A spoiler (`||text||`) renders
+  hidden until tapped, and each one reveals independently. Colour uses its
+  own syntax (`%red%like this%%`, or any hex code) with a live swatch
+  preview before you insert it. Images are never rendered inline in chat —
+  a pasted image link shows as plain text instead — so a message can't be
+  used to quietly confirm you've read it. Every place a message gets
+  shortened for a preview (conversation lists, notifications, replies,
+  forwards) now strips this markup first, so raw formatting syntax never
+  shows up somewhere it wasn't meant to be read. Editing your own message
+  reopens the composer with its original source, re-sends through the same
+  formatting, and marks the bubble "(edited)" for everyone in the
+  conversation.
 - **Insights now has its own privacy controls.** A check-in marked "keep
   out of Insights" (the switch was already on the unified check-in itself)
   is now actually honoured by every pattern that reads mood — it's left out

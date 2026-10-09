@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { newId, now, requireCollection, type StoredRecord } from '@pluralnova/shared';
+import { newId, now, plainTextPreview, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { badRequest, forbidden, notFound } from '../http/errors.js';
 import { auth, requireAuth } from '../auth/middleware.js';
@@ -479,7 +479,7 @@ messagesRouter.post(
       // list is only hidden, not gone (the row and the shared thread survive),
       // so it belongs back on screen the moment the conversation continues —
       // the same way it reappears in any other messaging app.
-      const preview = text.slice(0, 120);
+      const preview = plainTextPreview(text).slice(0, 120);
       db()
         .prepare(
           `UPDATE "conversations" SET "lastMessageAt" = ?, "lastMessagePreview" = ?, "updatedAt" = ?, "deletedAt" = NULL
@@ -518,7 +518,7 @@ messagesRouter.post(
         category: 'messages',
         kind: 'message.new',
         title: `${counterpartSummary(context.user.id)['displayName']} sent a message`,
-        body: text.slice(0, 120),
+        body: plainTextPreview(text).slice(0, 120),
         link: `/social/messages/${threadId}`,
         actorUserId: context.user.id,
       });
@@ -623,6 +623,51 @@ messagesRouter.delete(
     publish(context.user.id, { type: 'message.deleted', threadId, messageId });
 
     ok(res, { deleted: true });
+  }),
+);
+
+/** Only the sender may edit, and only the body — the same ownership check `DELETE` already makes. */
+messagesRouter.patch(
+  '/messages/:id',
+  handler((req, res) => {
+    const context = auth(req);
+    const row = db()
+      .prepare('SELECT * FROM "messages" WHERE "id" = ? AND "deletedAt" IS NULL')
+      .get(String(req.params['id'])) as Record<string, unknown> | undefined;
+    if (!row || row['senderUserId'] !== context.user.id) throw notFound('That message');
+
+    const { body } = req.body as { body?: string };
+    const text = body?.trim() ?? '';
+    if (!text) throw badRequest('Write something first.');
+
+    db()
+      .prepare('UPDATE "messages" SET "body" = ?, "edited" = 1, "updatedAt" = ? WHERE "id" = ?')
+      .run(text, now(), row['id']);
+
+    const threadId = row['threadId'] as string;
+    const messageId = String(row['id']);
+    const conversation = requireParticipant(context.user.id, threadId);
+    const otherUserId = conversation['otherUserId'] as string;
+
+    // Only the thread's current latest message also gets its preview
+    // updated — editing something further back must not make the
+    // conversation list claim a stale message is the newest one again.
+    if (conversation['lastMessageAt'] === row['sentAt']) {
+      const preview = plainTextPreview(text).slice(0, 120);
+      db()
+        .prepare('UPDATE "conversations" SET "lastMessagePreview" = ? WHERE "threadId" = ?')
+        .run(preview, threadId);
+    }
+
+    publish(otherUserId, { type: 'message.edited', threadId, messageId });
+    publish(context.user.id, { type: 'message.edited', threadId, messageId });
+
+    const updated = deserialize(requireCollection('messages'), {
+      ...row,
+      body: text,
+      edited: 1,
+    });
+    ok(res, { message: messageView(updated, context.user.id) });
   }),
 );
 

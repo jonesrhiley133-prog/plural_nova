@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { plainTextPreview } from '@pluralnova/shared';
 import { useToast } from '../core/toast.js';
 import { Avatar, Button } from '../ui/primitives.js';
 import { SearchField } from '../ui/forms.js';
@@ -69,7 +70,7 @@ export function ForwardDialog({ open, onClose, candidates, excludeThreadId, mess
           <div className="chat-message__quote" style={{ cursor: 'default' }}>
             <span className="chat-message__quote-author">{message.sender?.name ?? (message.isMine ? 'You' : 'Them')}</span>
             <span className="chat-message__quote-body truncate">
-              {message.attachments.length > 0 && !message.body ? 'Attachment' : message.body}
+              {message.attachments.length > 0 && !message.body ? 'Attachment' : plainTextPreview(message.body)}
             </span>
           </div>
         ) : null}

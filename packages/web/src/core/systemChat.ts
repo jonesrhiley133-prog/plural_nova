@@ -76,6 +76,7 @@ export interface SystemChatMessage {
   attachments: SystemChatAttachment[];
   forwardedFrom: SystemChatForwardInfo | null;
   sequence: number;
+  edited: boolean;
   clientId?: string;
   pending?: boolean;
   failed?: string;
@@ -240,6 +241,7 @@ export function useSystemChatConversation(
   retry: (message: SystemChatMessage) => Promise<void>;
   react: (messageId: string, emoji: string) => Promise<void>;
   forward: (messageId: string, targetThreadIds: string[]) => Promise<void>;
+  edit: (messageId: string, text: string) => Promise<void>;
   remove: (messageId: string) => Promise<void>;
   markRead: () => void;
   refreshThread: () => Promise<void>;
@@ -283,6 +285,7 @@ export function useSystemChatConversation(
         attachments: toAttachments(raw['attachments']),
         forwardedFrom: toForwardedFrom(raw['forwardedFrom']),
         sequence: Number(raw['sequence'] ?? 0),
+        edited: raw['edited'] === true,
         clientId: (raw['clientId'] as string) ?? undefined,
       };
     },
@@ -368,6 +371,7 @@ export function useSystemChatConversation(
         attachments: options.attachments ?? [],
         forwardedFrom: options.forwardedFrom ?? null,
         sequence: Number.MAX_SAFE_INTEGER,
+        edited: false,
         clientId,
         pending: true,
       };
@@ -424,6 +428,14 @@ export function useSystemChatConversation(
     await api.post(`/api/system/chat/messages/${messageId}/forward`, { threadIds: targetThreadIds });
   }, []);
 
+  const edit = useCallback(async (messageId: string, text: string) => {
+    const body = text.trim();
+    await api.patch(`/api/system/chat/messages/${messageId}`, { body });
+    setRawMessages((current) =>
+      current.map((message) => (String(message['id']) === messageId ? { ...message, body, edited: true } : message)),
+    );
+  }, []);
+
   const remove = useCallback(async (messageId: string) => {
     await api.delete(`/api/records/systemChatMessages/${messageId}`);
     setRawMessages((current) => current.filter((message) => String(message['id']) !== messageId));
@@ -453,6 +465,7 @@ export function useSystemChatConversation(
     react,
     refreshThread: load,
     forward,
+    edit,
     remove,
     markRead,
   };

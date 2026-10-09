@@ -16,7 +16,7 @@ import { MessageBubble } from '../chat/MessageBubble.js';
 import { type ChatAttachmentLike } from '../chat/ChatAttachmentView.js';
 import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
 import { useVirtualizedChat } from '../chat/useVirtualizedChat.js';
-import { ChatComposer, type ComposerReplyTarget } from '../chat/ChatComposer.js';
+import { ChatComposer, type ComposerEditTarget, type ComposerReplyTarget } from '../chat/ChatComposer.js';
 import { useStableRowActions } from '../chat/useStableRowActions.js';
 import { MessagesInfoDialog } from './MessagesInfoDialog.js';
 import { SpeakingAsSwitcher } from './SpeakingAsSwitcher.js';
@@ -72,6 +72,7 @@ const MessageRow = memo(function MessageRow({
         onReply={() => actions.onReply(message)}
         onForward={() => actions.onForward(message)}
         onCopy={() => actions.onCopy(message)}
+        onEdit={() => actions.onEdit(message)}
         onDelete={() => actions.onDelete(message)}
         onOpenAttachment={actions.onOpenAttachment}
         onQuoteClick={quoted && onQuoteClick ? () => onQuoteClick(quoted.id) : undefined}
@@ -94,6 +95,7 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
   const { threads: allThreads } = useMessageThreads();
 
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [lightbox, setLightbox] = useState<ChatAttachmentLike | null>(null);
   const forwardDialog = useDialog<Message>();
@@ -107,6 +109,7 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
 
   useEffect(() => {
     setReplyTo(null);
+    setEditingMessage(null);
     userScrolledUp.current = false;
   }, [threadId, userScrolledUp]);
 
@@ -191,6 +194,7 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
         .then(() => toast.success('Copied'))
         .catch(() => toast.fromError(new Error('Copy failed'), 'Could not copy that message'));
     },
+    onEdit: (message) => setEditingMessage(message),
     onDelete: (message) => deleteDialog.show(message),
     onOpenAttachment: (attachment) => {
       if (attachment.mediaType === 'image') setLightbox(attachment);
@@ -199,6 +203,9 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
 
   const replyTarget: ComposerReplyTarget | null = replyTo
     ? { id: replyTo.id, body: replyTo.body, isMine: replyTo.isMine, senderName: replyTo.sender?.name ?? null }
+    : null;
+  const editTarget: ComposerEditTarget | null = editingMessage
+    ? { id: editingMessage.id, body: editingMessage.body }
     : null;
 
   if (conversation.loading && !conversation.thread) {
@@ -300,6 +307,9 @@ export function MessageConversationView({ threadId, speakingAsMemberId, onBack }
         replyTo={replyTarget}
         onCancelReply={() => setReplyTo(null)}
         onSend={(text, options) => conversation.send(text, options)}
+        editing={editTarget}
+        onCancelEdit={() => setEditingMessage(null)}
+        onEditSubmit={(messageId, text) => conversation.edit(messageId, text)}
         onTyping={conversation.sendTyping}
         uploadAttachment={uploadMessageAttachment}
         sending={conversation.sending}
