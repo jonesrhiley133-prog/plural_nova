@@ -14,6 +14,7 @@ import {
 } from '../core/systemChat.js';
 import { Avatar, AvatarStack, IconButton } from '../ui/primitives.js';
 import { Icon } from '../ui/Icon.js';
+import { SearchField } from '../ui/forms.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
 import { SystemChatMessageRow } from './SystemChatMessageRow.js';
@@ -121,6 +122,8 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   const [editingMessage, setEditingMessage] = useState<SystemChatMessage | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [memberPanelOpen, setMemberPanelOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [lightbox, setLightbox] = useState<ChatAttachmentLike | null>(null);
   const forwardDialog = useDialog<SystemChatMessage>();
   const deleteDialog = useDialog<SystemChatMessage>();
@@ -144,6 +147,8 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   useEffect(() => {
     setReplyTo(null);
     setEditingMessage(null);
+    setSearchOpen(false);
+    setSearchQuery('');
     userScrolledUp.current = false;
     setScrolledUp(false);
     setHasNewBelow(false);
@@ -227,6 +232,16 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
       };
     });
   }, [messagesByOldestFirst, byId]);
+
+  // Client-side only, over whatever's already loaded (plus anything scrolling
+  // up to load older history adds) — there's no full-text search endpoint,
+  // and the spec only asks for a search-in-conversation control, not a
+  // system-wide one.
+  const searchResults = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    if (!needle) return [];
+    return messagesByOldestFirst.filter((message) => !message.removed && message.body.toLowerCase().includes(needle));
+  }, [messagesByOldestFirst, searchQuery]);
 
   const scrollToMessage = useCallback(
     (id: string): void => {
@@ -331,46 +346,99 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
     <div className="chat-conversation" style={appearanceStyle} data-spacing={appearance.spacing}>
       <header className="chat-conversation__header">
         <IconButton icon="chevronLeft" label="Back to conversations" variant="ghost" className="chat-conversation__back" onClick={onBack} />
-        {chatIcon ? (
-          <ChatIcon icon={chatIcon} size={34} />
-        ) : isGroupLike ? (
-          <AvatarStack
-            people={(thread?.participants ?? []).map((person) => ({
-              name: person.name,
-              src: person.avatarUrl,
-              color: person.color,
-              icon: person.icon,
-            }))}
-            size={30}
-          />
+        {searchOpen ? (
+          <>
+            <div className="chat-conversation__search">
+              <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Search this conversation" autoFocus />
+            </div>
+            <IconButton
+              icon="close"
+              label="Close search"
+              variant="ghost"
+              onClick={() => {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }}
+            />
+          </>
         ) : (
-          <Avatar
-            name={thread?.title ?? '?'}
-            src={thread?.person?.avatarUrl ?? null}
-            color={thread?.person?.color ?? null}
-            icon={thread?.person?.icon ?? null}
-            size={34}
-            round
-          />
+          <>
+            {chatIcon ? (
+              <ChatIcon icon={chatIcon} size={34} />
+            ) : isGroupLike ? (
+              <AvatarStack
+                people={(thread?.participants ?? []).map((person) => ({
+                  name: person.name,
+                  src: person.avatarUrl,
+                  color: person.color,
+                  icon: person.icon,
+                }))}
+                size={30}
+              />
+            ) : (
+              <Avatar
+                name={thread?.title ?? '?'}
+                src={thread?.person?.avatarUrl ?? null}
+                color={thread?.person?.color ?? null}
+                icon={thread?.person?.icon ?? null}
+                size={34}
+                round
+              />
+            )}
+            <div className="chat-conversation__title">
+              <span className="chat-conversation__name">{thread?.title}</span>
+              {isGroupLike ? (
+                <span className="chat-conversation__status">
+                  {(thread?.participants.length ?? 0) || 'Everyone'} {thread?.kind === 'system' ? '· whole system' : ''}
+                </span>
+              ) : null}
+            </div>
+            <IconButton icon="search" label="Search this conversation" variant="ghost" onClick={() => setSearchOpen(true)} />
+            {isGroupLike ? (
+              <IconButton
+                icon="members"
+                label={memberPanelOpen ? 'Hide members' : 'Show members'}
+                variant="ghost"
+                onClick={() => setMemberPanelOpen((open) => !open)}
+              />
+            ) : null}
+            <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
+          </>
         )}
-        <div className="chat-conversation__title">
-          <span className="chat-conversation__name">{thread?.title}</span>
-          {isGroupLike ? (
-            <span className="chat-conversation__status">
-              {(thread?.participants.length ?? 0) || 'Everyone'} {thread?.kind === 'system' ? '· whole system' : ''}
-            </span>
-          ) : null}
-        </div>
-        {isGroupLike ? (
-          <IconButton
-            icon="members"
-            label={memberPanelOpen ? 'Hide members' : 'Show members'}
-            variant="ghost"
-            onClick={() => setMemberPanelOpen((open) => !open)}
-          />
-        ) : null}
-        <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
       </header>
+
+      {searchOpen && searchQuery.trim() ? (
+        <div className="chat-search-results">
+          {searchResults.length === 0 ? (
+            <p className="chat-search-results__empty">No messages match "{searchQuery.trim()}".</p>
+          ) : (
+            searchResults.map((message) => (
+              <button
+                key={message.id}
+                type="button"
+                className="chat-search-results__row"
+                onClick={() => scrollToMessage(message.id)}
+              >
+                <Avatar
+                  name={message.sender?.name ?? 'Someone'}
+                  src={message.sender?.avatarUrl ?? null}
+                  color={message.sender?.color ?? null}
+                  icon={message.sender?.icon ?? null}
+                  size={32}
+                  round
+                />
+                <span className="chat-search-results__body">
+                  <span className="chat-search-results__top">
+                    <span className="chat-search-results__sender truncate">{message.sender?.name ?? 'Someone'}</span>
+                    <span className="chat-search-results__time">{dates.relative(message.sentAt)}</span>
+                  </span>
+                  <span className="chat-search-results__snippet truncate">{message.body}</span>
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      ) : null}
 
       <div className="chat-conversation__messages" ref={scrollRef} onScroll={onMessagesScroll}>
         {conversation.loadingOlder ? <div className="chat-loading-older">Loading earlier messages…</div> : null}

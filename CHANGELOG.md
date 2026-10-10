@@ -12,6 +12,16 @@ different versions of PluralNova.
 
 ### Changed
 
+- **System Chat's composer gets an emoji picker, and conversations gain a
+  search.** A new emoji button in the composer toolbar opens a curated grid
+  grouped into a few simple categories — picking one drops it in at the
+  cursor, same as the existing formatting buttons. A new search button in
+  the conversation header filters everything already loaded (loading more
+  history by scrolling up still works while searching) down to messages
+  matching what you typed; picking a result jumps straight to it and
+  briefly highlights it in place. Both are shared, bubble-agnostic pieces —
+  Direct Messages' composer picks up the same emoji picker for free.
+
 - **System Chat gets a desktop nav rail and a member panel.** On wide
   screens, a narrow rail now sits to the left of the conversation list with
   who's currently chatting, a shortcut to start a new group, and a way back

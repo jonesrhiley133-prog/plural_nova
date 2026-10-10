@@ -13,6 +13,7 @@ import {
 } from '../ui/MentionAutocomplete.js';
 import { PendingAttachmentChip } from './ChatAttachmentView.js';
 import { GifPickerDialog } from './GifPickerDialog.js';
+import { EmojiPicker } from './EmojiPicker.js';
 import { useVoiceRecorder, VoiceRecorderPanel } from './VoiceRecorder.js';
 
 // Files keeps today's broad reach — documents included — since that option is
@@ -102,6 +103,7 @@ export function ChatComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachMenu = useActionMenu();
   const colorMenu = useActionMenu();
+  const emojiMenu = useActionMenu();
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
   const [draftColor, setDraftColor] = useState('#e53e3e');
   const mentionAutocomplete = useMentionAutocomplete();
@@ -214,6 +216,15 @@ export function ChatComposer({
   const insertColor = (): void => {
     insertAroundSelection(`%${draftColor}%`, '%%', 'coloured text');
     colorMenu.close();
+  };
+
+  const insertEmoji = (emoji: string): void => {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? draft.length;
+    const end = el?.selectionEnd ?? draft.length;
+    setDraft(draft.slice(0, start) + emoji + draft.slice(end));
+    const cursor = start + emoji.length;
+    pendingSelection.current = { start: cursor, end: cursor };
   };
 
   const send = async (): Promise<void> => {
@@ -367,6 +378,13 @@ export function ChatComposer({
                   size="sm"
                   onClick={(event) => colorMenu.openFrom(event)}
                 />
+                <IconButton
+                  icon="emoji"
+                  label="Emoji"
+                  variant="ghost"
+                  size="sm"
+                  onClick={(event) => emojiMenu.openFrom(event)}
+                />
               </div>
               <textarea
                 ref={textareaRef}
@@ -455,6 +473,7 @@ export function ChatComposer({
             onColorChange={setDraftColor}
             onInsert={insertColor}
           />
+          <EmojiPicker position={emojiMenu.position} onClose={emojiMenu.close} onPick={insertEmoji} />
           <ActionMenu
             position={attachMenu.position}
             onClose={attachMenu.close}

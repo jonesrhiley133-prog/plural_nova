@@ -463,3 +463,57 @@ describe('system chat: nav rail and member panel', () => {
     await page.keyboard.press('Escape');
   });
 });
+
+describe('system chat: emoji picker and conversation search', () => {
+  it('inserts an emoji from the composer toolbar and dismisses on an outside click', async () => {
+    const { page } = session;
+    const threadId = await createGroupThread(page, [chatterA, chatterB], 'Emoji check');
+    await page.goto(`${BASE}/system/chat/${threadId}`, { waitUntil: 'networkidle' });
+    const box = page.getByRole('textbox', { name: 'Message' });
+    await box.waitFor({ timeout: 5000 });
+
+    await page.getByRole('button', { name: 'Emoji' }).click();
+    const picker = page.locator('.emoji-picker');
+    await picker.waitFor({ timeout: 5000 });
+    await picker.locator('.emoji-picker__option', { hasText: '😀' }).click();
+    assert.equal(await box.inputValue(), '😀', 'the picked emoji was not inserted into the draft');
+
+    await page.getByRole('button', { name: 'Emoji' }).click();
+    await picker.waitFor({ timeout: 5000 });
+    await page.locator('.chat-conversation__name').click();
+    assert.equal(await page.locator('.emoji-picker').count(), 0, 'the emoji picker stayed open after an outside click');
+
+    await box.fill('');
+  });
+
+  it('finds an already-sent message by text and jumps to it, with a no-match state', async () => {
+    const { page } = session;
+    const threadId = await createGroupThread(page, [chatterA, chatterB], 'Search check');
+    await page.goto(`${BASE}/system/chat/${threadId}`, { waitUntil: 'networkidle' });
+    const box = page.getByRole('textbox', { name: 'Message' });
+    const send = page.getByRole('button', { name: 'Send' });
+    await box.waitFor({ timeout: 5000 });
+
+    for (const text of ['hello there', 'checking the weather today', 'goodbye for now']) {
+      await box.fill(text);
+      await send.click();
+      await page.locator('.chat-conversation__messages').getByText(text, { exact: true }).waitFor({ timeout: 5000 });
+    }
+
+    await page.getByRole('button', { name: 'Search this conversation' }).click();
+    await page.getByPlaceholder('Search this conversation').fill('weather');
+    const results = page.locator('.chat-search-results__row');
+    await results.first().waitFor({ timeout: 5000 });
+    assert.equal(await results.count(), 1, 'the search did not narrow to the one matching message');
+    assert.ok((await results.first().textContent())?.includes('checking the weather today'), 'the result row is missing the matching snippet');
+
+    await results.first().click();
+    await page.locator('.chat-message--highlight').waitFor({ timeout: 5000 });
+
+    await page.getByPlaceholder('Search this conversation').fill('no such text anywhere');
+    await page.locator('.chat-search-results__empty').waitFor({ timeout: 5000 });
+
+    await page.getByRole('button', { name: 'Close search' }).click();
+    assert.equal(await page.locator('.chat-search-results').count(), 0, 'the results panel stayed open after closing search');
+  });
+});

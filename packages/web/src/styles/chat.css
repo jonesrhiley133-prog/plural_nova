@@ -478,6 +478,81 @@
   color: var(--text-faint);
 }
 
+.chat-conversation__search {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-search-results {
+  flex-shrink: 0;
+  max-height: 45%;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.chat-search-results__empty {
+  margin: 0;
+  padding: var(--space-4) var(--space-3);
+  color: var(--text-faint);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.chat-search-results__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.chat-search-results__row:last-child {
+  border-bottom: none;
+}
+
+.chat-search-results__row:hover,
+.chat-search-results__row:focus-visible {
+  background: var(--surface-sunken);
+}
+
+.chat-search-results__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-search-results__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.chat-search-results__sender {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.chat-search-results__time {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.chat-search-results__snippet {
+  font-size: 0.85rem;
+  color: var(--text-faint);
+}
+
 /* Who a DM is sent as — its own slim row, outside the scrollable history,
    so it stays visible while scrolled the same way the header above it does. */
 .chat-conversation__speaker {
@@ -1147,6 +1222,53 @@
   font-size: 1rem;
   padding: 6px 12px;
   width: 7em;
+}
+
+.emoji-picker {
+  z-index: var(--z-modal);
+  width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+  padding: var(--space-2) var(--space-3);
+}
+
+.emoji-picker__category + .emoji-picker__category {
+  margin-top: var(--space-2);
+}
+
+.emoji-picker__category-title {
+  margin: 0 0 var(--space-1);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+.emoji-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.emoji-picker__option {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.emoji-picker__option:hover,
+.emoji-picker__option:focus-visible {
+  background: var(--surface-sunken);
+  transform: scale(1.15);
 }
 
 .chatter-popover {
