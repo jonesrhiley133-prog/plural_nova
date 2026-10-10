@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { readableTextOn, resolveChatAppearance } from '@pluralnova/shared';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { resolveChatAppearance } from '@pluralnova/shared';
 import { useAuth } from '../core/auth.js';
 import { useCollection } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
@@ -8,31 +8,45 @@ import {
   useSystemChatConversation,
   useSystemChatThreads,
   uploadSystemChatAttachment,
-  type SystemChatAttachment,
+  sideForSequence,
+  type MessageSide,
   type SystemChatMessage,
 } from '../core/systemChat.js';
-import { Avatar, AvatarStack, Button, IconButton } from '../ui/primitives.js';
-import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
-import { ActionMenu, ConfirmDialog, Dialog, useActionMenu, useDialog } from '../ui/overlays.js';
+import { Avatar, AvatarStack, IconButton } from '../ui/primitives.js';
 import { Icon } from '../ui/Icon.js';
-import { MessageBubble } from '../chat/MessageBubble.js';
-import { PendingAttachmentChip, type ChatAttachmentLike } from '../chat/ChatAttachmentView.js';
-import { GifPickerDialog } from '../chat/GifPickerDialog.js';
-import { useVoiceRecorder, VoiceRecorderPanel } from '../chat/VoiceRecorder.js';
+import { SearchField } from '../ui/forms.js';
+import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
+import { ConfirmDialog, Dialog, useDialog } from '../ui/overlays.js';
+import { SystemChatMessageRow } from './SystemChatMessageRow.js';
+import { type MentionMap } from '../ui/Markdown.js';
+import { type ChatAttachmentLike } from '../chat/ChatAttachmentView.js';
 import { ForwardDialog, type ForwardCandidate } from '../chat/ForwardDialog.js';
 import { useVirtualizedChat } from '../chat/useVirtualizedChat.js';
+import { ChatComposer, type ComposerEditTarget, type ComposerReplyTarget } from '../chat/ChatComposer.js';
+import { useStableRowActions } from '../chat/useStableRowActions.js';
 import { SendAsStrip } from './SendAsStrip.js';
 import { SystemChatInfoDialog } from './SystemChatInfoDialog.js';
+import { ChatMemberPanel } from './ChatMemberPanel.js';
 import { ChatIcon, readChatIcon } from './ChatIcon.js';
 
-// Files keeps today's broad reach — documents included — since that option is
-// deliberately the one that still opens the system file picker. Gallery and
-// Camera get their own, narrower inputs below so each can carry the right
-// `accept`/`capture` for what it is, which is also what lets the Android
-// shell (see MainActivity.kt's onShowFileChooser) tell Gallery apart from
-// Files and send it to the native photo picker instead of a generic chooser.
-const FILES_ACCEPT = 'image/*,video/*,audio/*,.pdf,.txt';
-const GALLERY_ACCEPT = 'image/*,video/*';
+/**
+ * Whether the viewport is at or above the desktop breakpoint the chat panes
+ * themselves already switch on (chat.css). Reactive, not a one-time read —
+ * the member panel's column-vs-dialog choice has to follow a live resize,
+ * not just how wide the window happened to be on mount.
+ */
+function useIsDesktop(): boolean {
+  const query = '(min-width: 900px)';
+  const [isDesktop, setIsDesktop] = useState(() => typeof matchMedia === 'function' && matchMedia(query).matches);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return undefined;
+    const mql = matchMedia(query);
+    const onChange = (): void => setIsDesktop(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+}
 
 /**
  * One open In-Sys Chat conversation: header, history, composer. The header
@@ -49,6 +63,53 @@ function dayKey(iso: string): string {
   return iso.slice(0, 10);
 }
 
+interface ConversationRow {
+  message: SystemChatMessage;
+  showDayHeading: boolean;
+  /** The message's permanent position, never who sent it — see `sideForSequence`. */
+  side: MessageSide;
+  quoted: SystemChatMessage | null;
+}
+
+const MessageRow = memo(function MessageRow({
+  row,
+  dayLabel,
+  timeLabel,
+  mentions,
+  actions,
+  onQuoteClick,
+}: {
+  row: ConversationRow;
+  dayLabel: string;
+  timeLabel: string;
+  mentions: MentionMap;
+  actions: ReturnType<typeof useStableRowActions<SystemChatMessage>>;
+  onQuoteClick: ((id: string) => void) | undefined;
+}): JSX.Element {
+  const { message, showDayHeading, side, quoted } = row;
+  return (
+    <>
+      {showDayHeading ? <div className="chat-day-heading">{dayLabel}</div> : null}
+      <SystemChatMessageRow
+        message={message}
+        side={side}
+        quotedMessage={quoted}
+        timeLabel={timeLabel}
+        mentions={mentions}
+        onReact={(emoji) => actions.onReact(message.id, emoji)}
+        onRetry={() => actions.onRetry(message)}
+        onReply={() => actions.onReply(message)}
+        onForward={() => actions.onForward(message)}
+        onCopy={() => actions.onCopy(message)}
+        onEdit={() => actions.onEdit(message)}
+        onDelete={() => actions.onDelete(message)}
+        onOpenAttachment={actions.onOpenAttachment}
+        onQuoteClick={quoted && onQuoteClick ? () => onQuoteClick(quoted.id) : undefined}
+      />
+    </>
+  );
+});
+
 export function SystemChatConversationView({ threadId, viewerMemberId, onBack }: SystemChatConversationViewProps): JSX.Element {
   const dates = useDateFormat();
   const toast = useToast();
@@ -57,32 +118,40 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   const conversation = useSystemChatConversation(threadId, viewerMemberId);
   const { threads: allThreads } = useSystemChatThreads();
 
-  const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<SystemChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<SystemChatMessage | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [pendingAttachments, setPendingAttachments] = useState<SystemChatAttachment[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [memberPanelOpen, setMemberPanelOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [lightbox, setLightbox] = useState<ChatAttachmentLike | null>(null);
   const forwardDialog = useDialog<SystemChatMessage>();
   const deleteDialog = useDialog<SystemChatMessage>();
-  const recorder = useVoiceRecorder();
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const filesInputRef = useRef<HTMLInputElement>(null);
-  const attachMenu = useActionMenu();
-  const [gifPickerOpen, setGifPickerOpen] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const messagesByOldestFirst = conversation.messages;
-  const { scrollRef, virtualizer, userScrolledUp, handleScroll, scrollToBottom, scrollToId } = useVirtualizedChat(
-    messagesByOldestFirst,
-    { estimateSize: 76 },
-  );
+  // Every row now always shows its full avatar/name/timestamp header (no
+  // collapsing for a repeated sender), so the average row is a bit taller
+  // than the old mixed collapsed/full-row estimate.
+  const { scrollRef, virtualizer, userScrolledUp, handleScroll, scrollToBottom, scrollToId, getScrollMetrics } =
+    useVirtualizedChat(messagesByOldestFirst, { estimateSize: 84 });
+
+  // Reactive mirror of `userScrolledUp` (a ref, so it doesn't itself trigger a
+  // render) — only needed for the jump-to-latest affordance below, which has
+  // to show and hide as the user scrolls.
+  const [scrolledUp, setScrolledUp] = useState(false);
+  const [hasNewBelow, setHasNewBelow] = useState(false);
+  const latestMessageIdRef = useRef<string | null>(null);
+  const loadingOlderRef = useRef(false);
 
   useEffect(() => {
     setReplyTo(null);
-    setDraft('');
-    setPendingAttachments([]);
+    setEditingMessage(null);
+    setSearchOpen(false);
+    setSearchQuery('');
     userScrolledUp.current = false;
+    setScrolledUp(false);
+    setHasNewBelow(false);
   }, [threadId, viewerMemberId, userScrolledUp]);
 
   useEffect(() => {
@@ -90,98 +159,141 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
     scrollToBottom();
   }, [messagesByOldestFirst.length, userScrolledUp, scrollToBottom]);
 
+  // Flags the jump-to-latest affordance as "new messages below" specifically
+  // when a genuinely new message lands at the tail while scrolled away from
+  // it — never when `loadOlder()` prepends older ones, which never changes
+  // the last message, and never while already at the bottom.
+  useEffect(() => {
+    const latest = messagesByOldestFirst[messagesByOldestFirst.length - 1]?.id ?? null;
+    if (latest !== latestMessageIdRef.current) {
+      if (latestMessageIdRef.current !== null && userScrolledUp.current) setHasNewBelow(true);
+      latestMessageIdRef.current = latest;
+    }
+  }, [messagesByOldestFirst, userScrolledUp]);
+
+  // No manual scroll-anchor dance needed around the prepend: the virtualizer
+  // itself is configured with `anchorTo: 'end'` (see useVirtualizedChat),
+  // which keeps the viewport pinned to what the user was already looking at
+  // as soon as the longer `messagesByOldestFirst` array renders.
+  const loadOlderIfNearTop = useCallback(async () => {
+    if (loadingOlderRef.current || !conversation.hasMoreOlder || conversation.loadingOlder) return;
+    const metrics = getScrollMetrics();
+    if (!metrics || metrics.scrollTop > 150) return;
+    loadingOlderRef.current = true;
+    try {
+      await conversation.loadOlder();
+    } finally {
+      loadingOlderRef.current = false;
+    }
+  }, [conversation, getScrollMetrics]);
+
+  const onMessagesScroll = useCallback(() => {
+    handleScroll();
+    setScrolledUp(userScrolledUp.current);
+    if (!userScrolledUp.current) setHasNewBelow(false);
+    void loadOlderIfNearTop();
+  }, [handleScroll, userScrolledUp, loadOlderIfNearTop]);
+
+  const jumpToLatest = useCallback(() => {
+    scrollToBottom();
+    userScrolledUp.current = false;
+    setScrolledUp(false);
+    setHasNewBelow(false);
+  }, [scrollToBottom, userScrolledUp]);
+
   useEffect(() => {
     conversation.markRead();
-  }, [conversation]);
+    // `conversation` itself is a fresh object every render; `markRead` is
+    // individually stable (wrapped in its own `useCallback`), so depending on
+    // it directly is what keeps this from re-running on every render instead
+    // of only when there is actually something new to mark read.
+  }, [conversation.markRead]);
 
   const byId = useMemo(() => new Map(messagesByOldestFirst.map((message) => [message.id, message])), [messagesByOldestFirst]);
 
-  // Grouping (day headings, whether to repeat an avatar) depends on the
-  // previous message in the full, oldest-first order — computed once here,
-  // over every message, rather than from whatever the virtualizer currently
-  // has mounted, which is only ever a scrolled-to slice of the conversation.
-  const rows = useMemo(() => {
+  // Day headings depend on the previous message in the full, oldest-first
+  // order — computed once here, over every message, rather than from
+  // whatever the virtualizer currently has mounted, which is only ever a
+  // scrolled-to slice of the conversation. Unlike the old bubble layout,
+  // there is no sender-grouping to track alongside it: strict alternation
+  // means two messages from the same sender can never land adjacent and
+  // same-sided, so every message always shows its own avatar and name.
+  const rows = useMemo<ConversationRow[]>(() => {
     let lastDay = '';
-    let lastSenderKey = '';
     return messagesByOldestFirst.map((message) => {
       const day = dayKey(message.sentAt);
-      const senderKey = `${message.isMine}:${message.sender?.id ?? ''}`;
       const showDayHeading = day !== lastDay;
-      const showAvatar = showDayHeading || senderKey !== lastSenderKey;
-      const showName = showAvatar && !message.isMine;
       lastDay = day;
-      lastSenderKey = senderKey;
       return {
         message,
         showDayHeading,
-        showAvatar,
-        showName,
+        side: sideForSequence(message.sequence),
         quoted: message.replyToId ? byId.get(message.replyToId) ?? null : null,
       };
     });
   }, [messagesByOldestFirst, byId]);
 
-  const scrollToMessage = (id: string): void => {
-    scrollToId(id);
-    // The target row may not exist yet — jumping the scroll position only
-    // brings it into the virtualizer's rendered window; it mounts on the
-    // next render, which this briefly waits out before smooth-scrolling the
-    // last bit and applying the highlight, same as before virtualization.
-    window.setTimeout(() => {
-      const element = document.getElementById(`chat-message-${id}`);
-      if (!element) return;
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      element.classList.add('chat-message--highlight');
-      window.setTimeout(() => element.classList.remove('chat-message--highlight'), 1200);
-    }, 50);
-  };
+  // Client-side only, over whatever's already loaded (plus anything scrolling
+  // up to load older history adds) — there's no full-text search endpoint,
+  // and the spec only asks for a search-in-conversation control, not a
+  // system-wide one.
+  const searchResults = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    if (!needle) return [];
+    return messagesByOldestFirst.filter((message) => !message.removed && message.body.toLowerCase().includes(needle));
+  }, [messagesByOldestFirst, searchQuery]);
 
-  const send = async (): Promise<void> => {
-    const text = draft;
-    if (!text.trim() && pendingAttachments.length === 0) return;
-    setDraft('');
-    const attachments = pendingAttachments;
-    setPendingAttachments([]);
-    const options = { replyToId: replyTo?.id ?? null, attachments };
-    setReplyTo(null);
-    await conversation.send(text, options);
-  };
+  const scrollToMessage = useCallback(
+    (id: string): void => {
+      scrollToId(id);
+      // The target row may not exist yet — jumping the scroll position only
+      // brings it into the virtualizer's rendered window; it mounts on the
+      // next render, which this briefly waits out before smooth-scrolling the
+      // last bit and applying the highlight, same as before virtualization.
+      window.setTimeout(() => {
+        const element = document.getElementById(`chat-message-${id}`);
+        if (!element) return;
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('chat-message--highlight');
+        window.setTimeout(() => element.classList.remove('chat-message--highlight'), 1200);
+      }, 50);
+    },
+    [scrollToId],
+  );
 
-  const addFiles = async (files: FileList | null): Promise<void> => {
-    if (!files || files.length === 0) return;
-    setUploading(true);
-    try {
-      for (const file of Array.from(files)) {
-        const attachment = await uploadSystemChatAttachment(file, file.name);
-        setPendingAttachments((current) => [...current, attachment]);
+  const rowActions = useStableRowActions<SystemChatMessage>({
+    onReact: (messageId, emoji) => {
+      void conversation.react(messageId, emoji).catch((cause: unknown) => toast.fromError(cause, 'That reaction did not go through'));
+    },
+    onRetry: (message) => void conversation.retry(message),
+    onReply: (message) => setReplyTo(message),
+    onForward: (message) => forwardDialog.show(message),
+    onCopy: (message) => {
+      void navigator.clipboard
+        .writeText(message.body)
+        .then(() => toast.success('Copied'))
+        .catch(() => toast.fromError(new Error('Copy failed'), 'Could not copy that message'));
+    },
+    onEdit: (message) => setEditingMessage(message),
+    onDelete: (message) => deleteDialog.show(message),
+    onOpenAttachment: (attachment) => {
+      if (attachment.mediaType === 'image') setLightbox(attachment);
+    },
+  });
+
+  const replyTarget: ComposerReplyTarget | null = replyTo
+    ? {
+        id: replyTo.id,
+        body: replyTo.body,
+        // Purely a cosmetic "yourself" label on the reply preview — unrelated
+        // to alignment, which never depends on who's currently sending as whom.
+        isMine: Boolean(conversation.sendAsMemberId) && replyTo.sender?.id === conversation.sendAsMemberId,
+        senderName: replyTo.sender?.name ?? null,
       }
-    } catch (cause) {
-      toast.fromError(cause, 'That file did not upload');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const sendVoiceMessage = async (blob: Blob): Promise<void> => {
-    try {
-      const attachment = await uploadSystemChatAttachment(blob, `voice-message.${blob.type.includes('mp4') ? 'm4a' : 'webm'}`);
-      await conversation.send('', { replyToId: replyTo?.id ?? null, attachments: [attachment] });
-      setReplyTo(null);
-    } catch (cause) {
-      toast.fromError(cause, 'That voice message did not send');
-    }
-  };
-
-  const react = (messageId: string, emoji: string): void => {
-    void conversation.react(messageId, emoji).catch((cause: unknown) => toast.fromError(cause, 'That reaction did not go through'));
-  };
-
-  const copy = (message: SystemChatMessage): void => {
-    void navigator.clipboard
-      .writeText(message.body)
-      .then(() => toast.success('Copied'))
-      .catch(() => toast.fromError(new Error('Copy failed'), 'Could not copy that message'));
-  };
+    : null;
+  const editTarget: ComposerEditTarget | null = editingMessage
+    ? { id: editingMessage.id, body: editingMessage.body }
+    : null;
 
   if (conversation.loading && !conversation.thread) {
     return (
@@ -206,13 +318,9 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   const chatIcon = thread ? readChatIcon(thread.settings) : null;
 
   const appearance = resolveChatAppearance(settings.chatAppearance, thread?.settings ?? null);
-  const appearanceStyle = {
-    ...(appearance.wallpaper ? { '--chat-wallpaper': appearance.wallpaper } : {}),
-    ...(appearance.bubbleMine
-      ? { '--chat-bubble-mine': appearance.bubbleMine, '--chat-bubble-mine-text': readableTextOn(appearance.bubbleMine) }
-      : {}),
-    ...(appearance.bubbleTheirs ? { '--chat-bubble-theirs': appearance.bubbleTheirs } : {}),
-  } as never;
+  // Bubble colors aren't read anywhere here — System Chat's feed has had no
+  // bubbles since the Discord-style rewrite — so only wallpaper carries over.
+  const appearanceStyle = (appearance.wallpaper ? { '--chat-wallpaper': appearance.wallpaper } : {}) as never;
 
   const forwardCandidates: ForwardCandidate[] = allThreads.map((candidate) => {
     const candidateGroupLike = candidate.kind === 'group' || candidate.kind === 'system';
@@ -226,57 +334,131 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
     };
   });
 
+  const memberCount = thread ? (thread.participants.length > 0 ? thread.participants.length : 1) : 0;
+  // A member-column sibling needs `.chat-pane--conversation` (the parent,
+  // styled in chat.css) laid out as a row instead of `.chat-conversation`
+  // itself growing a new wrapper — `.chat-conversation` is already its own
+  // independent column flex box, so it only needs `flex: 1` to share the row.
+  const showMemberColumn = isGroupLike && memberPanelOpen && isDesktop;
+
   return (
+    <>
     <div className="chat-conversation" style={appearanceStyle} data-spacing={appearance.spacing}>
       <header className="chat-conversation__header">
         <IconButton icon="chevronLeft" label="Back to conversations" variant="ghost" className="chat-conversation__back" onClick={onBack} />
-        {chatIcon ? (
-          <ChatIcon icon={chatIcon} size={34} />
-        ) : isGroupLike ? (
-          <AvatarStack
-            people={(thread?.participants ?? []).map((person) => ({
-              name: person.name,
-              src: person.avatarUrl,
-              color: person.color,
-              icon: person.icon,
-            }))}
-            size={30}
-          />
+        {searchOpen ? (
+          <>
+            <div className="chat-conversation__search">
+              <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Search this conversation" autoFocus />
+            </div>
+            <IconButton
+              icon="close"
+              label="Close search"
+              variant="ghost"
+              onClick={() => {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }}
+            />
+          </>
         ) : (
-          <Avatar
-            name={thread?.title ?? '?'}
-            src={thread?.person?.avatarUrl ?? null}
-            color={thread?.person?.color ?? null}
-            icon={thread?.person?.icon ?? null}
-            size={34}
-            round
-          />
+          <>
+            {chatIcon ? (
+              <ChatIcon icon={chatIcon} size={34} />
+            ) : isGroupLike ? (
+              <AvatarStack
+                people={(thread?.participants ?? []).map((person) => ({
+                  name: person.name,
+                  src: person.avatarUrl,
+                  color: person.color,
+                  icon: person.icon,
+                }))}
+                size={30}
+              />
+            ) : (
+              <Avatar
+                name={thread?.title ?? '?'}
+                src={thread?.person?.avatarUrl ?? null}
+                color={thread?.person?.color ?? null}
+                icon={thread?.person?.icon ?? null}
+                size={34}
+                round
+              />
+            )}
+            <div className="chat-conversation__title">
+              <span className="chat-conversation__name">{thread?.title}</span>
+              {isGroupLike ? (
+                <span className="chat-conversation__status">
+                  {(thread?.participants.length ?? 0) || 'Everyone'} {thread?.kind === 'system' ? '· whole system' : ''}
+                </span>
+              ) : null}
+            </div>
+            <IconButton icon="search" label="Search this conversation" variant="ghost" onClick={() => setSearchOpen(true)} />
+            {isGroupLike ? (
+              <IconButton
+                icon="members"
+                label={memberPanelOpen ? 'Hide members' : 'Show members'}
+                variant="ghost"
+                onClick={() => setMemberPanelOpen((open) => !open)}
+              />
+            ) : null}
+            <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
+          </>
         )}
-        <div className="chat-conversation__title">
-          <span className="chat-conversation__name">{thread?.title}</span>
-          {isGroupLike ? (
-            <span className="chat-conversation__status">
-              {(thread?.participants.length ?? 0) || 'Everyone'} {thread?.kind === 'system' ? '· whole system' : ''}
-            </span>
-          ) : null}
-        </div>
-        <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
       </header>
 
-      <div className="chat-conversation__messages" ref={scrollRef} onScroll={handleScroll}>
+      {searchOpen && searchQuery.trim() ? (
+        <div className="chat-search-results">
+          {searchResults.length === 0 ? (
+            <p className="chat-search-results__empty">No messages match "{searchQuery.trim()}".</p>
+          ) : (
+            searchResults.map((message) => (
+              <button
+                key={message.id}
+                type="button"
+                className="chat-search-results__row"
+                onClick={() => scrollToMessage(message.id)}
+              >
+                <Avatar
+                  name={message.sender?.name ?? 'Someone'}
+                  src={message.sender?.avatarUrl ?? null}
+                  color={message.sender?.color ?? null}
+                  icon={message.sender?.icon ?? null}
+                  size={32}
+                  round
+                />
+                <span className="chat-search-results__body">
+                  <span className="chat-search-results__top">
+                    <span className="chat-search-results__sender truncate">{message.sender?.name ?? 'Someone'}</span>
+                    <span className="chat-search-results__time">{dates.relative(message.sentAt)}</span>
+                  </span>
+                  <span className="chat-search-results__snippet truncate">{message.body}</span>
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      ) : null}
+
+      <div className="chat-conversation__messages" ref={scrollRef} onScroll={onMessagesScroll}>
+        {conversation.loadingOlder ? <div className="chat-loading-older">Loading earlier messages…</div> : null}
         {rows.length === 0 ? (
           <EmptyState icon="chat" title="Say hello" body="Nothing here yet — the first message starts the conversation." />
         ) : (
           <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
-              const { message, showDayHeading, showAvatar, showName, quoted } = rows[virtualRow.index]!;
+              const row = rows[virtualRow.index]!;
+              // A send still in flight never commits to a side — it would
+              // only be a guess, and could visibly flip once the server
+              // assigns the real sequence. See `sideForSequence`.
+              const unsettled = Boolean(row.message.pending || row.message.failed);
               return (
                 <div
                   key={virtualRow.key}
                   ref={virtualizer.measureElement}
                   data-index={virtualRow.index}
-                  id={`chat-message-${message.id}`}
-                  className={`chat-message-row ${message.isMine ? 'chat-message-row--mine' : 'chat-message-row--theirs'}`}
+                  id={`chat-message-${row.message.id}`}
+                  className={`chat-feed-row chat-feed-row--${unsettled ? 'pending' : row.side}`}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -286,23 +468,13 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  {showDayHeading ? <div className="chat-day-heading">{dates.date(message.sentAt)}</div> : null}
-                  <MessageBubble
-                    message={message}
-                    showAvatar={showAvatar}
-                    showName={showName}
-                    quotedMessage={quoted}
-                    timeLabel={dates.time(message.sentAt)}
-                    onReact={(emoji) => react(message.id, emoji)}
-                    onRetry={() => void conversation.retry(message)}
-                    onReply={() => setReplyTo(message)}
-                    onForward={() => forwardDialog.show(message)}
-                    onCopy={() => copy(message)}
-                    onDelete={() => deleteDialog.show(message)}
-                    onOpenAttachment={(attachment) => {
-                      if (attachment.mediaType === 'image') setLightbox(attachment);
-                    }}
-                    onQuoteClick={quoted ? () => scrollToMessage(quoted.id) : undefined}
+                  <MessageRow
+                    row={row}
+                    dayLabel={dates.date(row.message.sentAt)}
+                    timeLabel={dates.time(row.message.sentAt)}
+                    mentions={conversation.mentions}
+                    actions={rowActions}
+                    onQuoteClick={scrollToMessage}
                   />
                 </div>
               );
@@ -311,125 +483,23 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
         )}
       </div>
 
-      {replyTo ? (
-        <div className="chat-reply-preview">
-          <div className="chat-reply-preview__body">
-            <span className="chat-reply-preview__author">
-              Replying to {replyTo.sender?.name ?? (replyTo.isMine ? 'yourself' : thread?.title ?? 'them')}
-            </span>
-            <span className="truncate">{replyTo.body}</span>
-          </div>
-          <IconButton icon="close" label="Cancel reply" variant="ghost" size="sm" onClick={() => setReplyTo(null)} />
-        </div>
+      {scrolledUp ? (
+        <button type="button" className="chat-jump-latest" onClick={jumpToLatest}>
+          <Icon name="chevronDown" size={14} />
+          {hasNewBelow ? 'New messages' : 'Jump to latest'}
+        </button>
       ) : null}
 
-      {recorder.state === 'recording' || recorder.state === 'recorded' ? (
-        <div className="chat-composer">
-          <VoiceRecorderPanel recorder={recorder} onSend={(blob) => void sendVoiceMessage(blob)} />
-        </div>
-      ) : (
-        <>
-          {pendingAttachments.length > 0 ? (
-            <div className="chat-composer-attachments">
-              {pendingAttachments.map((attachment) => (
-                <PendingAttachmentChip
-                  key={attachment.id}
-                  attachment={attachment}
-                  onRemove={() => setPendingAttachments((current) => current.filter((item) => item.id !== attachment.id))}
-                />
-              ))}
-              {uploading ? <span className="tiny faint">Uploading…</span> : null}
-            </div>
-          ) : null}
-
-          <form
-            className="chat-composer"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void send();
-            }}
-          >
-            <input
-              ref={galleryInputRef}
-              type="file"
-              multiple
-              accept={GALLERY_ACCEPT}
-              className="visually-hidden"
-              tabIndex={-1}
-              onChange={(event) => {
-                void addFiles(event.target.files);
-                event.target.value = '';
-              }}
-            />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="visually-hidden"
-              tabIndex={-1}
-              onChange={(event) => {
-                void addFiles(event.target.files);
-                event.target.value = '';
-              }}
-            />
-            <input
-              ref={filesInputRef}
-              type="file"
-              multiple
-              accept={FILES_ACCEPT}
-              className="visually-hidden"
-              tabIndex={-1}
-              onChange={(event) => {
-                void addFiles(event.target.files);
-                event.target.value = '';
-              }}
-            />
-            <IconButton
-              icon="attach"
-              label="Attach"
-              variant="ghost"
-              disabled={uploading}
-              onClick={(event) => attachMenu.openFrom(event)}
-            />
-            <input
-              className="input chat-composer__input"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Type a message…"
-              aria-label="Message"
-              autoComplete="off"
-            />
-            {draft.trim() || pendingAttachments.length > 0 ? (
-              <Button variant="primary" type="submit" aria-label="Send" disabled={uploading} loading={conversation.sending}>
-                <Icon name="send" size={17} />
-              </Button>
-            ) : (
-              <IconButton icon="mic" label="Record a voice message" variant="primary" onClick={() => void recorder.start()} />
-            )}
-          </form>
-          <ActionMenu
-            position={attachMenu.position}
-            onClose={attachMenu.close}
-            items={[
-              { key: 'gallery', label: 'Gallery', icon: 'media', onSelect: () => galleryInputRef.current?.click() },
-              { key: 'camera', label: 'Camera', icon: 'camera', onSelect: () => cameraInputRef.current?.click() },
-              { key: 'gifs', label: 'GIFs', icon: 'sparkle', onSelect: () => setGifPickerOpen(true) },
-              { key: 'files', label: 'Files', icon: 'folder', onSelect: () => filesInputRef.current?.click() },
-            ]}
-          />
-          <GifPickerDialog
-            open={gifPickerOpen}
-            onClose={() => setGifPickerOpen(false)}
-            onPick={(attachment) => setPendingAttachments((current) => [...current, attachment])}
-          />
-          {recorder.state === 'denied' ? (
-            <p className="chat-voice__denied" role="alert">
-              Could not reach the microphone.
-            </p>
-          ) : null}
-        </>
-      )}
+      <ChatComposer
+        replyTo={replyTarget}
+        onCancelReply={() => setReplyTo(null)}
+        onSend={(text, options) => conversation.send(text, options)}
+        editing={editTarget}
+        onCancelEdit={() => setEditingMessage(null)}
+        onEditSubmit={(messageId, text) => conversation.edit(messageId, text)}
+        uploadAttachment={uploadSystemChatAttachment}
+        sending={conversation.sending}
+      />
 
       <SendAsStrip members={members.items} value={conversation.sendAsMemberId} onChange={conversation.setSendAsMemberId} />
 
@@ -442,7 +512,10 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
         onClose={forwardDialog.hide}
         candidates={forwardCandidates}
         excludeThreadId={threadId}
-        message={forwardDialog.value}
+        // `ForwardDialog` is shared with Messages (DMs), whose "You"/sender-name
+        // quote preview reads `isMine` — System Chat has no such notion on the
+        // message itself, so this always shows the real sender's name instead.
+        message={forwardDialog.value ? { ...forwardDialog.value, isMine: false } : null}
         onForward={(targetThreadIds) => conversation.forward(forwardDialog.value!.id, targetThreadIds)}
       />
 
@@ -462,5 +535,28 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
         {lightbox ? <img className="chat-lightbox__image" src={lightbox.url} alt={lightbox.title || 'Image'} /> : null}
       </Dialog>
     </div>
+
+    {showMemberColumn && thread ? (
+      <aside className="chat-member-column">
+        <div className="chat-member-column__header">
+          <span className="chat-member-column__title">{memberCount} {memberCount === 1 ? 'member' : 'members'}</span>
+          <IconButton icon="close" label="Hide members" variant="ghost" size="sm" onClick={() => setMemberPanelOpen(false)} />
+        </div>
+        <div className="chat-member-column__list">
+          <ChatMemberPanel thread={thread} />
+        </div>
+      </aside>
+    ) : null}
+
+    {!isDesktop && thread ? (
+      <Dialog
+        open={memberPanelOpen}
+        onClose={() => setMemberPanelOpen(false)}
+        title={`${memberCount} ${memberCount === 1 ? 'member' : 'members'}`}
+      >
+        <ChatMemberPanel thread={thread} />
+      </Dialog>
+    ) : null}
+    </>
   );
 }

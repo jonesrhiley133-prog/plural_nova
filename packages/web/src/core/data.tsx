@@ -399,8 +399,8 @@ export function useRecord(collection: string, id: string | undefined): StoredRec
 }
 
 /** A map from id to record, for the many screens that resolve member references. */
-export function useRecordMap(collection: string): Map<string, StoredRecord> {
-  const { all } = useCollection(collection);
+export function useRecordMap(collection: string, query: Pick<CollectionQuery, 'enabled'> = {}): Map<string, StoredRecord> {
+  const { all } = useCollection(collection, query);
   return useMemo(() => new Map(all.map((record) => [record.id, record])), [all]);
 }
 

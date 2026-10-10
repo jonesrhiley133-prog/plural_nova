@@ -67,7 +67,8 @@ const MoodEmotions = load(() => import('./modules/MoodEmotions.js'));
 const BodyMap = load(() => import('./modules/BodyMap.js'));
 const Sleep = load(() => import('./modules/Sleep.js'));
 const Fitness = load(() => import('./modules/Fitness.js'));
-const Cycle = load(() => import('./modules/Cycle.js'));
+const Games = load(() => import('./modules/Games.js'));
+const Insights = load(() => import('./modules/Insights.js'));
 const DailySummary = load(() => import('./modules/DailySummary.js'));
 const Finances = load(() => import('./modules/Finances.js'));
 const Contacts = load(() => import('./modules/Contacts.js'));
@@ -224,7 +225,8 @@ function AppRoutes(): JSX.Element {
           <Route path="emotion-insights" element={<Navigate to="/mood-emotions?tab=analytics" replace />} />
           <Route path="sleep" element={<Sleep />} />
           <Route path="fitness" element={<Fitness />} />
-          <Route path="cycle" element={<Cycle />} />
+          <Route path="games" element={<Games />} />
+          <Route path="insights" element={<Insights />} />
           <Route path="finances" element={<Finances />} />
           <Route path="contacts" element={<Contacts />} />
           <Route path="emergency" element={<EmergencyContacts />} />

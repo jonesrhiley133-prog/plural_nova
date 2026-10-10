@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, messageFor } from '../core/api.js';
 import { realtime } from '../core/realtime.js';
@@ -12,7 +12,13 @@ import { GalleryField, SelectField, TextField } from '../ui/forms.js';
 import { EmptyState, ErrorPanel, SkeletonList } from '../ui/feedback.js';
 import { ActionMenu, ConfirmDialog, Dialog, useActionMenu, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
-import { Markdown } from '../ui/Markdown.js';
+import { Markdown, type MentionMap } from '../ui/Markdown.js';
+import {
+  MentionAutocompleteList,
+  mentionQueryBefore,
+  useMentionAutocomplete,
+  type MentionCandidate,
+} from '../ui/MentionAutocomplete.js';
 
 /**
  * Flux.
@@ -91,6 +97,7 @@ export default function Flux(): JSX.Element {
 
   const [scope, setScope] = useState<'friends' | 'mine' | 'public'>('friends');
   const [posts, setPosts] = useState<Post[]>([]);
+  const [mentions, setMentions] = useState<MentionMap>({});
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -101,8 +108,12 @@ export default function Flux(): JSX.Element {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await api.get<{ posts: Post[]; nextCursor: string | null }>('/api/social/flux', { scope });
+      const result = await api.get<{ posts: Post[]; nextCursor: string | null; mentions: MentionMap }>(
+        '/api/social/flux',
+        { scope },
+      );
       setPosts(result.posts);
+      setMentions(result.mentions);
       setNextCursor(result.nextCursor);
       setError(null);
     } catch (cause) {
@@ -116,11 +127,12 @@ export default function Flux(): JSX.Element {
     if (!nextCursor) return;
     setLoadingMore(true);
     try {
-      const result = await api.get<{ posts: Post[]; nextCursor: string | null }>('/api/social/flux', {
-        scope,
-        before: nextCursor,
-      });
+      const result = await api.get<{ posts: Post[]; nextCursor: string | null; mentions: MentionMap }>(
+        '/api/social/flux',
+        { scope, before: nextCursor },
+      );
       setPosts((current) => [...current, ...result.posts]);
+      setMentions((current) => ({ ...current, ...result.mentions }));
       setNextCursor(result.nextCursor);
     } catch (cause) {
       toast.fromError(cause, 'Could not load more posts');
@@ -240,6 +252,7 @@ export default function Flux(): JSX.Element {
               onDelete={() => confirm.show(post)}
               onOpen={() => navigate(`/flux/${post.id}`)}
               expanded={Boolean(single)}
+              mentions={mentions}
             />
           ))}
         </div>
@@ -297,6 +310,7 @@ export function PostCard({
   onDelete,
   onOpen,
   expanded,
+  mentions,
 }: {
   post: Post;
   onReact: (emoji: string) => void;
@@ -306,6 +320,8 @@ export function PostCard({
   onDelete: () => void;
   onOpen: () => void;
   expanded: boolean;
+  /** `@[u:id]`/`@[m:id]`/`@[g:id]` → live name, from whichever call fetched `post` — see `Markdown.tsx`. Omitted callers just show an unresolved mention as plain text, same as any id the viewer isn't allowed to see. */
+  mentions?: MentionMap;
 }): JSX.Element {
   const dates = useDateFormat();
   const [showWarned, setShowWarned] = useState(!post.contentWarning);
@@ -359,7 +375,7 @@ export function PostCard({
       ) : (
         <>
           {post.body ? (
-            <Markdown text={post.body} className={expanded ? undefined : 'clamp-3'} style={{ marginTop: 'var(--space-3)' }} />
+            <Markdown text={post.body} className={expanded ? undefined : 'clamp-3'} style={{ marginTop: 'var(--space-3)' }} mentions={mentions} />
           ) : null}
 
           {post.media.length > 0 ? (
@@ -553,15 +569,41 @@ function Comments({ postId }: { postId: string }): JSX.Element {
   const dates = useDateFormat();
   const toast = useToast();
   const [comments, setComments] = useState<Comment[]>([]);
+  const [mentions, setMentions] = useState<MentionMap>({});
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pendingSelection = useRef<{ start: number; end: number } | null>(null);
+  const mentionAutocomplete = useMentionAutocomplete();
+
+  useEffect(() => {
+    if (pendingSelection.current) {
+      const { start, end } = pendingSelection.current;
+      pendingSelection.current = null;
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(start, end);
+    }
+  }, [draft]);
+
+  const insertMention = (candidate: MentionCandidate): void => {
+    const el = textareaRef.current;
+    const cursor = el?.selectionStart ?? draft.length;
+    const mention = mentionQueryBefore(draft, cursor);
+    mentionAutocomplete.close();
+    if (!mention) return;
+    const token = `@[${candidate.kind}:${candidate.id}] `;
+    setDraft(draft.slice(0, mention.atIndex) + token + draft.slice(cursor));
+    const cursorAfter = mention.atIndex + token.length;
+    pendingSelection.current = { start: cursorAfter, end: cursorAfter };
+  };
 
   const load = useCallback(async () => {
     try {
-      const result = await api.get<{ comments: Comment[] }>(`/api/social/flux/${postId}/comments`);
+      const result = await api.get<{ comments: Comment[]; mentions: MentionMap }>(`/api/social/flux/${postId}/comments`);
       setComments(result.comments);
+      setMentions(result.mentions);
     } catch {
       // The post is still readable without its comments.
     } finally {
@@ -610,7 +652,7 @@ function Comments({ postId }: { postId: string }): JSX.Element {
                   {comment.replyToId ? (
                     <div className="tiny faint">↳ replying to {repliedTo?.author.displayName ?? 'a comment since removed'}</div>
                   ) : null}
-                  <Markdown text={comment.body} className="small" />
+                  <Markdown text={comment.body} className="small" mentions={mentions} />
                   <button
                     type="button"
                     className="tiny faint"
@@ -647,13 +689,46 @@ function Comments({ postId }: { postId: string }): JSX.Element {
           void send();
         }}
       >
-        <input
-          className="input"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder={replyTo ? `Reply to ${replyTo.author.displayName}…` : 'Write a comment…'}
-          aria-label="Comment"
-        />
+        <div style={{ position: 'relative', flex: 1 }}>
+          <textarea
+            ref={textareaRef}
+            className="input"
+            rows={1}
+            value={draft}
+            onChange={(event) => {
+              const value = event.target.value;
+              setDraft(value);
+              const cursor = event.target.selectionStart ?? value.length;
+              const mention = mentionQueryBefore(value, cursor);
+              if (mention) mentionAutocomplete.search(mention.query);
+              else mentionAutocomplete.close();
+            }}
+            onKeyDown={(event) => {
+              if (mentionAutocomplete.open && mentionAutocomplete.results.length > 0) {
+                if (event.key === 'ArrowDown') { event.preventDefault(); mentionAutocomplete.moveHighlight(1); return; }
+                if (event.key === 'ArrowUp') { event.preventDefault(); mentionAutocomplete.moveHighlight(-1); return; }
+                if (event.key === 'Enter' || event.key === 'Tab') {
+                  event.preventDefault();
+                  const picked = mentionAutocomplete.pickHighlighted();
+                  if (picked) insertMention(picked);
+                  return;
+                }
+                if (event.key === 'Escape') { event.preventDefault(); mentionAutocomplete.close(); return; }
+              }
+              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                void send();
+              }
+            }}
+            placeholder={replyTo ? `Reply to ${replyTo.author.displayName}…` : 'Write a comment…'}
+            aria-label="Comment"
+          />
+          <MentionAutocompleteList
+            state={mentionAutocomplete}
+            onHover={(index) => mentionAutocomplete.moveHighlight(index - mentionAutocomplete.highlightedIndex)}
+            onPick={insertMention}
+          />
+        </div>
         <Button variant="secondary" type="submit" disabled={!draft.trim()} loading={sending}>
           Post
         </Button>

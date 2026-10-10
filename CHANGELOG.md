@@ -10,8 +10,181 @@ different versions of PluralNova.
 
 ## [Unreleased]
 
+### Changed
+
+- **System Chat's composer gets an emoji picker, and conversations gain a
+  search.** A new emoji button in the composer toolbar opens a curated grid
+  grouped into a few simple categories — picking one drops it in at the
+  cursor, same as the existing formatting buttons. A new search button in
+  the conversation header filters everything already loaded (loading more
+  history by scrolling up still works while searching) down to messages
+  matching what you typed; picking a result jumps straight to it and
+  briefly highlights it in place. Both are shared, bubble-agnostic pieces —
+  Direct Messages' composer picks up the same emoji picker for free.
+
+- **System Chat gets a desktop nav rail and a member panel.** On wide
+  screens, a narrow rail now sits to the left of the conversation list with
+  who's currently chatting, a shortcut to start a new group, and a way back
+  to the rest of PluralNova — reachable no matter which conversation is
+  open. A new members button in a group or whole-system conversation's
+  header opens its participant roster — fronting members listed first — as
+  a collapsible column alongside the conversation on desktop, or a dialog
+  on narrower screens. Conversation info no longer offers "Your bubble" /
+  "Their bubble" color pickers, which stopped doing anything once the feed
+  became bubble-free; it shows the same participant roster instead.
+
+- **System Chat's conversation feed now loads older history as you scroll
+  up**, instead of only ever showing the most recent page of messages.
+  Scrolling to the top fetches the next page back and adds it above what's
+  already there without disturbing anything already on screen — whatever
+  you were already reading stays exactly where it is. A floating "jump to
+  latest" button appears once you've scrolled away from the newest message,
+  and clears itself once you use it or scroll back down on your own.
+
+- **System Chat's conversation feed is now a Discord-style open feed —
+  no chat bubbles.** Every message shows its sender's avatar, name,
+  timestamp and edited flag directly on the conversation background, and
+  alternates sides strictly by its fixed position in the conversation
+  (message 1 left, 2 right, 3 left...), never by who sent it or who the
+  composer is currently set to send as. Switching who you're sending as,
+  or who the account's active profile is, no longer retroactively flips
+  which side any already-sent message is on — every message's side is
+  permanent from the moment it's sent. A message still sending renders in
+  a neutral, uncommitted state rather than guessing a side ahead of the
+  server. Deleting a message replaces its content with a plain "Message
+  removed" line in the same spot rather than removing it, so neighboring
+  messages never shift sides. Reactions, replies, forwarding, editing and
+  attachments all still work exactly as before, just without a bubble
+  around them. Group and direct chat creation, thread settings, and
+  Direct Messages (the separate account-to-account feature) are
+  unchanged.
+
+- **System Chat messages now carry a real, server-assigned sequence
+  number within their thread**, laying the foundation for a Discord-style
+  redesign of the conversation feed. This release is server-only — nothing
+  changes yet in what System Chat looks or feels like to use. Under the
+  hood: each thread gets its own atomically-incremented counter (the same
+  mechanism Direct Messages already use), existing message history is
+  backfilled with sequence numbers in their original order on first boot
+  after upgrading, and the conversation API now returns messages ordered
+  by that sequence instead of an insertion order that was never actually
+  guaranteed to be stable. Sending the same message twice in a row (a
+  retried send after a dropped connection) now resolves to the one
+  message already stored instead of creating a duplicate. Removing a
+  message no longer deletes its row — it clears the message's content in
+  place and marks it removed, so its position in the conversation is
+  never left empty for anything after it to shift into.
+
+- **Games split out of Wellbeing into their own tab.** The calm,
+  non-competitive games — breathing, bubbles, grounding, memory match, and
+  the rest — used to live inside Wellbeing alongside check-ins and cycle
+  tracking. They now have their own "Games" entry in the navigation,
+  unchanged otherwise — nothing timed or scored, stay as long as it helps —
+  just out from under Wellbeing, which now holds check-ins and Cycle &
+  Wellbeing only.
+- **The old stand-alone "Cycle & wellness" page is gone — its tracking
+  moved inside Wellbeing instead of disappearing.** It sat at its own
+  address under a name almost identical to the Wellbeing page's own title
+  ("Cycle & Wellbeing"), confusing enough that the two read as duplicates
+  of each other even though only one of them actually tracked anything.
+  The calendar, cycle-start averages, phases and entry log all still work
+  exactly as before; they are just a "Cycle" tab inside Wellbeing now,
+  alongside Check-ins and Symptoms, instead of a separate page with a
+  near-identical name.
+- **Badges moved off the alter profile header.** They used to sit in a
+  card above the tabs, visible no matter which tab was open. They're now
+  part of the Identity & About tab instead, so they no longer crowd
+  Boundaries, Fronting, Media, or any other tab.
+- **The alter editor no longer asks for birth time, birth place, or
+  coordinates.** Those fields still exist, but only in the dedicated Astro
+  section, where they unlock Rising sign and houses for anyone who wants
+  that depth. The basic editor now only asks for a birthday — saving one
+  automatically shows the alter's zodiac sign alongside the rest of their
+  identity details.
+- **Origin is now a tag box, like Roles.** Press Enter (or type a comma)
+  to add one, so an alter can have more than one origin at once. Origin
+  tags render in a different shade than Roles tags, so the two stay
+  visually distinct at a glance.
+
+### Fixed
+
+- **Biography and other standard fields could be entirely missing when
+  editing an alter.** A system created after custom fields shipped — or
+  any alter added since — never got Biography, Notes, or the rest of the
+  standard fields unless an existing alter already had data in the old
+  version of that field. Every system now always gets the full standard
+  set created for it, ready to fill in.
+- **Biography and other long-text fields rendered squeezed against the
+  right edge instead of readable top-to-bottom on the left.** They now lay
+  out the same way Markdown and gallery fields already did: label on top,
+  full-width content below.
+- **Identity and About briefly showed the same field twice.** A handful of
+  custom fields could appear once in their own labelled group and a
+  second time in the general field list below it. Each field now appears
+  in exactly one place.
+
 ### Added
 
+- **@-mentions in Direct Messages, System Chat, and Flux posts/comments.**
+  Typing `@` in any composer (or the Flux comment box) opens an autocomplete
+  listing your own alters and groups, plus — in Flux and DMs — friends and
+  the alters they've chosen to show on their profile. Picking one inserts a
+  stable id token rather than a name, so the mention still resolves
+  correctly even after someone renames their alter. A new "Allow
+  @-mentions" privacy switch on each alter's profile controls whether they
+  can be mentioned at all; it gates notifications only; a mention still
+  renders as a name wherever that name was already visible, the same as any
+  other reference to it would. Mentioning a friend on a Flux post or
+  comment notifies them once, through the same notification settings as
+  everything else — never for a stranger, never for an alter who opted out,
+  and never twice for the same mention. An id that doesn't resolve (deleted,
+  or something you were never allowed to see) just shows as plain text
+  instead of breaking the message.
+- **Chat messages now support real formatting, and can be edited after
+  sending.** Both Direct Messages and System Chat gained a small toolbar
+  above the composer — bold, italic, underline, strikethrough, code,
+  quote, list, spoiler, and colour — each inserting its own markup at the
+  cursor, with Ctrl/Cmd+B/I/U as shortcuts. `__text__` now means underline
+  rather than bold, matching the convention most chat apps already use, so
+  it no longer collides with `**bold**`. A spoiler (`||text||`) renders
+  hidden until tapped, and each one reveals independently. Colour uses its
+  own syntax (`%red%like this%%`, or any hex code) with a live swatch
+  preview before you insert it. Images are never rendered inline in chat —
+  a pasted image link shows as plain text instead — so a message can't be
+  used to quietly confirm you've read it. Every place a message gets
+  shortened for a preview (conversation lists, notifications, replies,
+  forwards) now strips this markup first, so raw formatting syntax never
+  shows up somewhere it wasn't meant to be read. Editing your own message
+  reopens the composer with its original source, re-sends through the same
+  formatting, and marks the bubble "(edited)" for everyone in the
+  conversation.
+- **Insights now has its own privacy controls.** A check-in marked "keep
+  out of Insights" (the switch was already on the unified check-in itself)
+  is now actually honoured by every pattern that reads mood — it's left out
+  of Patterns, and its legacy mood entry doesn't quietly reappear through
+  the older collection either. A new "Insights" card on Settings → Privacy
+  lists emotions you've actually logged, each with its own switch, so a
+  specific emotion can be kept out of pattern-finding wherever it shows up
+  — one private feeling logged alongside others doesn't need to pull the
+  whole check-in out of the picture, just its own share of it.
+- **A new Insights area ties mood, sleep, cycle, emotions and fronting
+  together.** Patterns surfaces real comparisons — mood against who was
+  around, what you were doing, who was fronting, and the night before's
+  sleep, plus (once cycle tracking is on) which cycle phase — each one
+  shown only once there's actually enough logged on both sides to compare
+  it with. Mood while fronting is listed by member rather than ranked
+  highest-to-lowest, on purpose: who tends to feel worst is not something
+  worth a leaderboard. Story turns a single day into a short paragraph,
+  extending the Daily Summary's own comparisons with that day's cycle
+  phase and symptom count. Cycle comparison (visible once cycle tracking
+  is on) shows cycle-to-cycle length and energy next to which symptoms
+  cluster in which phase — the comparisons the last update's cycle depth
+  pass built the data for but didn't yet have a screen of its own.
+  Landscape is the long view: mood and sleep averages and spread over
+  roughly the last two years, which of the two has stayed steadier, and
+  the most logged emotion family. None of it is new tracking — every tab
+  reads what other screens already write, and nothing is stored beyond
+  that.
 - **Cycle & Wellbeing gained a Symptoms tab, and cycle data now feeds real
   comparisons.** Symptoms is a small log of its own — physical, emotional,
   or anything else worth a note, not limited to the cycle — with its own
@@ -214,6 +387,56 @@ different versions of PluralNova.
 
 ### Changed
 
+- **A constellation's member grid is tappable, and flags now travel with
+  it.** Tapping a member tile — instead of only the profile's own full
+  navigation — opens the same contextual card used elsewhere for "who is
+  this": picture, pronouns, fronting status and (for categories a system
+  would actually want a stranger or friend to see — custom, fronting,
+  communication, accessibility — and only when the flag's own "show on
+  profile" switch allows it) their attached flags. A flag marked warning,
+  boundary, important or content-note stays off the public profile by
+  default no matter what, the same way a flag's own opt-out already does;
+  the owner previewing their own profile still sees everything. Viewing
+  your own profile adds Quick Front and View Profile to that same card.
+  Flux on a constellation profile gained a Posts/Media toggle, reusing the
+  same already-privacy-filtered posts it already fetched rather than a
+  second query — Media is just those posts' attachments as a grid.
+- **A Direct Message now shows which alter is actually sending it, instead
+  of always speaking as whichever profile happens to be active.** Opening a
+  conversation reads who is currently fronting: one alter fronting is
+  selected automatically, several co-fronting asks once rather than
+  guessing, and nobody fronting leaves things as they were. A new row under
+  the conversation header names whoever you're sending as and opens a
+  picker (fronting alters listed first) to switch for just the next
+  message — never mid-draft, and never the account's wider active profile,
+  which switching here leaves alone on purpose. A PIN-protected alter still
+  needs their PIN, whether picked automatically or by hand, through a new
+  endpoint that only confirms the PIN rather than also reassigning that
+  wider active profile the way the existing profile switcher does.
+  Recipients now see that alter's real avatar too — their picture is sent
+  alongside the name and colour that already worked, gated by the same
+  "show avatar" switch as everywhere else.
+- **The Alter Profile screen is reorganised, and two fields it showed twice
+  now show once.** Overview is gone — the birthday banner, Celebrate button
+  and badges it held now sit above the tabs, visible regardless of which one
+  is open, rather than only on a tab of their own. Identity and About are
+  merged onto one Identity & About tab, which also gained the Flags section
+  moved out of Boundaries (matching where the alter edit flow already groups
+  it). Every field already migrated to Custom Fields — gender, bio, tags,
+  notes, boundaries, likes, dislikes, interests, and the rest — is now read
+  only through Custom Fields; the old tabs read the same frozen raw columns
+  Custom Fields had already taken over, so each one appeared twice from two
+  sources that could quietly drift apart. Boundaries keeps its own tab (its
+  text, not its flags) for exactly that reason. Statistics gained the
+  fronting count and last-fronted date that used to live only on the removed
+  Overview. New tabs: Gallery (a small featured strip from an alter's own
+  media, separate from the full Media grid), Mood & Emotions and Cycle &
+  Wellbeing (this one alter's own filtered stats, with a link to the full
+  screen), Horoscope (the astrology summary, relocated), Preferences (flag
+  display style and size, the colour/icon swatches), and Theme (the per-alter
+  theme picker, also relocated). Tab order: Identity & About, Boundaries,
+  Fronting, Statistics, Relationships, Media, Gallery, Mood & Emotions,
+  Cycle & Wellbeing, Journal, Horoscope, Preferences, Privacy, Theme.
 - **Messages are no longer end-to-end encrypted.** Every new message sent
   between accounts is now stored and delivered as plain text — the lock
   icon, the "End-to-end encrypted" / "Not encrypted yet" status, and the
@@ -227,8 +450,58 @@ different versions of PluralNova.
   list already worked, rather than every message in the conversation at
   once.
 
+### Added
+
+- **A shared "who is this" contextual card** — a small popover with a
+  picture, name, pronouns, fronting status and flags, plus whatever quick
+  actions make sense from wherever it was opened (message, quick-front, view
+  profile). Positioned the same way the attach menu in Messages already
+  anchors itself to a click. Not used anywhere yet on its own — it's the
+  shared piece the Constellation and Messages identity work coming next both
+  build on, built and tested once rather than once per screen.
+
 ### Fixed
 
+- **Alter flags rendered as text chips, not the flag images they're meant to
+  be.** A flag's picture now shows as an actual rectangular image, at a
+  consistent wide ratio, everywhere a flag appears — the alter profile header
+  and the flag attach/detach list. A flag with no picture, or whose picture
+  fails to load, falls back to its colour and icon rather than breaking or
+  silently showing nothing. Attached flags can now be reordered (and still
+  removed, as before); the order is saved and shows up the same way
+  everywhere the flags are listed.
+- **Typing in Messages or In-Sys Chat could freeze the interface on a long
+  conversation.** A prior fix memoized the message list itself but missed the
+  real cause: the composer (what you're typing) lived in the same component
+  as every visible message row, so each keystroke re-rendered all of them —
+  worse the longer the conversation got. The composer is now its own
+  component entirely, so typing never touches the message list at all; a
+  message row also no longer rebuilds its action handlers on every render,
+  for the cases that do legitimately re-render it (a new message arriving).
+  The composer is a growing text box now rather than a single line, with
+  Enter to send and Shift+Enter for a new line — needed regardless, since a
+  one-line field can't hold a code block or a list, both coming in a later
+  update.
+- **An alter who opted out of the shared profile could still leak through four
+  narrower gaps.** The main "appear on a shared profile" switch was already
+  enforced almost everywhere; a security pass found the rest. A pinned
+  gallery image used a weaker check than the rest of the profile and could
+  show someone else's non-public media. The "currently fronting" line only
+  checked a separate fronting-specific switch, so an opted-out alter who
+  hadn't also hidden fronting specifically could still appear there. The
+  member count on a public profile counted every alter on the account
+  rather than only the ones actually shown. And posts and direct messages
+  sent as a hidden alter still carried that alter's raw internal id in the
+  response even though the name itself was already correctly withheld — not
+  visible on screen, but reachable by anyone looking at the data a page
+  received. All four are closed, backed by a new test suite built around one
+  "canary" alter that stays hidden through every combination.
+- **Mood & Emotions logged a harmless but needless error in Singlet Mode.**
+  It fetched the (system-only) member list unconditionally, which the
+  server correctly refuses outside System Mode — nothing broke, but the
+  console carried a 403 on every visit. It now only asks for that list
+  when it can actually use it, the same way Cycle & Wellbeing's own
+  Check-ins tab already does.
 - **The "Other" reaction field had no label a screen reader could announce.**
   Visually it was clear enough from the "Any emoji…" placeholder, but a
   placeholder disappears the moment there's a value and was never read as

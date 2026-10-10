@@ -523,6 +523,11 @@ describe('friends, flux and messaging', () => {
     const strangerFeed = await client.request('GET', '/api/social/flux', { token: alice.token });
     const seenByFriend = strangerFeed.body.data.posts.find((p: any) => p.id === post.body.data.id);
     expect(seenByFriend.asMember).toBeNull();
+    // The raw fields must agree with `asMember`, not just the computed view —
+    // `shareableView('posts', ...)` strips nothing (no `posts` field is
+    // marked sensitive), so these are the actual gate, not a cosmetic extra.
+    expect(seenByFriend.memberId).toBeNull();
+    expect(seenByFriend.authorKind).toBe('system');
 
     const ownFeed = await client.request('GET', '/api/social/flux', { token: dana.token });
     const seenByAuthor = ownFeed.body.data.posts.find((p: any) => p.id === post.body.data.id);
@@ -543,5 +548,71 @@ describe('friends, flux and messaging', () => {
     });
     const afterMemberOptOut = await client.request('GET', '/api/social/flux', { token: alice.token });
     expect(afterMemberOptOut.body.data.posts.find((p: any) => p.id === post.body.data.id).asMember).toBeNull();
+  });
+
+  it('mention search finds a friend and their visible alters, never a stranger', async () => {
+    await client.request('PUT', '/api/social/profile', {
+      token: bob.token,
+      body: { handle: 'bob-system', displayName: 'bob-system', isPublic: true, showMemberList: true },
+    });
+    const bobMember = await client.request('POST', '/api/records/members', {
+      token: bob.token,
+      body: { name: 'Mentionable-Bob-Alt' },
+    });
+    const hiddenBobMember = await client.request('POST', '/api/records/members', {
+      token: bob.token,
+      body: { name: 'Unmentionable-Bob-Alt', privacy: { allowMentions: false } },
+    });
+
+    const found = await client.request('GET', '/api/social/mentions?q=Bob', { token: alice.token });
+    expect(found.status).toBe(200);
+    expect(found.body.data.users.map((u: any) => u.userId)).toContain(bob.userId);
+    expect(found.body.data.members.map((m: any) => m.id)).toContain(bobMember.body.data.id);
+    expect(found.body.data.members.map((m: any) => m.id)).not.toContain(hiddenBobMember.body.data.id);
+
+    // Carol is a real, matching display name — just not alice's friend.
+    const forCarol = await client.request('GET', '/api/social/mentions?q=carol', { token: alice.token });
+    expect(forCarol.body.data.users.map((u: any) => u.userId)).not.toContain(carol.userId);
+  });
+
+  it('notifies a validly mentioned friend, and never a stranger or an opted-out alter', async () => {
+    const before = await client.request('GET', '/api/notifications', { token: bob.token });
+    const beforeCount = before.body.data.notifications.filter((n: any) => n.kind === 'mention.flux').length;
+
+    const hiddenMember = await client.request('POST', '/api/records/members', {
+      token: bob.token,
+      body: { name: 'Quiet-Bob-Alt', privacy: { allowMentions: false } },
+    });
+
+    const post = await client.request('POST', '/api/social/flux', {
+      token: alice.token,
+      body: {
+        body: `Thanks @[u:${bob.userId}], not you @[u:${carol.userId}], and not @[m:${hiddenMember.body.data.id}] either`,
+        visibility: 'friends',
+      },
+    });
+    expect(post.status).toBe(201);
+
+    const afterBob = await client.request('GET', '/api/notifications', { token: bob.token });
+    const bobMentions = afterBob.body.data.notifications.filter(
+      (n: any) => n.kind === 'mention.flux' && n.link === `/flux/${post.body.data.id}`,
+    );
+    // Exactly one — the valid `@[u:...]` token — not a second one for the
+    // opted-out alter mentioned in the same post.
+    expect(bobMentions).toHaveLength(1);
+    expect(afterBob.body.data.notifications.filter((n: any) => n.kind === 'mention.flux')).toHaveLength(beforeCount + 1);
+
+    const afterCarol = await client.request('GET', '/api/notifications', { token: carol.token });
+    expect(afterCarol.body.data.notifications.some((n: any) => n.kind === 'mention.flux')).toBe(false);
+
+    // The feed resolves both the valid `@[u:...]` mention and the
+    // opted-out alter's name (allowMentions only blocks the notification,
+    // not showing a name the viewer could already see on bob's public
+    // member list) — but never the stranger, who the viewer has no
+    // existing channel to see at all.
+    const feed = await client.request('GET', '/api/social/flux', { token: alice.token });
+    expect(feed.body.data.mentions[`u:${bob.userId}`]).toBeDefined();
+    expect(feed.body.data.mentions[`m:${hiddenMember.body.data.id}`]).toEqual({ name: 'Quiet-Bob-Alt' });
+    expect(feed.body.data.mentions[`u:${carol.userId}`]).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useActiveChatterId } from '../core/systemChat.js';
 import { SystemChatHome } from './SystemChatHome.js';
 import { SystemChatConversationView } from './SystemChatConversationView.js';
+import { ChatNavRail } from './ChatNavRail.js';
 import { Icon } from '../ui/Icon.js';
 
 /**
@@ -41,6 +42,7 @@ export default function SystemChatPage(): JSX.Element {
 
   return (
     <div className="chat-app" data-active-pane={activePane}>
+      <ChatNavRail onClose={closeChat} />
       <div className="chat-pane chat-pane--list">
         <SystemChatHome activeChatterId={activeChatterId} onOpenConversation={openConversation} onClose={closeChat} />
       </div>

@@ -171,6 +171,74 @@ describe('direct messages: replies, reactions, forwarding', () => {
     expect(revived).toBeDefined();
     expect(revived.lastMessagePreview).toBe('still here?');
   });
+
+  it('lets the sender edit their own message, and no one else', async () => {
+    const sent = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: alice.token,
+      body: { body: 'this has a typo' },
+    });
+    const messageId = sent.body.data.message.id;
+
+    const refused = await client.request('PATCH', `/api/messages/messages/${messageId}`, {
+      token: bob.token,
+      body: { body: 'bob tries to rewrite alice' },
+    });
+    expect(refused.status).toBe(404);
+
+    const edited = await client.request('PATCH', `/api/messages/messages/${messageId}`, {
+      token: alice.token,
+      body: { body: 'this has no typo' },
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.message.body).toBe('this has no typo');
+    expect(edited.body.data.message.edited).toBe(true);
+
+    const fetched = await client.request('GET', `/api/messages/threads/${threadId}`, { token: bob.token });
+    const stored = fetched.body.data.messages.find((m: any) => m.id === messageId);
+    expect(stored.body).toBe('this has no typo');
+    expect(stored.edited).toBe(true);
+  });
+
+  it('only refreshes the conversation preview when the edited message is still the latest one', async () => {
+    const older = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: alice.token,
+      body: { body: 'older message' },
+    });
+    const newer = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: bob.token,
+      body: { body: 'newer message' },
+    });
+
+    await client.request('PATCH', `/api/messages/messages/${older.body.data.message.id}`, {
+      token: alice.token,
+      body: { body: 'older message, fixed' },
+    });
+    const afterOlderEdit = await client.request('GET', '/api/messages/conversations', { token: alice.token });
+    expect(
+      afterOlderEdit.body.data.conversations.find((c: any) => c.threadId === threadId).lastMessagePreview,
+    ).toBe('newer message');
+
+    await client.request('PATCH', `/api/messages/messages/${newer.body.data.message.id}`, {
+      token: bob.token,
+      body: { body: 'newer message, fixed' },
+    });
+    const afterNewerEdit = await client.request('GET', '/api/messages/conversations', { token: alice.token });
+    expect(
+      afterNewerEdit.body.data.conversations.find((c: any) => c.threadId === threadId).lastMessagePreview,
+    ).toBe('newer message, fixed');
+  });
+
+  it('rejects an edit that would leave the message empty', async () => {
+    const sent = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: alice.token,
+      body: { body: 'keep me' },
+    });
+    const blanked = await client.request('PATCH', `/api/messages/messages/${sent.body.data.message.id}`, {
+      token: alice.token,
+      body: { body: '   ' },
+    });
+    expect(blanked.status).toBe(400);
+  });
 });
 
 describe('system chat threads', () => {
@@ -193,6 +261,26 @@ describe('system chat threads', () => {
   });
   afterAll(() => client.close());
   beforeEach(() => client.resetLimits());
+
+  // A fresh, never-reused member whose id seeds a group thread's participant
+  // set — group creation dedups purely by sorted participant ids (regardless
+  // of name), and this file's own active member ends up permanently changed
+  // by an earlier test in this block, which folds into every later group's
+  // stored participants too. A brand-new id each time is what actually
+  // guarantees a test gets its own thread rather than silently reusing
+  // another test's, whatever the active member currently is.
+  let isolationCounter = 0;
+  async function isolatedGroupThread(name: string): Promise<string> {
+    isolationCounter += 1;
+    const onlyMember = (
+      await client.request('POST', '/api/records/members', { token, body: { name: `Isolation ${isolationCounter}` } })
+    ).body.data.id;
+    const created = await client.request('POST', '/api/system/chat/threads', {
+      token,
+      body: { kind: 'group', name, participantMemberIds: [onlyMember] },
+    });
+    return created.body.data.thread.id;
+  }
 
   it('auto-creates exactly one default whole-system thread', async () => {
     const first = await client.request('GET', '/api/system/chat/threads', { token });
@@ -256,21 +344,53 @@ describe('system chat threads', () => {
     expect(stored.attachments[0].mediaType).toBe('image');
   });
 
-  it('deletes a system chat message through the generic records route', async () => {
-    const threads = await client.request('GET', '/api/system/chat/threads', { token });
-    const threadId = threads.body.data.threads[0].id;
+  it('removing a message redacts it in place instead of deleting the row, so its position never shifts', async () => {
+    const threadId = await isolatedGroupThread('Delete position check');
 
+    const first = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'one', memberId: ashId },
+    });
+    const second = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'remove this one', memberId: birchId },
+    });
+    const third = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'three', memberId: ashId },
+    });
+
+    const removed = await client.request('DELETE', `/api/system/chat/messages/${second.body.data.id}`, { token });
+    expect(removed.status).toBe(200);
+    expect(removed.body.data.removed).toBe(true);
+    // An empty string on a non-required field is stored/returned as null —
+    // the same validation behavior every other text field already has.
+    expect(removed.body.data.body).toBeFalsy();
+
+    // Still present, at its original sequence — nothing downstream renumbers.
+    const messages = await client.request('GET', `/api/system/chat/threads/${threadId}/messages`, { token });
+    const byId = new Map<string, any>(messages.body.data.messages.map((m: any) => [m.id, m]));
+    expect(byId.has(second.body.data.id)).toBe(true);
+    expect(byId.get(second.body.data.id).sequence).toBe(second.body.data.sequence);
+    expect(byId.get(third.body.data.id).sequence).toBe(third.body.data.sequence);
+    expect(byId.get(first.body.data.id).sequence).toBe(first.body.data.sequence);
+  });
+
+  it('refreshes the thread preview when the removed message was the latest one', async () => {
+    const threadId = await isolatedGroupThread('Delete preview check');
     const sent = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
       token,
-      body: { body: 'delete this one', memberId: ashId },
+      body: { body: 'the last word', memberId: ashId },
     });
-    const messageId = sent.body.data.id;
 
-    const deleted = await client.request('DELETE', `/api/records/systemChatMessages/${messageId}`, { token });
-    expect(deleted.status).toBe(200);
+    await client.request('DELETE', `/api/system/chat/messages/${sent.body.data.id}`, { token });
 
-    const messages = await client.request('GET', `/api/system/chat/threads/${threadId}/messages`, { token });
-    expect(messages.body.data.messages.some((m: any) => m.id === messageId)).toBe(false);
+    // Read the thread record directly rather than the active-chatter-filtered
+    // list — this thread's visibility there depends on who the active member
+    // happens to be at this point in the suite, which isn't what this test
+    // is about.
+    const thread = await client.request('GET', `/api/records/systemChatThreads/${threadId}`, { token });
+    expect(thread.body.data.lastMessagePreview).toBe('Message removed');
   });
 
   it('creates a group thread with named participants and resolves them', async () => {
@@ -374,6 +494,198 @@ describe('system chat threads', () => {
     });
     const threads = await client.request('GET', '/api/system/chat/threads', { token });
     expect(threads.body.data.threads.some((t: any) => t.id === created.body.data.thread.id)).toBe(false);
+  });
+
+  it('lets any alter on the account edit a system chat message, not just whoever sent it', async () => {
+    const threads = await client.request('GET', '/api/system/chat/threads', { token });
+    const threadId = threads.body.data.threads[0].id;
+    const sent = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'sent by ash', memberId: ashId },
+    });
+    const messageId = sent.body.data.id;
+
+    // Switching the active member to Birch must not block editing a message Ash
+    // sent — system chat has no second account to protect this from, so edit
+    // access is account-scoped, not tied to whichever alter originally sent it.
+    await client.request('POST', '/api/system/active-member', { token, body: { memberId: birchId } });
+
+    const edited = await client.request('PATCH', `/api/system/chat/messages/${messageId}`, {
+      token,
+      body: { body: 'edited while birch is active' },
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.body).toBe('edited while birch is active');
+    expect(edited.body.data.edited).toBe(true);
+
+    const messages = await client.request('GET', `/api/system/chat/threads/${threadId}/messages`, { token });
+    const stored = messages.body.data.messages.find((m: any) => m.id === messageId);
+    expect(stored.body).toBe('edited while birch is active');
+    expect(stored.edited).toBe(true);
+  });
+
+  it('only refreshes the thread preview when the edited message is still the latest one', async () => {
+    const created = await client.request('POST', '/api/system/chat/threads', {
+      token,
+      body: { kind: 'group', name: 'Edit preview check', participantMemberIds: [ashId, birchId] },
+    });
+    const threadId = created.body.data.thread.id;
+
+    const older = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'older one', memberId: ashId },
+    });
+    const newer = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'newer one', memberId: birchId },
+    });
+
+    await client.request('PATCH', `/api/system/chat/messages/${older.body.data.id}`, {
+      token,
+      body: { body: 'older one, fixed' },
+    });
+    const afterOlderEdit = await client.request('GET', '/api/system/chat/threads', { token });
+    expect(afterOlderEdit.body.data.threads.find((t: any) => t.id === threadId).lastMessagePreview).toBe(
+      'newer one',
+    );
+
+    await client.request('PATCH', `/api/system/chat/messages/${newer.body.data.id}`, {
+      token,
+      body: { body: 'newer one, fixed' },
+    });
+    const afterNewerEdit = await client.request('GET', '/api/system/chat/threads', { token });
+    expect(afterNewerEdit.body.data.threads.find((t: any) => t.id === threadId).lastMessagePreview).toBe(
+      'newer one, fixed',
+    );
+  });
+
+  it('rejects an edit that would leave the message empty', async () => {
+    const threads = await client.request('GET', '/api/system/chat/threads', { token });
+    const threadId = threads.body.data.threads[0].id;
+    const sent = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'keep me', memberId: ashId },
+    });
+    const blanked = await client.request('PATCH', `/api/system/chat/messages/${sent.body.data.id}`, {
+      token,
+      body: { body: '' },
+    });
+    expect(blanked.status).toBe(400);
+  });
+
+  it('assigns each message a strictly increasing sequence within its own thread, returned in that order', async () => {
+    const threadId = await isolatedGroupThread('Sequence check');
+
+    const sent: any[] = [];
+    for (const [who, text] of [[ashId, 'one'], [birchId, 'two'], [ashId, 'three'], [ashId, 'four']] as const) {
+      const response = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+        token,
+        body: { body: text, memberId: who },
+      });
+      sent.push(response.body.data);
+    }
+
+    const sequences = sent.map((m) => m.sequence);
+    expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
+    expect(new Set(sequences).size).toBe(sequences.length);
+    expect(sequences.every((s) => s > 0)).toBe(true);
+
+    const messages = await client.request('GET', `/api/system/chat/threads/${threadId}/messages`, { token });
+    expect(messages.body.data.messages.map((m: any) => m.body)).toEqual(['one', 'two', 'three', 'four']);
+    expect(messages.body.data.messages.map((m: any) => m.sequence)).toEqual(sequences);
+  });
+
+  it('keeps an independent sequence counter per thread', async () => {
+    const threadA = await isolatedGroupThread('Thread A');
+    const threadB = await isolatedGroupThread('Thread B');
+
+    const firstInA = await client.request('POST', `/api/system/chat/threads/${threadA}/messages`, {
+      token,
+      body: { body: 'a1', memberId: ashId },
+    });
+    const firstInB = await client.request('POST', `/api/system/chat/threads/${threadB}/messages`, {
+      token,
+      body: { body: 'b1', memberId: birchId },
+    });
+    const secondInA = await client.request('POST', `/api/system/chat/threads/${threadA}/messages`, {
+      token,
+      body: { body: 'a2', memberId: ashId },
+    });
+
+    // Each thread counts from its own 1, regardless of how many messages the
+    // other thread already has.
+    expect(firstInA.body.data.sequence).toBe(firstInB.body.data.sequence);
+    expect(secondInA.body.data.sequence).toBe(firstInA.body.data.sequence + 1);
+  });
+
+  it('resolves a retried send with the same clientId to the message already stored, not a second one', async () => {
+    const threads = await client.request('GET', '/api/system/chat/threads', { token });
+    const threadId = threads.body.data.threads[0].id;
+
+    const first = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'sent once', memberId: ashId, clientId: 'retry-check-1' },
+    });
+    const retried = await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+      token,
+      body: { body: 'sent once', memberId: ashId, clientId: 'retry-check-1' },
+    });
+
+    expect(retried.body.data.id).toBe(first.body.data.id);
+
+    const messages = await client.request('GET', `/api/system/chat/threads/${threadId}/messages`, { token });
+    expect(messages.body.data.messages.filter((m: any) => m.clientId === 'retry-check-1')).toHaveLength(1);
+  });
+
+  it('gives a forwarded message its own correct sequence in the target thread, independent of the source', async () => {
+    const targetId = await isolatedGroupThread('Forward sequence check target');
+    await client.request('POST', `/api/system/chat/threads/${targetId}/messages`, {
+      token,
+      body: { body: 'already here', memberId: ashId },
+    });
+
+    // A second, independently isolated thread — not `threads[0]` from the list,
+    // which (once an earlier test has left an active member set) would include
+    // that active member in every freshly-created thread's participants and so
+    // could resolve right back to `targetId` itself, double-counting its sequence.
+    const sourceId = await isolatedGroupThread('Forward sequence check source');
+    const original = await client.request('POST', `/api/system/chat/threads/${sourceId}/messages`, {
+      token,
+      body: { body: 'forward me', memberId: ashId },
+    });
+
+    const forwarded = await client.request('POST', `/api/system/chat/messages/${original.body.data.id}/forward`, {
+      token,
+      body: { threadIds: [targetId] },
+    });
+
+    expect(forwarded.body.data.forwarded[0].sequence).toBe(2);
+  });
+
+  it('paginates older messages with a sequence cursor that never re-includes the boundary message', async () => {
+    const threadId = await isolatedGroupThread('Pagination check');
+    for (let i = 1; i <= 5; i += 1) {
+      await client.request('POST', `/api/system/chat/threads/${threadId}/messages`, {
+        token,
+        body: { body: `msg ${i}`, memberId: ashId },
+      });
+    }
+
+    const firstPage = await client.request('GET', `/api/system/chat/threads/${threadId}/messages?limit=3`, { token });
+    expect(firstPage.body.data.messages.map((m: any) => m.body)).toEqual(['msg 3', 'msg 4', 'msg 5']);
+    expect(firstPage.body.data.hasMore).toBe(true);
+
+    const oldestLoadedSequence = firstPage.body.data.messages[0].sequence;
+    const secondPage = await client.request(
+      'GET',
+      `/api/system/chat/threads/${threadId}/messages?limit=3&before=${oldestLoadedSequence}`,
+      { token },
+    );
+    expect(secondPage.body.data.messages.map((m: any) => m.body)).toEqual(['msg 1', 'msg 2']);
+    expect(secondPage.body.data.hasMore).toBe(false);
+
+    // The cursor's own boundary message ("msg 3") must not reappear on the older page.
+    expect(secondPage.body.data.messages.some((m: any) => m.body === 'msg 3')).toBe(false);
   });
 });
 
@@ -841,5 +1153,29 @@ describe('"send as a member" never attributes a DM to an alter unless the sender
     });
     const afterMemberOptOut = await client.request('GET', `/api/messages/threads/${threadId}`, { token: eve.token });
     expect(afterMemberOptOut.body.data.messages.find((m: any) => m.id === sent.body.data.message.id).asMember).toBeNull();
+  });
+
+  it('carries the alter\'s avatar in asMember, withheld by their own showAvatar switch independently of the rest', async () => {
+    await client.request('PATCH', `/api/records/members/${memberId}`, {
+      token: dana.token,
+      body: { avatarUrl: 'https://example.invalid/dana-alt.png', privacy: { showOnProfile: true } },
+    });
+    const sent = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: dana.token,
+      body: { body: 'does my avatar show?' },
+    });
+    expect(sent.body.data.message.asMember.avatarUrl).toBe('https://example.invalid/dana-alt.png');
+
+    await client.request('PATCH', `/api/records/members/${memberId}`, {
+      token: dana.token,
+      body: { privacy: { showOnProfile: true, showAvatar: false } },
+    });
+    const sentWithAvatarHidden = await client.request('POST', `/api/messages/threads/${threadId}`, {
+      token: dana.token,
+      body: { body: 'now it should not show' },
+    });
+    expect(sentWithAvatarHidden.body.data.message.asMember.avatarUrl).toBeNull();
+    // The rest of the identity is unaffected — showAvatar only withholds the picture.
+    expect(sentWithAvatarHidden.body.data.message.asMember.name).toBe('Dana-Alt');
   });
 });

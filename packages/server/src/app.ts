@@ -20,6 +20,7 @@ import { searchRouter } from './routes/search.js';
 import { vaultRouter } from './routes/vault.js';
 import { appLockRouter } from './routes/appLock.js';
 import { statsRouter } from './routes/stats.js';
+import { insightsRouter } from './routes/insights.js';
 import { mediaRouter } from './routes/media.js';
 import { providersRouter } from './routes/providers.js';
 import { gifsRouter } from './routes/gifs.js';
@@ -61,6 +62,7 @@ export function createApp(): Express {
   app.use('/api/vault', vaultRouter);
   app.use('/api/app-lock', appLockRouter);
   app.use('/api/stats', statsRouter);
+  app.use('/api/insights', insightsRouter);
   app.use('/api/media', mediaRouter);
   app.use('/api/providers', providersRouter);
   app.use('/api/gifs', gifsRouter);

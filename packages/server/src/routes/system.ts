@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { newId, now, requireCollection, type StoredRecord } from '@pluralnova/shared';
+import { extractMentionTokens, newId, now, plainTextPreview, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { badRequest, conflict, notFound } from '../http/errors.js';
 import { auth, requireAuth, requireSystemMode } from '../auth/middleware.js';
 import { rateLimit } from '../http/rateLimit.js';
-import { getDb } from '../db/index.js';
+import { getDb, transaction } from '../db/index.js';
 import {
   createRecord,
   deleteRecord,
@@ -124,6 +124,22 @@ systemRouter.post(
 // — Profile select ——————————————————————————————————————————
 
 /**
+ * Throws if `member` has a PIN, PINs are required account-wide, and `pin`
+ * does not match — a no-op otherwise. Shared by `/active-member` and
+ * `/members/:id/verify-pin` so the two routes can never quietly drift apart
+ * on what "PIN-protected" means.
+ */
+async function requireMemberPin(member: StoredRecord, pin: string | undefined, requireProfilePins: boolean): Promise<void> {
+  const pinHash = member['pinHash'] as string | null;
+  if (!pinHash || !requireProfilePins) return;
+  const { verifySecret } = await import('../auth/passwords.js');
+  const [salt = '', hash = ''] = pinHash.split(':');
+  if (!(await verifySecret(pin ?? '', { hash, salt }))) {
+    throw badRequest('That PIN is not right.');
+  }
+}
+
+/**
  * Switching the active member changes the default attribution for new records.
  * It is not the same as who is fronting and it is not a second account — the
  * three are kept separate on purpose.
@@ -142,18 +158,28 @@ systemRouter.post(
 
     const member = getRecord('members', context.scope, memberId);
     if (!member) throw notFound('That member');
-
-    const pinHash = member['pinHash'] as string | null;
-    if (pinHash && context.settings.privacy.requireProfilePins) {
-      const { verifySecret } = await import('../auth/passwords.js');
-      const [salt = '', hash = ''] = pinHash.split(':');
-      if (!(await verifySecret(pin ?? '', { hash, salt }))) {
-        throw badRequest('That PIN is not right.');
-      }
-    }
+    await requireMemberPin(member, pin, context.settings.privacy.requireProfilePins);
 
     const user = updateUser(context.user.id, { activeMemberId: memberId });
     ok(res, { activeMemberId: user.activeMemberId, member });
+  }),
+);
+
+/**
+ * Confirms a member's PIN without changing anything — for a moment that
+ * needs "yes, this really is them" without also reassigning the account's
+ * default attribution, the way speaking as a fronting alter in one DM does
+ * not make them the active member everywhere else.
+ */
+systemRouter.post(
+  '/members/:id/verify-pin',
+  handler(async (req, res) => {
+    const context = requireSystemMode(req);
+    const { pin } = req.body as { pin?: string };
+    const member = getRecord('members', context.scope, String(req.params['id']));
+    if (!member) throw notFound('That member');
+    await requireMemberPin(member, pin, context.settings.privacy.requireProfilePins);
+    ok(res, { verified: true });
   }),
 );
 
@@ -364,6 +390,58 @@ systemRouter.post(
   }),
 );
 
+/**
+ * One `env.mentions`-shaped map (see `Markdown.tsx`) covering every token
+ * across a batch of system chat messages. Everything here is one account's
+ * own data — no cross-account visibility question the way Flux and DMs
+ * have — so a `@[m:id]`/`@[g:id]` resolves whenever that member/group
+ * actually exists in this scope, and `@[u:id]` has no meaning at all (no
+ * second account is ever part of system chat).
+ */
+function buildMentionMap(scope: Scope, messages: Record<string, unknown>[]): Record<string, { name: string }> {
+  const map: Record<string, { name: string }> = {};
+  for (const message of messages) {
+    for (const token of extractMentionTokens(String(message['body'] ?? ''))) {
+      if (token.kind === 'u') continue;
+      const key = `${token.kind}:${token.id}`;
+      if (key in map) continue;
+      const row = getRecord(token.kind === 'm' ? 'members' : 'memberGroups', scope, token.id);
+      if (row) map[key] = { name: String(row['name']) };
+    }
+  }
+  return map;
+}
+
+/**
+ * A message's position within its thread, assigned once and never reused —
+ * what every message's left/right side is ultimately derived from on the
+ * client, so two messages sent in the same millisecond still land in a
+ * deterministic order and a message's side never depends on when it happens
+ * to be fetched. Reuses the exact same generic `threads` support table dm
+ * messages already rely on (`packages/server/src/db/ddl.ts`), keyed here by
+ * the systemChatThreads id itself — there is already a stable id to key by,
+ * nothing needs deriving the way a dm pair-id does — and the two features
+ * can never collide in this one shared table (different id prefixes,
+ * `sct_` vs dm's `thr_`). Read-increment-write happens inside one
+ * transaction so two near-simultaneous sends to a brand-new thread can't
+ * both mint sequence 1.
+ */
+function nextSystemThreadSequence(threadId: string): number {
+  return transaction(() => {
+    const existing = getDb().prepare('SELECT "nextSequence" FROM threads WHERE id = ?').get(threadId) as
+      | { nextSequence: number }
+      | undefined;
+    if (existing) {
+      getDb().prepare('UPDATE threads SET nextSequence = ? WHERE id = ?').run(existing.nextSequence + 1, threadId);
+      return existing.nextSequence;
+    }
+    getDb()
+      .prepare('INSERT INTO threads (id, createdAt, lastMessageAt, nextSequence) VALUES (?, ?, NULL, 2)')
+      .run(threadId, now());
+    return 1;
+  });
+}
+
 systemRouter.get(
   '/chat/threads/:threadId/messages',
   handler((req, res) => {
@@ -373,22 +451,33 @@ systemRouter.get(
     if (!thread) throw notFound('That conversation');
 
     const limit = Math.min(200, Math.max(1, Number(req.query['limit'] ?? 100)));
+    // The oldest already-loaded message's own `sequence`, as a string — the
+    // client's pagination cursor. `range.to` compiles to a plain `<`
+    // comparison, which SQLite applies with numeric affinity against this
+    // INTEGER column regardless of the bound value's own string type, so an
+    // older page never re-includes the boundary message itself.
     const before = typeof req.query['before'] === 'string' ? req.query['before'] : undefined;
     const result = listRecords('systemChatMessages', context.scope, {
       limit,
       filters: { threadId },
-      sortField: 'sentAt',
+      // Sequence, not sentAt: two messages sent in the same millisecond
+      // used to tiebreak on their random id, which is as good as no
+      // tiebreak at all. Sequence is assigned once, in send order, and
+      // never changes, so sorting by it is both correct and stable.
+      sortField: 'sequence',
       sortDir: 'desc',
-      ...(before ? { range: { field: 'sentAt', to: before } } : {}),
+      ...(before ? { range: { field: 'sequence', to: before } } : {}),
     });
 
     // Fetched newest-first for the limit, then reversed so the caller always
     // gets OLD → NEW and can append at the bottom.
+    const messages = [...result.items].reverse().map((message) => withAttachments(context.scope, message));
     ok(res, {
       threadId,
       thread: withParticipants(context.scope, thread, context.user.activeMemberId),
-      messages: [...result.items].reverse().map((message) => withAttachments(context.scope, message)),
+      messages,
       hasMore: result.items.length === limit,
+      mentions: buildMentionMap(context.scope, messages),
     });
   }),
 );
@@ -413,24 +502,41 @@ systemRouter.post(
     const text = body.body?.trim() ?? '';
     if (!text && (body.attachmentIds?.length ?? 0) === 0) throw badRequest('Write something first.');
 
+    // A retried send — the client's own network retry, or a replayed
+    // offline write — carries the same clientId as the attempt that
+    // actually went through. Resolve to that stored message instead of
+    // creating a second one, the same protection dm messages already have.
+    if (body.clientId) {
+      const duplicate = listRecords('systemChatMessages', context.scope, {
+        limit: 1,
+        filters: { threadId, clientId: body.clientId },
+      }).items[0];
+      if (duplicate) {
+        ok(res, withAttachments(context.scope, duplicate));
+        return;
+      }
+    }
+
     const message = createRecord(
       'systemChatMessages',
       context.scope,
       {
         body: text,
         sentAt: now(),
+        sequence: nextSystemThreadSequence(threadId),
         threadId,
         replyToId: body.replyToId ?? null,
         attachmentIds: body.attachmentIds ?? [],
         reactions: null,
         forwardedFrom: body.forwardedFrom ?? null,
         edited: false,
+        removed: false,
         clientId: body.clientId ?? '',
       },
       { memberId: body.memberId ?? context.user.activeMemberId, visibility: 'system' },
     );
 
-    const preview = text.slice(0, 120) || 'Sent an attachment';
+    const preview = plainTextPreview(text).slice(0, 120) || 'Sent an attachment';
     updateRecord('systemChatThreads', context.scope, threadId, {
       lastMessageAt: message['sentAt'] as string,
       lastMessagePreview: preview,
@@ -487,6 +593,74 @@ systemRouter.post(
   }),
 );
 
+/**
+ * Only the body changes, and only on this account's own message — the same
+ * scope check every other message route here already relies on, since
+ * system chat has no second account to protect this from (unlike a DM,
+ * every message here already belongs to whoever is asking). Publishes the
+ * same generic `record.changed` event the collection's own CRUD route would
+ * have, so the existing listeners for "a systemChatMessages row changed"
+ * also cover this. Delete is its own dedicated route below, not the generic
+ * one — see that route's own comment for why.
+ */
+systemRouter.patch(
+  '/chat/messages/:id',
+  handler((req, res) => {
+    const context = requireSystemMode(req);
+    const message = getRecord('systemChatMessages', context.scope, String(req.params['id']));
+    if (!message) throw notFound('That message');
+
+    const { body } = req.body as { body?: string };
+    const text = body?.trim() ?? '';
+    if (!text) throw badRequest('Write something first.');
+
+    const updated = updateRecord('systemChatMessages', context.scope, message.id, { body: text, edited: true });
+
+    const threadId = message['threadId'] as string | null;
+    if (threadId && message['sentAt'] === getRecord('systemChatThreads', context.scope, threadId)?.['lastMessageAt']) {
+      updateRecord('systemChatThreads', context.scope, threadId, { lastMessagePreview: plainTextPreview(text).slice(0, 120) });
+    }
+
+    publish(context.user.id, { type: 'record.changed', collection: 'systemChatMessages', id: message.id, action: 'updated' });
+    ok(res, updated);
+  }),
+);
+
+/**
+ * A dedicated route rather than the generic `DELETE /api/records/...` one
+ * every other collection gets: a real delete would drop the row entirely,
+ * and every later message's side in the redesigned feed is derived purely
+ * from its own, permanent `sequence` number — removing a row from the
+ * middle of a thread would make the two messages that used to sandwich it
+ * suddenly sit next to each other on the same side. So this redacts the
+ * message's content in place instead of deleting it: the row, and the
+ * sequence slot it occupies, stay exactly where they were, forever: nothing
+ * downstream of it ever shifts or re-renders differently.
+ */
+systemRouter.delete(
+  '/chat/messages/:id',
+  handler((req, res) => {
+    const context = requireSystemMode(req);
+    const message = getRecord('systemChatMessages', context.scope, String(req.params['id']));
+    if (!message) throw notFound('That message');
+
+    const updated = updateRecord('systemChatMessages', context.scope, message.id, {
+      body: '',
+      attachmentIds: [],
+      reactions: null,
+      removed: true,
+    });
+
+    const threadId = message['threadId'] as string | null;
+    if (threadId && message['sentAt'] === getRecord('systemChatThreads', context.scope, threadId)?.['lastMessageAt']) {
+      updateRecord('systemChatThreads', context.scope, threadId, { lastMessagePreview: 'Message removed' });
+    }
+
+    publish(context.user.id, { type: 'record.changed', collection: 'systemChatMessages', id: message.id, action: 'updated' });
+    ok(res, updated);
+  }),
+);
+
 /** Copies a message into one or more other threads, tagged with where it came from. */
 systemRouter.post(
   '/chat/messages/:id/forward',
@@ -501,18 +675,20 @@ systemRouter.post(
     const forwarded: StoredRecord[] = [];
     for (const threadId of threadIds) {
       if (!getRecord('systemChatThreads', context.scope, threadId)) continue;
-      const preview = String(original['body'] ?? '').slice(0, 120) || 'Sent an attachment';
+      const preview = plainTextPreview(String(original['body'] ?? '')).slice(0, 120) || 'Sent an attachment';
       const message = createRecord(
         'systemChatMessages',
         context.scope,
         {
           body: String(original['body'] ?? ''),
           sentAt: now(),
+          sequence: nextSystemThreadSequence(threadId),
           threadId,
           replyToId: null,
           attachmentIds: original['attachmentIds'] ?? [],
           reactions: null,
           edited: false,
+          removed: false,
           forwardedFrom: {
             kind: 'system',
             threadId: original['threadId'] ?? null,

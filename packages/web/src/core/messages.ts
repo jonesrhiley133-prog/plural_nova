@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { newId, type StoredRecord } from '@pluralnova/shared';
 import { api, messageFor } from './api.js';
+// A local copy of `ui/Markdown.tsx`'s `MentionMap` shape rather than an
+// import from it — `core/` is the data layer and never reaches into `ui/`,
+// even for a type-only, one-line shape like this one.
+type MentionMap = Record<string, { name: string }>;
 import { useAuth } from './auth.js';
 import { realtime } from './realtime.js';
 import { DecryptionFailed, cryptoAvailable, loadOrCreateKeyPair, openMessage, type KeyPairRecord } from './crypto.js';
@@ -79,6 +83,7 @@ export interface Message {
   sequence: number;
   /** Every userId who has read this message — empty until the other side opens the conversation. */
   readBy: string[];
+  edited: boolean;
   clientId?: string;
   pending?: boolean;
   failed?: string;
@@ -204,7 +209,13 @@ export function useMessageThreads(): {
   useEffect(() => {
     void load();
     return realtime.on((event) => {
-      if (event.type === 'message.new' || event.type === 'message.read' || event.type === 'message.deleted') void load();
+      if (
+        event.type === 'message.new' ||
+        event.type === 'message.read' ||
+        event.type === 'message.deleted' ||
+        event.type === 'message.edited'
+      )
+        void load();
       if (event.type === 'reaction.new' && event.kind === 'dm') void load();
     });
   }, [load]);
@@ -297,6 +308,8 @@ interface MessageConversationState {
   sending: boolean;
   /** The other person is actively typing right now — expires on its own if a "stopped" signal never arrives. */
   theirTyping: boolean;
+  /** `@[u:id]`/`@[m:id]`/`@[g:id]` → live name, server-resolved — see `Markdown.tsx`'s `MentionMap`. */
+  mentions: MentionMap;
 }
 
 export interface SendOptions {
@@ -321,6 +334,7 @@ export function useMessageConversation(
   retry: (message: Message) => Promise<void>;
   react: (messageId: string, emoji: string) => Promise<void>;
   forward: (messageId: string, targetThreadIds: string[]) => Promise<void>;
+  edit: (messageId: string, text: string) => Promise<void>;
   remove: (messageId: string) => Promise<void>;
   markRead: () => void;
   refreshThread: () => Promise<void>;
@@ -329,6 +343,7 @@ export function useMessageConversation(
 } {
   const [thread, setThread] = useState<MessageThreadSummary | null>(null);
   const [rawMessages, setRawMessages] = useState<Record<string, unknown>[]>([]);
+  const [mentions, setMentions] = useState<MentionMap>({});
   /** Optimistic sends, kept only until the real row (same clientId) comes back from a reload. */
   const [pending, setPending] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -379,6 +394,7 @@ export function useMessageConversation(
       encrypted: raw['encrypted'] === true,
       sequence: Number(raw['sequence'] ?? 0),
       readBy: toReadBy(raw['readBy']),
+      edited: raw['edited'] === true,
       clientId: (raw['clientId'] as string) ?? undefined,
     }),
     [threadId],
@@ -387,12 +403,14 @@ export function useMessageConversation(
   const load = useCallback(async () => {
     if (!threadId) return;
     try {
-      const result = await api.get<{ messages: Record<string, unknown>[]; conversation: Record<string, unknown> }>(
-        `/api/messages/threads/${threadId}`,
-        { limit: 80 },
-      );
+      const result = await api.get<{
+        messages: Record<string, unknown>[];
+        conversation: Record<string, unknown>;
+        mentions: MentionMap;
+      }>(`/api/messages/threads/${threadId}`, { limit: 80 });
       setThread(threadSummary(result.conversation));
       setRawMessages(result.messages);
+      setMentions(result.mentions);
       setError(null);
     } catch (cause) {
       setError(messageFor(cause));
@@ -457,6 +475,7 @@ export function useMessageConversation(
           setTheirTyping(false);
         }
         if (event.type === 'message.deleted' && event.threadId === threadId) void load();
+        if (event.type === 'message.edited' && event.threadId === threadId) void load();
         if (event.type === 'reaction.new' && event.kind === 'dm' && event.threadId === threadId) void load();
         // Reloads to pick up the server's own updated `readBy` rather than
         // guessing which messages just became read.
@@ -596,6 +615,7 @@ export function useMessageConversation(
         encrypted: false,
         sequence: Number.MAX_SAFE_INTEGER,
         readBy: [],
+        edited: false,
         clientId,
         pending: true,
       };
@@ -676,6 +696,14 @@ export function useMessageConversation(
     setPending((current) => current.filter((message) => message.id !== messageId));
   }, []);
 
+  const edit = useCallback(async (messageId: string, text: string) => {
+    const body = text.trim();
+    await api.patch(`/api/messages/messages/${messageId}`, { body });
+    setRawMessages((current) =>
+      current.map((message) => (String(message['id']) === messageId ? { ...message, body, edited: true } : message)),
+    );
+  }, []);
+
   const markedRead = useRef<string | null>(null);
   const markRead = useCallback(() => {
     if (!threadId || !thread?.unread) return;
@@ -693,11 +721,13 @@ export function useMessageConversation(
     error,
     sending,
     theirTyping,
+    mentions,
     send,
     retry,
     react,
     refreshThread: load,
     forward,
+    edit,
     remove,
     markRead,
     sendTyping,

@@ -65,7 +65,7 @@ export default function MoodEmotions(): JSX.Element {
   const toast = useToast();
   const systemMode = useSystemMode();
   const activeMemberId = useActiveMemberId();
-  const members = useRecordMap('members');
+  const members = useRecordMap('members', { enabled: systemMode });
 
   const feelings = useCollection('feelingEntries');
   const moods = useCollection('moodEntries');

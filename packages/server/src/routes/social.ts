@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import {
+  extractMentionTokens,
   newId,
   now,
+  plainTextPreview,
   requireCollection,
   validateHandle,
   type StoredRecord,
@@ -11,7 +13,7 @@ import { handler, ok } from '../http/respond.js';
 import { badRequest, conflict, forbidden, notFound } from '../http/errors.js';
 import { auth, requireAuth } from '../auth/middleware.js';
 import { getDb } from '../db/index.js';
-import { deserialize, getRecord, listRecords } from '../db/repository.js';
+import { deserialize, getRecord, listRecords, type Scope } from '../db/repository.js';
 import { shareableView } from '../services/projection.js';
 import { findUserById } from '../auth/users.js';
 import { notify } from '../services/notifications.js';
@@ -180,6 +182,38 @@ socialRouter.get(
   }),
 );
 
+// A flag's category decides whether it is the kind of thing a system would
+// want a stranger or friend to see on a first look at an alter, the same way
+// `showOnProfile` decides it per-flag. Warnings, boundaries and content notes
+// are catalogued for the system's own use, not for cross-account display —
+// `important` is a severity marker for the same internal kinds of flag, so it
+// is held back alongside them. The owner viewing their own profile preview
+// always sees every flag, exactly as the alter editor does.
+const PUBLISHABLE_FLAG_CATEGORIES = new Set(['custom', 'fronting', 'communication', 'accessibility']);
+
+/**
+ * Every member-targeted flag a system has defined, resolved once and grouped
+ * by the member it is attached to — one pair of queries for the whole
+ * profile instead of one per member shown.
+ */
+function memberFlagsByTarget(scope: Scope, isOwner: boolean): Map<string, Record<string, unknown>[]> {
+  const flagById = new Map(listRecords('flags', scope, { limit: 500 }).items.map((flag) => [flag.id, flag]));
+  const assignments = listRecords('flagAssignments', scope, { filters: { targetType: 'member' }, limit: 2000 }).items;
+
+  const byTarget = new Map<string, Record<string, unknown>[]>();
+  for (const assignment of assignments) {
+    const flag = flagById.get(String(assignment['flagId']));
+    if (!flag) continue;
+    if (!isOwner && flag['showOnProfile'] === false) continue;
+    if (!isOwner && !PUBLISHABLE_FLAG_CATEGORIES.has(String(flag['category'] ?? 'custom'))) continue;
+    const targetId = String(assignment['targetId']);
+    const list = byTarget.get(targetId) ?? [];
+    list.push({ id: flag.id, name: flag['name'], imageUrl: flag['imageUrl'], color: flag['color'], icon: flag['icon'] });
+    byTarget.set(targetId, list);
+  }
+  return byTarget;
+}
+
 /**
  * Trims a profile to what the viewer may see. Per-member privacy is applied
  * here too — a member who opted out is not in the list at all, rather than
@@ -218,36 +252,39 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
   // anyone but the account itself, whatever the other toggles say.
   const listShown = profile['showMemberList'] === true || isOwner;
 
-  if (listShown && (profile['showMemberCount'] === true || isOwner)) {
-    const row = db()
-      .prepare('SELECT COUNT(*) AS n FROM "members" WHERE "userId" = ? AND "deletedAt" IS NULL')
-      .get(ownerId) as { n: number };
-    view['memberCount'] = row.n;
-  }
-
-  if (listShown) {
-    const members = listRecords('members', scope, { limit: 200 }).items;
-    view['members'] = members
-      .filter((member) => {
+  // Computed once and reused for both the count and the list itself, so a
+  // hidden alter can never inflate a number the list would never have named
+  // them in — two separate reads of "how many members" previously disagreed.
+  const shownMembers = listShown
+    ? listRecords('members', scope, { limit: 200 }).items.filter((member) => {
         const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
         return isOwner || privacy['showOnProfile'] !== false;
       })
-      .map((member) => {
-        const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
-        return {
-          id: member.id,
-          name: member['name'],
-          pronouns: member['pronouns'],
-          color: member['color'],
-          icon: member['icon'],
-          avatarUrl: privacy['showAvatar'] === false && !isOwner ? '' : member['avatarUrl'],
-          orbitOrder: member['orbitOrder'],
-          frontStatus:
-            profile['showCurrentFronter'] === true && privacy['showFronting'] !== false
-              ? member['frontStatus']
-              : null,
-        };
-      });
+    : [];
+
+  if (listShown && (profile['showMemberCount'] === true || isOwner)) {
+    view['memberCount'] = shownMembers.length;
+  }
+
+  if (listShown) {
+    const flagsByMember = memberFlagsByTarget(scope, isOwner);
+    view['members'] = shownMembers.map((member) => {
+      const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
+      return {
+        id: member.id,
+        name: member['name'],
+        pronouns: member['pronouns'],
+        color: member['color'],
+        icon: member['icon'],
+        avatarUrl: privacy['showAvatar'] === false && !isOwner ? '' : member['avatarUrl'],
+        orbitOrder: member['orbitOrder'],
+        frontStatus:
+          profile['showCurrentFronter'] === true && privacy['showFronting'] !== false
+            ? member['frontStatus']
+            : null,
+        flags: flagsByMember.get(member.id) ?? [],
+      };
+    });
   }
 
   if (listShown && (profile['showCurrentFronter'] === true || isOwner)) {
@@ -256,9 +293,15 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
       .map((event) => {
         const memberId = event['memberId'] as string | null;
         if (!memberId) return null;
-        const member = getRecord('members', scope, memberId);
-        const privacy = (member?.['privacy'] ?? {}) as Record<string, unknown>;
-        if (!member || (privacy['showFronting'] === false && !isOwner)) return null;
+        const rawMember = getRecord('members', scope, memberId);
+        if (!rawMember) return null;
+        // `showOnProfile` is the master per-alter switch (same as the member
+        // list above) — a fronting alter who opted out of the profile must
+        // not surface here just because `showFronting` was never separately
+        // set to false.
+        const member = shareableView('members', rawMember);
+        const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
+        if (!isOwner && (privacy['showOnProfile'] === false || privacy['showFronting'] === false)) return null;
         return { id: member.id, name: member['name'], color: member['color'], icon: member['icon'] };
       })
       .filter(Boolean);
@@ -268,7 +311,7 @@ function publicProfileView(viewerId: string, profile: StoredRecord): Record<stri
   if (pinned.length > 0) {
     view['pinnedGallery'] = pinned
       .map((id) => getRecord('mediaItems', scope, id))
-      .filter((item): item is StoredRecord => Boolean(item) && item!['visibility'] !== 'private')
+      .filter((item): item is StoredRecord => Boolean(item) && canSee(viewerId, ownerId, item!['visibility'] as Visibility))
       .map((item) => ({ id: item.id, url: item['url'], title: item['title'], mediaType: item['mediaType'] }));
   }
 
@@ -325,6 +368,109 @@ socialRouter.get(
       blocked: friendships
         .filter((f) => f['state'] === 'blocked')
         .map((f) => counterpartSummary(f['otherUserId'] as string)),
+    });
+  }),
+);
+
+/**
+ * Candidates for an `@` mention: this account's own members and groups
+ * (always mentionable — there is no privacy barrier against yourself) plus
+ * each mutual friend and whichever of their own members opted in. Filtered
+ * here, not left for the client to hide, matching every other cross-account
+ * read in this file — a stranger's alter is never in this list to begin
+ * with, not shown and then skipped over.
+ */
+socialRouter.get(
+  '/mentions',
+  handler((req, res) => {
+    const context = auth(req);
+    const q = String(req.query['q'] ?? '').trim().toLowerCase();
+    if (!q) {
+      ok(res, { users: [], members: [], groups: [] });
+      return;
+    }
+    const like = `%${q}%`;
+
+    const ownMembers = (
+      db()
+        .prepare(
+          `SELECT "id","name","color","icon","avatarUrl" FROM "members"
+           WHERE "userId" = ? AND "deletedAt" IS NULL AND lower("name") LIKE ?`,
+        )
+        .all(context.user.id, like) as Record<string, unknown>[]
+    ).map((m) => ({
+      id: m['id'],
+      name: m['name'],
+      color: m['color'],
+      icon: m['icon'],
+      avatarUrl: m['avatarUrl'],
+      mine: true,
+      ownerUserId: context.user.id,
+    }));
+
+    const groups = (
+      db()
+        .prepare(
+          `SELECT "id","name","color","icon" FROM "memberGroups"
+           WHERE "userId" = ? AND "deletedAt" IS NULL AND lower("name") LIKE ?`,
+        )
+        .all(context.user.id, like) as Record<string, unknown>[]
+    )
+      .slice(0, 5)
+      .map((g) => ({ id: g['id'], name: g['name'], color: g['color'], icon: g['icon'] }));
+
+    const friendIds = (
+      db()
+        .prepare(
+          `SELECT "otherUserId" FROM "friendships" WHERE "userId" = ? AND "deletedAt" IS NULL AND "state" IN ('active','muted')`,
+        )
+        .all(context.user.id) as { otherUserId: string }[]
+    ).map((row) => row.otherUserId);
+
+    const users: Record<string, unknown>[] = [];
+    const friendMembers: Record<string, unknown>[] = [];
+    for (const friendId of friendIds) {
+      // One-sided "active" is not a mutual friendship — reuses the same
+      // reciprocity check every other cross-account read here already
+      // trusts, rather than a second, looser notion of "friend" just for
+      // mentions.
+      if (!areFriends(context.user.id, friendId)) continue;
+
+      const summary = counterpartSummary(friendId);
+      const matches =
+        String(summary['displayName'] ?? '').toLowerCase().includes(q) ||
+        String(summary['handle'] ?? '').toLowerCase().includes(q);
+      if (matches) users.push(summary);
+
+      if (profileOf(friendId)?.['showMemberList'] !== true) continue;
+      const theirMembers = db()
+        .prepare(
+          `SELECT "id","name","color","icon","avatarUrl","privacy" FROM "members"
+           WHERE "userId" = ? AND "deletedAt" IS NULL AND lower("name") LIKE ?`,
+        )
+        .all(friendId, like) as Record<string, unknown>[];
+      for (const row of theirMembers) {
+        const privacy = (row['privacy'] ? JSON.parse(String(row['privacy'])) : {}) as Record<string, unknown>;
+        // Same "show head mates" switch as the member list itself, plus the
+        // one specific to being @-mentioned — visible on the profile does
+        // not by itself mean this alter wants to be pinged.
+        if (privacy['showOnProfile'] === false || privacy['allowMentions'] === false) continue;
+        friendMembers.push({
+          id: row['id'],
+          name: row['name'],
+          color: row['color'],
+          icon: row['icon'],
+          avatarUrl: row['avatarUrl'],
+          mine: false,
+          ownerUserId: friendId,
+        });
+      }
+    }
+
+    ok(res, {
+      users: users.slice(0, 8),
+      members: [...ownMembers, ...friendMembers].slice(0, 12),
+      groups,
     });
   }),
 );
@@ -544,6 +690,123 @@ socialRouter.post(
 // — Flux ————————————————————————————————————————————————————
 
 /**
+ * The live name a `@[u:id]`/`@[m:id]`/`@[g:id]` token should render as, for
+ * whoever wrote `authorId`'s content. Not gated by `allowMentions` — that
+ * only controls the notification side effect, not whether an otherwise
+ * visible name renders — but still gated by friendship for a `u`/`m`
+ * target belonging to someone else, same as `notifyMentions` below: the
+ * containing post/comment being visible to this viewer says nothing about
+ * whether *this specific other account* is, since a token can name any id,
+ * friend or total stranger, regardless of who wrote the post. A token that
+ * doesn't resolve renders as plain, inert text instead — never an error,
+ * same as an unknown id anywhere else here.
+ */
+function resolveMentionName(authorId: string, token: { kind: 'u' | 'm' | 'g'; id: string }): string | null {
+  if (token.kind === 'u') {
+    if (token.id !== authorId && !areFriends(authorId, token.id)) return null;
+    const name = String(counterpartSummary(token.id)['displayName'] ?? '');
+    return name || null;
+  }
+  if (token.kind === 'm') {
+    const row = db()
+      .prepare('SELECT * FROM "members" WHERE "id" = ? AND "deletedAt" IS NULL')
+      .get(token.id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    const ownerId = row['userId'] as string;
+    if (ownerId !== authorId) {
+      if (!areFriends(authorId, ownerId)) return null;
+      if (profileOf(ownerId)?.['showMemberList'] !== true) return null;
+      const privacy = (row['privacy'] ? JSON.parse(String(row['privacy'])) : {}) as Record<string, unknown>;
+      if (privacy['showOnProfile'] === false) return null;
+    }
+    return String(row['name']);
+  }
+  // 'g' — groups are always same-account, so a group not owned by whoever
+  // wrote this token could only be a stale or tampered id.
+  const row = db()
+    .prepare('SELECT "name" FROM "memberGroups" WHERE "id" = ? AND "userId" = ? AND "deletedAt" IS NULL')
+    .get(token.id, authorId) as { name: string } | undefined;
+  return row?.name ?? null;
+}
+
+/** One `env.mentions`-shaped map (see `Markdown.tsx`) covering every token across a batch of posts/comments about to be sent to one viewer. */
+function buildMentionMap(items: Record<string, unknown>[]): Record<string, { name: string }> {
+  const map: Record<string, { name: string }> = {};
+  for (const item of items) {
+    for (const token of extractMentionTokens(String(item['body'] ?? ''))) {
+      const key = `${token.kind}:${token.id}`;
+      if (key in map) continue;
+      const name = resolveMentionName(String(item['userId']), token);
+      if (name) map[key] = { name };
+    }
+  }
+  return map;
+}
+
+/**
+ * Scans a freshly-posted/commented body for `@[u:id]`/`@[m:id]` tokens and
+ * notifies each one that resolves to an actual friend (or a friend's own
+ * alter) who can see this specific content and has mentions turned on.
+ * `@[g:id]` groups and a `@[m:id]` of one's own alter never reach here —
+ * both are same-account, and there is no second account to tell about
+ * either, so (unlike a Discord-style role ping) there is nothing to fan out
+ * to; they still resolve to a name when rendered, just without a
+ * notification side effect.
+ *
+ * Deliberately re-derives every check from the token's id rather than
+ * trusting anything the client already decided — the same standard every
+ * other cross-account read in this file holds to.
+ */
+async function notifyMentions(
+  actorUserId: string,
+  text: string,
+  content: { ownerId: string; visibility: Visibility; link: string; category: 'fluxActivity' },
+  alreadyNotified: Set<string> = new Set(),
+): Promise<void> {
+  const notified = alreadyNotified;
+  for (const token of extractMentionTokens(text)) {
+    let targetUserId: string | null = null;
+    let label = 'you';
+
+    if (token.kind === 'u') {
+      targetUserId = token.id;
+    } else if (token.kind === 'm') {
+      const row = db()
+        .prepare('SELECT * FROM "members" WHERE "id" = ? AND "deletedAt" IS NULL')
+        .get(token.id) as Record<string, unknown> | undefined;
+      if (!row) continue;
+      const ownerId = row['userId'] as string;
+      if (ownerId === actorUserId) continue; // own alter — nobody else to tell
+      if (profileOf(ownerId)?.['showMemberList'] !== true) continue;
+      const privacy = (row['privacy'] ? JSON.parse(String(row['privacy'])) : {}) as Record<string, unknown>;
+      if (privacy['showOnProfile'] === false || privacy['allowMentions'] === false) continue;
+      targetUserId = ownerId;
+      label = `your ${String(row['name'])}`;
+    } else {
+      continue; // 'g' — always same-account, never reaches here
+    }
+
+    if (!targetUserId || targetUserId === actorUserId || notified.has(targetUserId)) continue;
+    if (!areFriends(actorUserId, targetUserId)) continue;
+    // The mention target must be able to see the content it was mentioned in
+    // — being someone's friend does not mean every one of their posts/
+    // comments is visible to them.
+    if (!canSee(targetUserId, content.ownerId, content.visibility)) continue;
+
+    notified.add(targetUserId);
+    await notify({
+      userId: targetUserId,
+      category: content.category,
+      kind: 'mention.flux',
+      title: `${counterpartSummary(actorUserId)['displayName']} mentioned ${label}`,
+      body: plainTextPreview(text).slice(0, 120),
+      link: content.link,
+      actorUserId,
+    });
+  }
+}
+
+/**
  * `includeRepostOf` is only ever false for the one recursive call just below,
  * hydrating the original post a repost points to — a second level would mean
  * a repost-of-a-repost renders its own nested repost inside the card already
@@ -606,8 +869,15 @@ function postView(viewerId: string, post: StoredRecord, includeRepostOf = true):
   return {
     // Spread through shareableView rather than directly: this is the one
     // projection in the codebase that emits a whole stored record to somebody
-    // who does not own it, so it is the one that has to strip first.
+    // who does not own it, so it is the one that has to strip first — though
+    // that backstop only removes fields marked `sensitive` in schema and
+    // cannot see `memberId`, an implicit base column from `memberScoped:
+    // true`, so the two fields after the spread are the real gate for the
+    // alter-identity leak: they override whatever the raw record says with
+    // the same answer `asMember` above already computed.
     ...shareableView('posts', post),
+    memberId: asMember ? post['memberId'] : null,
+    authorKind: asMember ? post['authorKind'] : 'system',
     author,
     asMember,
     isMine: ownerId === viewerId,
@@ -678,13 +948,14 @@ socialRouter.get(
     ok(res, {
       posts,
       nextCursor: posts.length === limit ? (posts[posts.length - 1]?.['postedAt'] as string) : null,
+      mentions: buildMentionMap(posts),
     });
   }),
 );
 
 socialRouter.post(
   '/flux',
-  handler((req, res) => {
+  handler(async (req, res) => {
     const context = auth(req);
     const body = req.body as {
       body?: string;
@@ -742,6 +1013,7 @@ socialRouter.post(
     }
 
     const row = db().prepare('SELECT * FROM "posts" WHERE "id" = ?').get(id) as Record<string, unknown>;
+    await notifyMentions(context.user.id, text, { ownerId: context.user.id, visibility, link: `/flux/${id}`, category: 'fluxActivity' });
     ok(res, postView(context.user.id, deserialize(requireCollection('posts'), row)), 201);
   }),
 );
@@ -925,31 +1197,31 @@ socialRouter.get(
     const rows = db()
       .prepare('SELECT * FROM "comments" WHERE "postId" = ? AND "deletedAt" IS NULL ORDER BY "postedAt" ASC')
       .all(post.id) as Record<string, unknown>[];
-    ok(res, {
-      comments: rows
-        .map((row) => deserialize(requireCollection('comments'), row))
-        .filter((comment) => !isBlockedEitherWay(context.user.id, comment['userId'] as string))
-        .map((comment) => {
-          const mine = comment['userId'] === context.user.id;
-          if (mine || !comment['memberId']) return comment;
-          // Someone else's comment is attributed to an alter only while their
-          // member list is public and that alter has not opted out.
-          const member = getRecord(
-            'members',
-            { userId: comment['userId'] as string, systemId: (comment['systemId'] as string) ?? null },
-            comment['memberId'] as string,
-          );
-          const privacy = (member?.['privacy'] ?? {}) as Record<string, unknown>;
-          const visible =
-            member && profileOf(comment['userId'] as string)?.['showMemberList'] === true && privacy['showOnProfile'] !== false;
-          return visible ? comment : { ...comment, memberId: null, authorKind: 'system' };
-        })
-        .map((comment) => ({
-          ...comment,
-          author: counterpartSummary(comment['userId'] as string),
-          isMine: comment['userId'] === context.user.id,
-        })),
-    });
+    const comments = rows
+      .map((row) => deserialize(requireCollection('comments'), row))
+      .filter((comment) => !isBlockedEitherWay(context.user.id, comment['userId'] as string))
+      .map((comment) => {
+        const mine = comment['userId'] === context.user.id;
+        if (mine || !comment['memberId']) return comment;
+        // Someone else's comment is attributed to an alter only while their
+        // member list is public and that alter has not opted out.
+        const member = getRecord(
+          'members',
+          { userId: comment['userId'] as string, systemId: (comment['systemId'] as string) ?? null },
+          comment['memberId'] as string,
+        );
+        const privacy = (member?.['privacy'] ?? {}) as Record<string, unknown>;
+        const visible =
+          member && profileOf(comment['userId'] as string)?.['showMemberList'] === true && privacy['showOnProfile'] !== false;
+        return visible ? comment : { ...comment, memberId: null, authorKind: 'system' };
+      })
+      .map((comment) => ({
+        ...comment,
+        author: counterpartSummary(comment['userId'] as string),
+        isMine: comment['userId'] === context.user.id,
+      }));
+
+    ok(res, { comments, mentions: buildMentionMap(comments) });
   }),
 );
 
@@ -994,18 +1266,29 @@ socialRouter.post(
     db().prepare('UPDATE "posts" SET "commentCount" = "commentCount" + 1 WHERE "id" = ?').run(post.id);
 
     const ownerId = post['userId'] as string;
+    // Tracks who this request already told, so a comment that both lands on
+    // someone's post and specifically @-mentions that same person notifies
+    // them once, not twice for the one comment.
+    const alreadyNotified = new Set<string>();
     if (ownerId !== context.user.id) {
+      alreadyNotified.add(ownerId);
       publish(ownerId, { type: 'flux.activity', postId: post.id, kind: 'comment' });
       await notify({
         userId: ownerId,
         category: 'fluxActivity',
         kind: 'flux.comment',
         title: `${counterpartSummary(context.user.id)['displayName']} commented`,
-        body: body.slice(0, 120),
+        body: plainTextPreview(body).slice(0, 120),
         link: `/flux/${post.id}`,
         actorUserId: context.user.id,
       });
     }
+    await notifyMentions(
+      context.user.id,
+      body,
+      { ownerId, visibility: 'friends', link: `/flux/${post.id}`, category: 'fluxActivity' },
+      alreadyNotified,
+    );
     ok(res, { id }, 201);
   }),
 );

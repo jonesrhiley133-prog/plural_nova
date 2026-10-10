@@ -22,6 +22,7 @@ export function useVirtualizedChat<T extends { id: string }>(
   handleScroll: () => void;
   scrollToBottom: () => void;
   scrollToId: (id: string) => void;
+  getScrollMetrics: () => { scrollTop: number; scrollHeight: number; clientHeight: number } | null;
 } {
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
   const userScrolledUp = useRef(false);
@@ -32,6 +33,19 @@ export function useVirtualizedChat<T extends { id: string }>(
     estimateSize: () => options.estimateSize,
     overscan: options.overscan ?? 6,
     getItemKey: (index) => items[index]?.id ?? index,
+    // A chat window is bottom-anchored: the newest message sits at the end,
+    // and loading older history prepends at the start while the user is
+    // scrolled away from it. `anchorTo: 'end'` is virtual-core's own support
+    // for exactly that shape — when a prepend shifts every index, it resolves
+    // the scroll offset against the item the user was actually looking at
+    // (tracked internally, off its own scroll-offset state) before the new
+    // range renders, and it keeps the bottom pinned as estimated row heights
+    // settle to their measured ones. A hand-rolled version of this (capture
+    // the top item's id, prepend, scroll back to that id's new index) was
+    // tried first and was racy: it read the virtualizer's visible range from
+    // the DOM's scrollTop at a moment the virtualizer's own scroll listener
+    // hadn't yet caught up to, capturing the wrong anchor.
+    anchorTo: 'end',
   });
 
   const scrollRef = useCallback(
@@ -61,5 +75,19 @@ export function useVirtualizedChat<T extends { id: string }>(
     [virtualizer, items],
   );
 
-  return { scrollRef, virtualizer, userScrolledUp, handleScroll, scrollToBottom, scrollToId };
+  const getScrollMetrics = useCallback(() => {
+    const el = scrollElementRef.current;
+    if (!el) return null;
+    return { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight };
+  }, []);
+
+  return {
+    scrollRef,
+    virtualizer,
+    userScrolledUp,
+    handleScroll,
+    scrollToBottom,
+    scrollToId,
+    getScrollMetrics,
+  };
 }

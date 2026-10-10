@@ -20,6 +20,7 @@ export type RealtimeEvent =
   | { type: 'message.new'; threadId: string; messageId: string; fromUserId: string }
   | { type: 'message.read'; threadId: string; byUserId: string }
   | { type: 'message.deleted'; threadId: string; messageId: string }
+  | { type: 'message.edited'; threadId: string; messageId: string }
   | { type: 'messageKey.new'; userId: string }
   | { type: 'typing'; threadId: string; fromUserId: string; isTyping: boolean }
   | { type: 'reaction.new'; threadId: string; messageId: string; kind: 'dm' | 'system' }

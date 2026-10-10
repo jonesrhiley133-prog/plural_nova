@@ -653,11 +653,13 @@ export function SearchField({
   onChange,
   placeholder = 'Search…',
   label = 'Search',
+  autoFocus,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   label?: string;
+  autoFocus?: boolean;
 }): JSX.Element {
   return (
     <div style={{ position: 'relative' }}>
@@ -680,6 +682,7 @@ export function SearchField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         aria-label={label}
+        autoFocus={autoFocus}
         style={{ paddingLeft: 36, paddingRight: value ? 36 : undefined }}
       />
       {value ? (

@@ -3,13 +3,17 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, messageFor } from '../core/api.js';
 import { useI18n } from '../core/i18n.js';
 import { useToast } from '../core/toast.js';
+import { useFronting } from '../core/fronting.js';
 import { PageHeader } from '../app/PageHeader.js';
-import { Avatar, Button, Card, Chip, Stat } from '../ui/primitives.js';
+import { Avatar, Button, Card, Chip, SegmentedControl, Stat } from '../ui/primitives.js';
 import { EmptyState, ErrorPanel, SkeletonCards, SkeletonList } from '../ui/feedback.js';
 import { ConfirmDialog, useDialog } from '../ui/overlays.js';
 import { Icon } from '../ui/Icon.js';
 import { Markdown } from '../ui/Markdown.js';
+import { ContextualCard, useContextualCard, type ContextualCardAction, type ContextualCardSubject } from '../ui/ContextualCard.js';
+import { FlagImageRow, type FlagImageItem } from '../ui/FlagImage.js';
 import { PostCard, QuoteDialog, type Post } from './Flux.js';
+import type { MentionMap } from '../ui/Markdown.js';
 
 /**
  * Someone else's profile.
@@ -38,18 +42,35 @@ interface ProfileView {
   acceptsFriendRequests: boolean;
   acceptsMessages: boolean;
   memberCount?: number;
-  members?: {
-    id: string;
-    name: string;
-    pronouns: string;
-    color: string | null;
-    icon: string | null;
-    avatarUrl: string;
-    orbitOrder: number;
-    frontStatus: string | null;
-  }[];
+  members?: ProfileMember[];
   currentlyFronting?: { id: string; name: string; color: string | null; icon: string | null }[];
   pinnedGallery?: { id: string; url: string; title: string; mediaType: string }[];
+}
+
+interface ProfileMember {
+  id: string;
+  name: string;
+  pronouns: string;
+  color: string | null;
+  icon: string | null;
+  avatarUrl: string;
+  orbitOrder: number;
+  frontStatus: string | null;
+  flags: FlagImageItem[];
+}
+
+/** Shapes a member row into the generic "who is this" popover's subject. */
+function subjectFor(member: ProfileMember): ContextualCardSubject {
+  return {
+    id: member.id,
+    name: member.name,
+    avatarUrl: member.avatarUrl || null,
+    color: member.color,
+    icon: member.icon,
+    pronouns: member.pronouns || null,
+    frontStatusLabel: member.frontStatus === 'fronting' ? 'Fronting now' : null,
+    flags: member.flags,
+  };
 }
 
 export default function ConstellationProfile(): JSX.Element {
@@ -57,6 +78,9 @@ export default function ConstellationProfile(): JSX.Element {
   const navigate = useNavigate();
   const { term } = useI18n();
   const toast = useToast();
+  const fronting = useFronting();
+  const card = useContextualCard<ContextualCardSubject>();
+  const [tab, setTab] = useState<'posts' | 'media'>('posts');
 
   const [profile, setProfile] = useState<ProfileView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,6 +106,7 @@ export default function ConstellationProfile(): JSX.Element {
   }, [load]);
 
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postMentions, setPostMentions] = useState<MentionMap>({});
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsError, setPostsError] = useState<string | null>(null);
   const quoting = useDialog<Post>();
@@ -91,8 +116,11 @@ export default function ConstellationProfile(): JSX.Element {
     if (!profile) return;
     setPostsLoading(true);
     try {
-      const result = await api.get<{ posts: Post[] }>('/api/social/flux', { authorUserId: profile.userId });
+      const result = await api.get<{ posts: Post[]; mentions: MentionMap }>('/api/social/flux', {
+        authorUserId: profile.userId,
+      });
       setPosts(result.posts);
+      setPostMentions(result.mentions);
       setPostsError(null);
     } catch (cause) {
       setPostsError(messageFor(cause));
@@ -178,6 +206,35 @@ export default function ConstellationProfile(): JSX.Element {
         return a.orbitOrder - b.orbitOrder;
     }
   });
+
+  // Media is the same already-privacy-filtered posts this profile already
+  // fetched, flattened to just their attachments — not a second query.
+  const mediaItems = posts.flatMap((post) =>
+    post.media.map((item, index) => ({ ...item, key: `${post.id}:${index}`, postId: post.id })),
+  );
+
+  const cardActions: ContextualCardAction[] =
+    profile.isOwner && card.subject
+      ? [
+          {
+            key: 'quick-front',
+            label: fronting.isFrontingAlready(card.subject.id)
+              ? term('Remove from {{fronting}}')
+              : term('Quick {{front}}'),
+            onSelect: () => {
+              if (!card.subject) return;
+              void fronting.quickFront(card.subject.id).catch((cause: unknown) => toast.fromError(cause));
+            },
+          },
+          {
+            key: 'view-profile',
+            label: 'View profile',
+            onSelect: () => {
+              if (card.subject) navigate(`/members/${card.subject.id}`);
+            },
+          },
+        ]
+      : [];
 
   return (
     <>
@@ -325,9 +382,15 @@ export default function ConstellationProfile(): JSX.Element {
             {members.map((member) => (
               <div
                 key={member.id}
-                className="card"
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-3)' }}
+                className="card card--interactive"
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-3)', position: 'relative' }}
               >
+                <button
+                  type="button"
+                  onClick={(event) => card.openFrom(event, subjectFor(member))}
+                  aria-label={member.name}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                />
                 <Avatar
                   name={member.name}
                   src={member.avatarUrl || null}
@@ -346,6 +409,7 @@ export default function ConstellationProfile(): JSX.Element {
                   </span>
                 ) : null}
                 {member.frontStatus === 'fronting' ? <Chip accent>Out now</Chip> : null}
+                {member.flags.length > 0 ? <FlagImageRow flags={member.flags} width={24} /> : null}
               </div>
             ))}
           </div>
@@ -360,11 +424,46 @@ export default function ConstellationProfile(): JSX.Element {
         </Card>
       )}
 
-      <Card title="Flux" subtitle="Recent posts">
+      <Card
+        title="Flux"
+        subtitle={tab === 'posts' ? 'Recent posts' : 'Shared images'}
+        actions={
+          <SegmentedControl
+            label="Posts or media"
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'posts', label: 'Posts' },
+              { value: 'media', label: 'Media' },
+            ]}
+          />
+        }
+      >
         {postsLoading && posts.length === 0 ? (
           <SkeletonList rows={2} />
         ) : postsError ? (
           <ErrorPanel message={postsError} onRetry={() => void loadPosts()} />
+        ) : tab === 'media' ? (
+          mediaItems.length === 0 ? (
+            <p className="small muted prose" style={{ margin: 0 }}>
+              {profile.isOwner
+                ? "You haven't shared any images yet."
+                : 'No images here yet — posts with pictures show up once they are shared with you.'}
+            </p>
+          ) : (
+            <div className="grid grid--tight" style={{ ['--grid-min' as never]: '120px' }}>
+              {mediaItems.map((item) => (
+                <img
+                  key={item.key}
+                  src={item.url}
+                  alt={item.alt || ''}
+                  loading="lazy"
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                  onClick={() => navigate(`/flux/${item.postId}`)}
+                />
+              ))}
+            </div>
+          )
         ) : posts.length === 0 ? (
           <p className="small muted prose" style={{ margin: 0 }}>
             {profile.isOwner
@@ -384,6 +483,7 @@ export default function ConstellationProfile(): JSX.Element {
                 onDelete={() => confirm.show(post)}
                 onOpen={() => navigate(`/flux/${post.id}`)}
                 expanded={false}
+                mentions={postMentions}
               />
             ))}
           </div>
@@ -411,6 +511,8 @@ export default function ConstellationProfile(): JSX.Element {
           void loadPosts();
         }}
       />
+
+      <ContextualCard position={card.position} subject={card.subject} actions={cardActions} onClose={card.close} />
     </>
   );
 }

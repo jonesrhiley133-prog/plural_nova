@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { newId, now, requireCollection, type StoredRecord } from '@pluralnova/shared';
+import { extractMentionTokens, newId, now, plainTextPreview, requireCollection, type StoredRecord } from '@pluralnova/shared';
 import { handler, ok } from '../http/respond.js';
 import { badRequest, forbidden, notFound } from '../http/errors.js';
 import { auth, requireAuth } from '../auth/middleware.js';
 import { rateLimit } from '../http/rateLimit.js';
 import { getDb, transaction } from '../db/index.js';
 import { deserialize, getRecord } from '../db/repository.js';
+import { shareableView } from '../services/projection.js';
 import { notify } from '../services/notifications.js';
 import { publish, publishToMany } from '../realtime/hub.js';
 import {
@@ -323,24 +324,86 @@ function messageView(message: StoredRecord, viewerId: string): Record<string, un
   let asMember: Record<string, unknown> | null = null;
   const memberId = message['senderMemberId'] as string | null;
   if (memberId) {
-    const member = getRecord('members', { userId: senderId, systemId: null }, memberId);
-    if (member) {
+    const rawMember = getRecord('members', { userId: senderId, systemId: null }, memberId);
+    if (rawMember) {
+      // Defense in depth, not the gate itself: strips `sensitive` fields
+      // (e.g. `notes`) from a raw record that otherwise never leaves this
+      // function, so a later edit that accidentally returns more of it can't
+      // leak one by itself.
+      const member = shareableView('members', rawMember);
       const privacy = (member['privacy'] ?? {}) as Record<string, unknown>;
       // The same gate the public profile's own member list uses: "show head
       // mates" off, or this one alter opted out, means whoever sent this
       // message is never attributed to a specific alter for anyone but the
       // sender's own account — "send as a member" is not a second, ungated
-      // place that identity can reach another account from.
+      // place that identity can leak from.
       if (isMine || (showsMemberList(senderId) && privacy['showOnProfile'] !== false)) {
-        asMember = { id: member.id, name: member['name'], color: member['color'], icon: member['icon'] };
+        asMember = {
+          id: member.id,
+          name: member['name'],
+          color: member['color'],
+          icon: member['icon'],
+          avatarUrl: privacy['showAvatar'] !== false ? member['avatarUrl'] : null,
+        };
       }
     }
   }
   return {
+    // `...message` would otherwise spread the raw `senderMemberId` straight
+    // through regardless of what `asMember` above just decided, making that
+    // gate cosmetic — it must say the same thing `asMember` says, never more.
     ...message,
+    senderMemberId: asMember ? message['senderMemberId'] : null,
     isMine,
     asMember,
   };
+}
+
+/**
+ * One `env.mentions`-shaped map (see `Markdown.tsx`) covering every token
+ * across a batch of messages about to render for one participant. A 1:1
+ * conversation only ever has these two accounts, so unlike Flux's
+ * cross-friend-graph case, "does the viewer already have a channel to this
+ * account" reduces to "is it one of the two people already in this
+ * conversation" — no separate friendship check needed on top of that.
+ */
+function buildMentionMap(
+  messages: Record<string, unknown>[],
+  viewerId: string,
+  otherUserId: string,
+): Record<string, { name: string }> {
+  const map: Record<string, { name: string }> = {};
+  for (const message of messages) {
+    const senderId = message['senderUserId'] as string;
+    for (const token of extractMentionTokens(String(message['body'] ?? ''))) {
+      const key = `${token.kind}:${token.id}`;
+      if (key in map) continue;
+      if (token.kind === 'u') {
+        if (token.id !== viewerId && token.id !== otherUserId) continue;
+        const name = String(counterpartSummary(token.id)['displayName'] ?? '');
+        if (name) map[key] = { name };
+      } else if (token.kind === 'm') {
+        const ownRow = getRecord('members', { userId: viewerId, systemId: null }, token.id);
+        if (ownRow) {
+          map[key] = { name: String(ownRow['name']) };
+          continue;
+        }
+        const theirRow = getRecord('members', { userId: otherUserId, systemId: null }, token.id);
+        const theirPrivacy = (theirRow?.['privacy'] ?? {}) as Record<string, unknown>;
+        if (theirRow && showsMemberList(otherUserId) && theirPrivacy['showOnProfile'] !== false) {
+          map[key] = { name: String(theirRow['name']) };
+        }
+      } else {
+        // 'g' — a group is one account's own folder of alters, so only the
+        // message's own sender's groups are ever a valid target here.
+        const row = getDb()
+          .prepare('SELECT "name" FROM "memberGroups" WHERE "id" = ? AND "userId" = ? AND "deletedAt" IS NULL')
+          .get(token.id, senderId) as { name: string } | undefined;
+        if (row) map[key] = { name: row.name };
+      }
+    }
+  }
+  return map;
 }
 
 /**
@@ -378,6 +441,7 @@ messagesRouter.get(
       messages,
       hasMore: rows.length === limit,
       oldestSequence: messages[0]?.['sequence'] ?? null,
+      mentions: buildMentionMap(messages, context.user.id, conversation['otherUserId'] as string),
     });
   }),
 );
@@ -463,7 +527,7 @@ messagesRouter.post(
       // list is only hidden, not gone (the row and the shared thread survive),
       // so it belongs back on screen the moment the conversation continues —
       // the same way it reappears in any other messaging app.
-      const preview = text.slice(0, 120);
+      const preview = plainTextPreview(text).slice(0, 120);
       db()
         .prepare(
           `UPDATE "conversations" SET "lastMessageAt" = ?, "lastMessagePreview" = ?, "updatedAt" = ?, "deletedAt" = NULL
@@ -502,7 +566,7 @@ messagesRouter.post(
         category: 'messages',
         kind: 'message.new',
         title: `${counterpartSummary(context.user.id)['displayName']} sent a message`,
-        body: text.slice(0, 120),
+        body: plainTextPreview(text).slice(0, 120),
         link: `/social/messages/${threadId}`,
         actorUserId: context.user.id,
       });
@@ -607,6 +671,51 @@ messagesRouter.delete(
     publish(context.user.id, { type: 'message.deleted', threadId, messageId });
 
     ok(res, { deleted: true });
+  }),
+);
+
+/** Only the sender may edit, and only the body — the same ownership check `DELETE` already makes. */
+messagesRouter.patch(
+  '/messages/:id',
+  handler((req, res) => {
+    const context = auth(req);
+    const row = db()
+      .prepare('SELECT * FROM "messages" WHERE "id" = ? AND "deletedAt" IS NULL')
+      .get(String(req.params['id'])) as Record<string, unknown> | undefined;
+    if (!row || row['senderUserId'] !== context.user.id) throw notFound('That message');
+
+    const { body } = req.body as { body?: string };
+    const text = body?.trim() ?? '';
+    if (!text) throw badRequest('Write something first.');
+
+    db()
+      .prepare('UPDATE "messages" SET "body" = ?, "edited" = 1, "updatedAt" = ? WHERE "id" = ?')
+      .run(text, now(), row['id']);
+
+    const threadId = row['threadId'] as string;
+    const messageId = String(row['id']);
+    const conversation = requireParticipant(context.user.id, threadId);
+    const otherUserId = conversation['otherUserId'] as string;
+
+    // Only the thread's current latest message also gets its preview
+    // updated — editing something further back must not make the
+    // conversation list claim a stale message is the newest one again.
+    if (conversation['lastMessageAt'] === row['sentAt']) {
+      const preview = plainTextPreview(text).slice(0, 120);
+      db()
+        .prepare('UPDATE "conversations" SET "lastMessagePreview" = ? WHERE "threadId" = ?')
+        .run(preview, threadId);
+    }
+
+    publish(otherUserId, { type: 'message.edited', threadId, messageId });
+    publish(context.user.id, { type: 'message.edited', threadId, messageId });
+
+    const updated = deserialize(requireCollection('messages'), {
+      ...row,
+      body: text,
+      edited: 1,
+    });
+    ok(res, { message: messageView(updated, context.user.id) });
   }),
 );
 

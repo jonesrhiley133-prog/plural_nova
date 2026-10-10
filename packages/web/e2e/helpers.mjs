@@ -105,7 +105,7 @@ export const ROUTES = [
   'subsystems', 'system-history', 'timeline', 'relationships', 'headspace', 'bulletin',
   'polls', 'journal', 'notes', 'tasks', 'reminders', 'calendar', 'media', 'flags', 'achievements',
   'daily-summary', 'mood-emotions', 'wellbeing', 'emotions', 'body-map', 'emotion-insights', 'sleep',
-  'fitness', 'cycle', 'finances', 'contacts', 'emergency', 'locations', 'work', 'vault',
+  'fitness', 'cycle', 'insights', 'finances', 'contacts', 'emergency', 'locations', 'work', 'vault',
   'constellations', 'friends', 'flux', 'flux/bookmarks', 'notifications', 'music', 'video',
   'fics', 'characters', 'stories', 'resources', 'dictionary', 'templates', 'import',
   'backup', 'settings', 'help', 'features', 'search', 'more',

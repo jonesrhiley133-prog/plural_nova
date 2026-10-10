@@ -70,11 +70,17 @@ describe('legacy custom field migration', () => {
   it('folds same label-and-type fields into one shared definition, combining every option on offer', async () => {
     const result = await client.request('POST', '/api/system/custom-fields/migrate', { token, body: {} });
     expect(result.status).toBe(200);
-    expect(result.body.data).toEqual({ migrated: true, definitions: 3, values: 5 });
+    // This endpoint also runs the member-field migration (see the describe
+    // block below), which now always creates its full standard set of 24
+    // definitions regardless of legacy data — but 3 of those 24 share a
+    // label with what this test's own legacy fields already created
+    // (Species, Notes, Tags), so the member-field pass reuses those 3
+    // instead of duplicating them: 3 legacy + (24 - 3) reused = 24 total.
+    expect(result.body.data).toEqual({ migrated: true, definitions: 24, values: 5 });
 
     const definitions = await client.request('GET', '/api/records/customFieldDefinitions', { token });
     const byLabel = new Map<string, any>(definitions.body.data.items.map((d: any) => [d.label, d]));
-    expect([...byLabel.keys()].sort()).toEqual(['Notes', 'Species', 'Tags']);
+    expect([...byLabel.keys()]).toEqual(expect.arrayContaining(['Notes', 'Species', 'Tags']));
 
     const species = byLabel.get('Species');
     expect(species.type).toBe('choice');
@@ -191,14 +197,16 @@ describe('member field migration (editor simplification)', () => {
   });
   afterAll(() => client.close());
 
-  it('creates one definition per field actually used, and copies each member’s own value', async () => {
+  it('creates a definition for every standard field, and copies each member’s own value where one exists', async () => {
     const result = await client.request('POST', '/api/system/custom-fields/migrate', { token, body: {} });
     expect(result.status).toBe(200);
     expect(result.body.data.migrated).toBe(true);
-    // Four distinct fields have any value across these members: species, bio,
-    // hobbies, notes. Species is answered by both Den and Finch, so that's 5
-    // member-field values total spread across those 4 definitions.
-    expect(result.body.data.definitions).toBe(4);
+    // Every field in MEMBER_FIELD_MIGRATIONS gets a definition, whether or
+    // not any member has a legacy value for it — these are the standing
+    // fields every profile can answer, not just a vehicle for moving data
+    // that happens to exist. Only 5 member-field values actually get copied:
+    // Den has species, bio and hobbies; Finch has species and notes.
+    expect(result.body.data.definitions).toBe(24);
     expect(result.body.data.values).toBe(5);
 
     const definitions = (await client.request('GET', '/api/records/customFieldDefinitions', { token })).body.data
@@ -209,9 +217,9 @@ describe('member field migration (editor simplification)', () => {
     expect(byLabel.get('Biography').type).toBe('longText');
     expect(byLabel.get('Hobbies').type).toBe('tags');
     expect(byLabel.get('Notes').type).toBe('longText');
-    // Nobody set a chat prefix — no definition invented for a field with
-    // nothing to migrate.
-    expect(byLabel.has('Chat prefix')).toBe(false);
+    // Nobody set a chat prefix, but the definition still exists — a field
+    // left blank by every member is available to answer, not absent.
+    expect(byLabel.has('Chat prefix')).toBe(true);
 
     const den = (await client.request('GET', `/api/records/members/${denId}`, { token })).body.data;
     const valueFor = (member: any, label: string): string | undefined =>
@@ -235,7 +243,7 @@ describe('member field migration (editor simplification)', () => {
     expect(value).toBe('Human');
   });
 
-  it('invents nothing for a member with no migratable fields', async () => {
+  it('copies no values for a member with no migratable fields, even though the definitions exist', async () => {
     const ivy = (await client.request('GET', `/api/records/members/${ivyId}`, { token })).body.data;
     expect(Array.isArray(ivy.customFieldValues) ? ivy.customFieldValues.length : 0).toBe(0);
   });

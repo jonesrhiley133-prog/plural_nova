@@ -762,11 +762,78 @@
   color: var(--accent);
 }
 
-/** An identity flag on a profile — its own colour, not the accent everyone shares. */
-.chip--flag {
+.flag-image-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* A real rectangular flag image — the ratio real-world flags actually use,
+   not the square tile `Flags.tsx`'s own library grid uses for itself. */
+.flag-image {
+  display: inline-block;
+  width: var(--flag-width, 40px);
+  aspect-ratio: 3 / 2;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: var(--border-width) solid var(--border);
+  flex-shrink: 0;
+}
+
+.flag-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.flag-image__fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
   background: color-mix(in srgb, var(--flag-color, var(--accent)) 16%, var(--surface-raised));
-  border: var(--border-width) solid color-mix(in srgb, var(--flag-color, var(--accent)) 40%, transparent);
-  color: var(--flag-color, var(--accent));
+  font-size: calc(var(--flag-width, 40px) * 0.35);
+  line-height: 1;
+}
+
+/* A quick "who is this" popover — same anchoring as `.action-menu`, richer content. */
+.contextual-card {
+  z-index: var(--z-modal);
+  width: 240px;
+  max-width: calc(100vw - var(--space-4) * 2);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.contextual-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.contextual-card__name {
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.contextual-card__flags {
+  flex-wrap: wrap;
+}
+
+.contextual-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
 }
 
 .chip--interactive {

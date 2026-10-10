@@ -217,7 +217,7 @@ function formatValue(definition: StoredRecord, value: string, members: StoredRec
 }
 
 /** The same row shape whether the fields fall under a heading or not. */
-function FieldGroup({
+export function FieldGroup({
   definitions,
   values,
   members,
@@ -235,13 +235,13 @@ function FieldGroup({
   return (
     <dl className="stack" style={{ margin: 0 }}>
       {filled.map((definition) => {
-        // Markdown and a multi-image gallery both need real width to read —
-        // content that looks broken squeezed right-aligned next to its label
-        // the way a one-line value does. They get the label above and the
-        // full row's width below instead; every other type keeps the
+        // Markdown, long text and a multi-image gallery all need real width
+        // to read — content that looks broken squeezed right-aligned next to
+        // its label the way a one-line value does. They get the label above
+        // and the full row's width below instead; every other type keeps the
         // label/value line unchanged.
         const type = typeOf(definition);
-        const block = type === 'markdown' || type === 'gallery';
+        const block = type === 'markdown' || type === 'longText' || type === 'gallery';
         return (
           <div key={definition.id} className={block ? 'stack stack--tight' : 'row row--between'} style={block ? undefined : { alignItems: 'flex-start' }}>
             <dt className="small muted" style={block ? undefined : { minWidth: 120 }}>

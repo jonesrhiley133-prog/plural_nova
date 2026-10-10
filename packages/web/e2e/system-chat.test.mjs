@@ -5,13 +5,12 @@ import { BASE, openBrowser, signUp } from './helpers.mjs';
 /**
  * System Chat, one system, two alters.
  *
- * "Mine" here has no second account to lean on the way a dm does — it is
- * whichever alter the send-as strip currently has selected, and every
- * message's side has to be judged against that fresh each time, not against
- * whichever alter happened to send it first. Switching who is sending is the
- * whole point of the feature, so a message flipping sides when it does is
- * correct, not a bug — the bug this covers is it not flipping, or not saving
- * as the alter actually chosen.
+ * Alignment is a Discord-style open feed, never a chat bubble, and every
+ * message's side is strictly its position in the conversation's permanent
+ * sequence — message 1 left, 2 right, 3 left... — regardless of who sent
+ * it, who is currently chosen to send as, or how many messages happen to be
+ * loaded. A message changing sides after it has already rendered, for any
+ * reason, is exactly the bug this file guards against.
  */
 
 let session;
@@ -55,7 +54,65 @@ async function createGroupThread(page, memberIds, name) {
   );
 }
 
-const mineOf = async (locator) => (await locator.getAttribute('class') ?? '').includes('chat-message--mine');
+/**
+ * Seeds a thread with `count` messages, each with an explicit, correctly
+ * ascending `sequence` — through the generic records API, not the real send
+ * endpoint (`POST .../chat/threads/:id/messages`), which rate-limits to 60
+ * sends/minute to blunt spam and would make seeding more than that
+ * impractically slow for a test. The generic route has no such limit and,
+ * for this collection, accepts `sequence`/`threadId` directly rather than
+ * computing them server-side, so seeded rows land exactly where a real send
+ * would have put them.
+ */
+async function seedMessages(page, threadId, count, prefix) {
+  await page.evaluate(
+    async ({ threadId, count, prefix }) => {
+      const auth = {
+        'content-type': 'application/json',
+        authorization: `Bearer ${localStorage.getItem('pluralnova.token')}`,
+      };
+      const base = Date.now();
+      for (let i = 1; i <= count; i += 1) {
+        await fetch('/api/records/systemChatMessages', {
+          method: 'POST',
+          headers: auth,
+          body: JSON.stringify({
+            threadId,
+            body: `${prefix} ${i}`,
+            sentAt: new Date(base + i * 1000).toISOString(),
+            sequence: i,
+            visibility: 'system',
+          }),
+        });
+      }
+    },
+    { threadId, count, prefix },
+  );
+}
+
+/**
+ * Reads a message's row-level alignment — 'left', 'right', or 'pending' for
+ * a send still in flight. Never which alter sent it. Finds the body text via
+ * Playwright's own `exact: true` matching (handles the whitespace a markdown
+ * renderer adds around a paragraph, which a hand-rolled `^...$` regex against
+ * raw `hasText` does not — that mismatch, not a substring collision, was the
+ * actual cause the one time this used a regex), then walks up to the row:
+ * with numbered seed text like "seeded 11", a *substring* match would also
+ * hit "seeded 110"–"119", which is both the wrong message and, those not
+ * being anywhere near the scrolled-to position, unresolvable within the
+ * virtualizer's rendered window.
+ */
+async function sideOf(page, text) {
+  const row = page
+    .getByText(text, { exact: true })
+    .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " chat-feed-row ")]')
+    .last();
+  const classes = (await row.getAttribute('class')) ?? '';
+  if (classes.includes('chat-feed-row--left')) return 'left';
+  if (classes.includes('chat-feed-row--right')) return 'right';
+  if (classes.includes('chat-feed-row--pending')) return 'pending';
+  return 'unknown';
+}
 
 before(async () => {
   session = await openBrowser();
@@ -74,43 +131,71 @@ after(async () => {
   await session.browser.close();
 });
 
-describe('system chat: sender identity and ordering', () => {
-  it('sends as the chosen chatter and puts it on the right', async () => {
-    const { page } = session;
-    await page.getByRole('radio', { name: 'Send as Chatter A' }).click();
-    await page.getByRole('textbox', { name: 'Message' }).fill('hello from A');
-    await page.getByRole('button', { name: 'Send' }).click();
-    await page.waitForTimeout(1200);
+describe('system chat: strict positional alternation', () => {
+  const SIX = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
+  const EXPECTED = ['left', 'right', 'left', 'right', 'left', 'right'];
+  // Mixed and repeated senders on purpose — alignment must ignore all of it.
+  const SENDERS = ['Chatter A', 'Chatter A', 'Chatter B', 'Chatter A', 'Chatter B', 'Chatter B'];
 
-    const bubble = page.locator('.chat-message', { hasText: 'hello from A' }).last();
-    assert.ok(await mineOf(bubble), "A's own message did not render as mine");
+  it('alternates left, right, left, right, left, right by position, never by sender', async () => {
+    const { page } = session;
+    const box = page.getByRole('textbox', { name: 'Message' });
+    const send = page.getByRole('button', { name: 'Send' });
+
+    for (let i = 0; i < SIX.length; i += 1) {
+      await page.getByRole('radio', { name: `Send as ${SENDERS[i]}` }).click();
+      await box.fill(SIX[i]);
+      await send.click();
+      await page.waitForTimeout(900);
+    }
+
+    for (let i = 0; i < SIX.length; i += 1) {
+      assert.equal(await sideOf(page, SIX[i]), EXPECTED[i], `"${SIX[i]}" (position ${i + 1}) is not ${EXPECTED[i]}`);
+    }
   });
 
-  it('reclassifies it — without moving it — the moment the active chatter changes', async () => {
+  it('never moves once rendered — not when who is sending changes, not after leaving and returning — and continues correctly', async () => {
     const { page } = session;
+
+    // Toggling who the composer sends as must never retroactively reclassify
+    // already-rendered history — exactly the bug this redesign replaces.
     await page.getByRole('radio', { name: 'Send as Chatter B' }).click();
     await page.waitForTimeout(400);
+    for (let i = 0; i < SIX.length; i += 1) {
+      assert.equal(await sideOf(page, SIX[i]), EXPECTED[i], `"${SIX[i]}" moved after switching who is sending`);
+    }
 
-    const fromA = page.locator('.chat-message', { hasText: 'hello from A' }).last();
-    assert.ok(!(await mineOf(fromA)), "A's message still reads as mine after switching to B");
+    // Leave the conversation entirely and come back to it.
+    await page.goto(`${BASE}/system/chat`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(600);
+    await page.getByRole('button', { name: /General/i }).first().click();
+    await page.waitForTimeout(800);
+    for (let i = 0; i < SIX.length; i += 1) {
+      assert.equal(await sideOf(page, SIX[i]), EXPECTED[i], `"${SIX[i]}" moved after leaving and returning`);
+    }
 
-    await page.getByRole('textbox', { name: 'Message' }).fill('hello from B');
+    // A 7th message must continue the exact same sequence: left, since the 6th was right.
+    await page.getByRole('textbox', { name: 'Message' }).fill('seventh');
     await page.getByRole('button', { name: 'Send' }).click();
     await page.waitForTimeout(1200);
-
-    const fromB = page.locator('.chat-message', { hasText: 'hello from B' }).last();
-    assert.ok(await mineOf(fromB), "B's own message did not render as mine");
+    assert.equal(await sideOf(page, 'seventh'), 'left', '"seventh" did not land on the correct next side');
   });
 
-  it('attributes correctly again on switching back', async () => {
+  it("redacts a deleted message in place, leaving its neighbors exactly where they were", async () => {
     const { page } = session;
-    await page.getByRole('radio', { name: 'Send as Chatter A' }).click();
-    await page.waitForTimeout(400);
+    // "third" sits at position 3 (left). Removing it must not pull "second"
+    // (right) and "fourth" (right) together onto adjacent, same-sided slots —
+    // its slot has to stay occupied by a tombstone, not disappear.
+    const row = page.locator('.chat-feed-row').filter({ has: page.locator('.chat-feed__body', { hasText: 'third' }) }).last();
+    await row.hover();
+    await row.getByLabel('Message actions').click();
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.waitForTimeout(800);
 
-    const fromA = page.locator('.chat-message', { hasText: 'hello from A' }).last();
-    const fromB = page.locator('.chat-message', { hasText: 'hello from B' }).last();
-    assert.ok(await mineOf(fromA), "A's message did not go back to reading as mine");
-    assert.ok(!(await mineOf(fromB)), "B's message still reads as mine once A is active again");
+    assert.equal(await sideOf(page, 'second'), 'right', '"second" moved after its neighbor was deleted');
+    assert.equal(await sideOf(page, 'fourth'), 'right', '"fourth" moved after its neighbor was deleted');
+    assert.ok((await page.getByText('Message removed').count()) >= 1, 'the removed message tombstone did not appear');
   });
 
   const RAPID = ['rapid one', 'rapid two', 'rapid three', 'rapid four'];
@@ -232,5 +317,203 @@ describe('active chatter: thread visibility and header identity', () => {
       1,
       "A and B's thread did not come back for A after switching away and back",
     );
+  });
+});
+
+describe('system chat: pagination and jump-to-latest', () => {
+  let threadId;
+
+  it('loads older messages on scroll-up without shifting already-rendered alignment', async () => {
+    const { page } = session;
+    threadId = await createGroupThread(page, [chatterA], 'Pagination check');
+    // More than one page (the client's initial load is the newest 150).
+    await seedMessages(page, threadId, 160, 'seeded');
+
+    await page.goto(`${BASE}/system/chat/${threadId}`, { waitUntil: 'networkidle' });
+    // `.count()` is a snapshot, not an auto-waiting assertion — with 150
+    // messages to fetch, normalize and virtualize, a fixed short delay isn't
+    // reliably enough before the DOM settles, so this waits for the thing
+    // it actually needs to see rather than guessing how long that takes.
+    await page.getByText('seeded 160').waitFor({ timeout: 8000 });
+
+    assert.equal(
+      await page.getByText('seeded 10', { exact: true }).count(),
+      0,
+      'a message older than the first page is already visible before scrolling up',
+    );
+    // Sequence 160 is even, so strict alternation puts it on the right —
+    // checked against the known formula, not a snapshot read back later,
+    // since the view opens scrolled to the bottom and a message far from
+    // the current scroll position (like "seeded 11" would be here) isn't
+    // rendered yet under virtualization — reading it this early isn't a
+    // "did it move" check, it's asking about a row that doesn't exist yet.
+    assert.equal(await sideOf(page, 'seeded 160'), 'right', '"seeded 160" (sequence 160, even) is not on the right');
+
+    // First scroll-to-top: 11 messages short of the full 160, this loads the
+    // one remaining older page (sequence 1-10) and prepends it. The
+    // virtualizer is anchored to keep whatever the user was already looking
+    // at — "seeded 11", at the top of the viewport — exactly where it was,
+    // which is the point of the feature (nothing already on screen jumps),
+    // so scrollTop actually moves *away* from 0 by however tall those 10 new
+    // rows rendered. "seeded 1" isn't on screen yet; it's above the anchored
+    // row, not revealed until scrolling up again finds nothing left to load.
+    await page.locator('.chat-conversation__messages').evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.getByText('seeded 10', { exact: true }).waitFor({ timeout: 5000 });
+
+    // "seeded 11" was already loaded and rendered on the first page — this
+    // is the one that must not have moved once older history loaded above it.
+    assert.equal(
+      await sideOf(page, 'seeded 11'),
+      'left',
+      '"seeded 11" (sequence 11, odd) moved sides once older history loaded above it',
+    );
+    // The newly-loaded older message right next to it continues the exact
+    // same alternating sequence across the page boundary.
+    assert.equal(
+      await sideOf(page, 'seeded 10'),
+      'right',
+      '"seeded 10" (sequence 10, even) does not continue the alternating sequence',
+    );
+
+    // Second scroll-to-top: there's nothing left to load (that was the last
+    // page), so this time the anchor has nothing to correct for and scrollTop
+    // actually lands at 0, finally revealing the true first message.
+    await page.locator('.chat-conversation__messages').evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.getByText('seeded 1', { exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await sideOf(page, 'seeded 1'), 'left', '"seeded 1" (sequence 1, odd) is not on the left');
+  });
+
+  it('offers jump-to-latest while scrolled away from the bottom, and returns there when used', async () => {
+    const { page } = session;
+    // Still scrolled to the top from the previous test, in the same thread.
+    await page.locator('.chat-jump-latest').waitFor({ timeout: 5000 });
+
+    await page.locator('.chat-jump-latest').click();
+    await page.getByText('seeded 160').waitFor({ timeout: 5000 });
+
+    assert.equal(await page.locator('.chat-jump-latest').count(), 0, 'jump-to-latest did not disappear after being used');
+  });
+});
+
+describe('system chat: nav rail and member panel', () => {
+  let threadId;
+
+  it('shows the nav rail and a collapsible member column on desktop, a dialog on mobile', async () => {
+    const { page } = session;
+    // A fresh member, not just chatterA/chatterB: the server reuses an
+    // existing group thread with the exact same participant set rather than
+    // creating a duplicate, and an earlier describe block already made one
+    // out of [chatterA, chatterB] — a third member keeps this thread its own.
+    // Asserting on B and D specifically, not A: an earlier describe block
+    // sets Chatter A as the account's active member and leaves it that way,
+    // and a thread's participant list never includes whoever is currently
+    // viewing it as themselves — correct, pre-existing behavior this test
+    // should not fight.
+    const chatterD = await createMember(page, 'Chatter D', '#fcd34d');
+    threadId = await createGroupThread(page, [chatterA, chatterB, chatterD], 'Nav rail and members');
+    await page.goto(`${BASE}/system/chat/${threadId}`, { waitUntil: 'networkidle' });
+    await page.getByRole('button', { name: 'Conversation info' }).waitFor({ timeout: 5000 });
+
+    // Desktop: the same breakpoint the panes themselves already switch on.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForTimeout(200);
+
+    assert.ok(await page.locator('.chat-nav-rail').isVisible(), 'the nav rail did not show at desktop width');
+
+    await page.getByRole('button', { name: 'Show members' }).click();
+    const column = page.locator('.chat-member-column');
+    await column.waitFor({ timeout: 5000 });
+    await column.getByText('Chatter B', { exact: true }).waitFor({ timeout: 5000 });
+    await column.getByText('Chatter D', { exact: true }).waitFor({ timeout: 5000 });
+
+    // `.count()` is a snapshot, not an auto-waiting assertion — it has to
+    // wait for the close to actually land, not just for the click to fire.
+    await column.getByRole('button', { name: 'Hide members' }).click();
+    await column.waitFor({ state: 'hidden', timeout: 5000 });
+    assert.equal(await page.locator('.chat-member-column').count(), 0, 'the member column did not close');
+
+    // Mobile: the same roster, now as a dialog instead of a column.
+    await page.setViewportSize({ width: 360, height: 780 });
+    await page.waitForTimeout(200);
+
+    // The rail is always in the DOM — only CSS hides it below the
+    // breakpoint — so this checks visibility, not `.count()` (always 1).
+    assert.equal(await page.locator('.chat-nav-rail').isVisible(), false, 'the nav rail stayed visible below the desktop breakpoint');
+
+    await page.getByRole('button', { name: 'Show members' }).click();
+    await page.getByText('Chatter B', { exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await page.locator('.chat-member-column').count(), 0, 'the desktop member column rendered on mobile');
+    await page.keyboard.press('Escape');
+  });
+
+  it('shows the roster inside conversation info, with no bubble color controls left', async () => {
+    const { page } = session;
+    await page.getByRole('button', { name: 'Conversation info' }).click();
+    const dialog = page.getByRole('dialog').filter({ hasText: 'Conversation info' });
+    await dialog.waitFor({ timeout: 5000 });
+
+    await dialog.getByText('Chatter B', { exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await dialog.getByText('Your bubble').count(), 0, 'a bubble color control is still here after the Discord-style rewrite');
+    assert.equal(await dialog.getByText('Their bubble').count(), 0, 'a bubble color control is still here after the Discord-style rewrite');
+
+    await page.keyboard.press('Escape');
+  });
+});
+
+describe('system chat: emoji picker and conversation search', () => {
+  it('inserts an emoji from the composer toolbar and dismisses on an outside click', async () => {
+    const { page } = session;
+    const threadId = await createGroupThread(page, [chatterA, chatterB], 'Emoji check');
+    await page.goto(`${BASE}/system/chat/${threadId}`, { waitUntil: 'networkidle' });
+    const box = page.getByRole('textbox', { name: 'Message' });
+    await box.waitFor({ timeout: 5000 });
+
+    await page.getByRole('button', { name: 'Emoji' }).click();
+    const picker = page.locator('.emoji-picker');
+    await picker.waitFor({ timeout: 5000 });
+    await picker.locator('.emoji-picker__option', { hasText: '😀' }).click();
+    assert.equal(await box.inputValue(), '😀', 'the picked emoji was not inserted into the draft');
+
+    await page.getByRole('button', { name: 'Emoji' }).click();
+    await picker.waitFor({ timeout: 5000 });
+    await page.locator('.chat-conversation__name').click();
+    assert.equal(await page.locator('.emoji-picker').count(), 0, 'the emoji picker stayed open after an outside click');
+
+    await box.fill('');
+  });
+
+  it('finds an already-sent message by text and jumps to it, with a no-match state', async () => {
+    const { page } = session;
+    const threadId = await createGroupThread(page, [chatterA, chatterB], 'Search check');
+    await page.goto(`${BASE}/system/chat/${threadId}`, { waitUntil: 'networkidle' });
+    const box = page.getByRole('textbox', { name: 'Message' });
+    const send = page.getByRole('button', { name: 'Send' });
+    await box.waitFor({ timeout: 5000 });
+
+    for (const text of ['hello there', 'checking the weather today', 'goodbye for now']) {
+      await box.fill(text);
+      await send.click();
+      await page.locator('.chat-conversation__messages').getByText(text, { exact: true }).waitFor({ timeout: 5000 });
+    }
+
+    await page.getByRole('button', { name: 'Search this conversation' }).click();
+    await page.getByPlaceholder('Search this conversation').fill('weather');
+    const results = page.locator('.chat-search-results__row');
+    await results.first().waitFor({ timeout: 5000 });
+    assert.equal(await results.count(), 1, 'the search did not narrow to the one matching message');
+    assert.ok((await results.first().textContent())?.includes('checking the weather today'), 'the result row is missing the matching snippet');
+
+    await results.first().click();
+    await page.locator('.chat-message--highlight').waitFor({ timeout: 5000 });
+
+    await page.getByPlaceholder('Search this conversation').fill('no such text anywhere');
+    await page.locator('.chat-search-results__empty').waitFor({ timeout: 5000 });
+
+    await page.getByRole('button', { name: 'Close search' }).click();
+    assert.equal(await page.locator('.chat-search-results').count(), 0, 'the results panel stayed open after closing search');
   });
 });
