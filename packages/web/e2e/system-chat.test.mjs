@@ -398,3 +398,68 @@ describe('system chat: pagination and jump-to-latest', () => {
     assert.equal(await page.locator('.chat-jump-latest').count(), 0, 'jump-to-latest did not disappear after being used');
   });
 });
+
+describe('system chat: nav rail and member panel', () => {
+  let threadId;
+
+  it('shows the nav rail and a collapsible member column on desktop, a dialog on mobile', async () => {
+    const { page } = session;
+    // A fresh member, not just chatterA/chatterB: the server reuses an
+    // existing group thread with the exact same participant set rather than
+    // creating a duplicate, and an earlier describe block already made one
+    // out of [chatterA, chatterB] — a third member keeps this thread its own.
+    // Asserting on B and D specifically, not A: an earlier describe block
+    // sets Chatter A as the account's active member and leaves it that way,
+    // and a thread's participant list never includes whoever is currently
+    // viewing it as themselves — correct, pre-existing behavior this test
+    // should not fight.
+    const chatterD = await createMember(page, 'Chatter D', '#fcd34d');
+    threadId = await createGroupThread(page, [chatterA, chatterB, chatterD], 'Nav rail and members');
+    await page.goto(`${BASE}/system/chat/${threadId}`, { waitUntil: 'networkidle' });
+    await page.getByRole('button', { name: 'Conversation info' }).waitFor({ timeout: 5000 });
+
+    // Desktop: the same breakpoint the panes themselves already switch on.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForTimeout(200);
+
+    assert.ok(await page.locator('.chat-nav-rail').isVisible(), 'the nav rail did not show at desktop width');
+
+    await page.getByRole('button', { name: 'Show members' }).click();
+    const column = page.locator('.chat-member-column');
+    await column.waitFor({ timeout: 5000 });
+    await column.getByText('Chatter B', { exact: true }).waitFor({ timeout: 5000 });
+    await column.getByText('Chatter D', { exact: true }).waitFor({ timeout: 5000 });
+
+    // `.count()` is a snapshot, not an auto-waiting assertion — it has to
+    // wait for the close to actually land, not just for the click to fire.
+    await column.getByRole('button', { name: 'Hide members' }).click();
+    await column.waitFor({ state: 'hidden', timeout: 5000 });
+    assert.equal(await page.locator('.chat-member-column').count(), 0, 'the member column did not close');
+
+    // Mobile: the same roster, now as a dialog instead of a column.
+    await page.setViewportSize({ width: 360, height: 780 });
+    await page.waitForTimeout(200);
+
+    // The rail is always in the DOM — only CSS hides it below the
+    // breakpoint — so this checks visibility, not `.count()` (always 1).
+    assert.equal(await page.locator('.chat-nav-rail').isVisible(), false, 'the nav rail stayed visible below the desktop breakpoint');
+
+    await page.getByRole('button', { name: 'Show members' }).click();
+    await page.getByText('Chatter B', { exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await page.locator('.chat-member-column').count(), 0, 'the desktop member column rendered on mobile');
+    await page.keyboard.press('Escape');
+  });
+
+  it('shows the roster inside conversation info, with no bubble color controls left', async () => {
+    const { page } = session;
+    await page.getByRole('button', { name: 'Conversation info' }).click();
+    const dialog = page.getByRole('dialog').filter({ hasText: 'Conversation info' });
+    await dialog.waitFor({ timeout: 5000 });
+
+    await dialog.getByText('Chatter B', { exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await dialog.getByText('Your bubble').count(), 0, 'a bubble color control is still here after the Discord-style rewrite');
+    assert.equal(await dialog.getByText('Their bubble').count(), 0, 'a bubble color control is still here after the Discord-style rewrite');
+
+    await page.keyboard.press('Escape');
+  });
+});

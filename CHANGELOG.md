@@ -12,6 +12,17 @@ different versions of PluralNova.
 
 ### Changed
 
+- **System Chat gets a desktop nav rail and a member panel.** On wide
+  screens, a narrow rail now sits to the left of the conversation list with
+  who's currently chatting, a shortcut to start a new group, and a way back
+  to the rest of PluralNova — reachable no matter which conversation is
+  open. A new members button in a group or whole-system conversation's
+  header opens its participant roster — fronting members listed first — as
+  a collapsible column alongside the conversation on desktop, or a dialog
+  on narrower screens. Conversation info no longer offers "Your bubble" /
+  "Their bubble" color pickers, which stopped doing anything once the feed
+  became bubble-free; it shows the same participant roster instead.
+
 - **System Chat's conversation feed now loads older history as you scroll
   up**, instead of only ever showing the most recent page of messages.
   Scrolling to the top fetches the next page back and adds it above what's

@@ -31,6 +31,10 @@
 
 .chat-pane--conversation {
   flex: 2;
+  /* Row, not the `.chat-pane` default column: `.chat-conversation` is its own
+     independent column flex box (height: 100%), so it can sit beside the
+     member column below as a sibling instead of needing a wrapper of its own. */
+  flex-direction: row;
 }
 
 .chat-empty-pane {
@@ -63,6 +67,36 @@
 @media (min-width: 900px) {
   .chat-pane--list {
     max-width: 380px;
+  }
+}
+
+/* ── Nav rail (desktop) ─────────────────────────────────────────────────
+   Hidden by default — same breakpoint the panes themselves switch on —
+   rather than conditionally rendered, since nothing about it depends on
+   which pane is active the way the panes' own mobile toggle does. */
+.chat-nav-rail {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .chat-nav-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    width: 64px;
+    flex-shrink: 0;
+    padding: var(--space-3) 0;
+    border-right: 1px solid var(--border);
+  }
+
+  .chat-nav-rail__mark {
+    color: var(--text-faint);
+    display: flex;
+  }
+
+  .chat-nav-rail__spacer {
+    flex: 1;
   }
 }
 
@@ -330,6 +364,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
   height: 100%;
   min-height: 0;
   --chat-msg-gap: 2px;
@@ -970,6 +1006,19 @@
   gap: var(--space-3);
 }
 
+.chat-info__person-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-info__person-front {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
 .chat-info__section-title {
   margin: var(--space-2) 0 0;
   font-size: 0.75rem;
@@ -977,6 +1026,41 @@
   letter-spacing: 0.02em;
   color: var(--text-faint);
   text-transform: uppercase;
+}
+
+/* ── Member column (desktop) ───────────────────────────────────────────
+   Only ever rendered on a desktop-width viewport (see useIsDesktop in
+   SystemChatConversationView) — a mobile-width one gets the same roster in
+   a Dialog instead, so there is no media query here collapsing this away. */
+.chat-member-column {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+  min-height: 0;
+}
+
+.chat-member-column__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-member-column__title {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.chat-member-column__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
 }
 
 /* ── Message actions & reactions ────────────────────────────────────────── */

@@ -3,10 +3,11 @@ import { resolveChatAppearance, type ChatAppearance } from '@pluralnova/shared';
 import { useAuth } from '../core/auth.js';
 import { useToast } from '../core/toast.js';
 import { updateSystemChatThread, type SystemChatThreadSummary } from '../core/systemChat.js';
-import { Avatar, Button, SegmentedControl } from '../ui/primitives.js';
+import { Button, SegmentedControl } from '../ui/primitives.js';
 import { ColorField, SwitchRow, TextField } from '../ui/forms.js';
 import { Dialog } from '../ui/overlays.js';
 import { ChatIcon, readChatIcon } from './ChatIcon.js';
+import { ChatMemberPanel } from './ChatMemberPanel.js';
 
 /**
  * Who an In-Sys Chat thread is with/between, the handful of settings that
@@ -92,17 +93,7 @@ export function SystemChatInfoDialog({ open, onClose, thread, onChanged }: Syste
             </div>
           ) : null;
         })()}
-        <div className="chat-info__people">
-          {(thread.participants.length > 0 ? thread.participants : thread.person ? [thread.person] : []).map((person) => (
-            <div key={person.id} className="chat-info__person">
-              <Avatar name={person.name} src={person.avatarUrl ?? null} color={person.color} icon={person.icon} size={40} round />
-              <span>
-                {person.prefix ? <span className="chat-message__prefix">{person.prefix}</span> : null}
-                {person.name}
-              </span>
-            </div>
-          ))}
-        </div>
+        <ChatMemberPanel thread={thread} />
 
         {canRename ? (
           <form
@@ -139,16 +130,6 @@ export function SystemChatInfoDialog({ open, onClose, thread, onChanged }: Syste
           value={appearance.wallpaper ?? ''}
           onChange={(value) => void setAppearance({ wallpaper: value || null })}
           hint="Behind the messages in this conversation."
-        />
-        <ColorField
-          label="Your bubble"
-          value={appearance.bubbleMine ?? ''}
-          onChange={(value) => void setAppearance({ bubbleMine: value || null })}
-        />
-        <ColorField
-          label="Their bubble"
-          value={appearance.bubbleTheirs ?? ''}
-          onChange={(value) => void setAppearance({ bubbleTheirs: value || null })}
         />
         <div className="field">
           <span className="field__label">Spacing</span>

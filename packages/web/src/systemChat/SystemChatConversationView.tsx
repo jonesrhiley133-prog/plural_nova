@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { readableTextOn, resolveChatAppearance } from '@pluralnova/shared';
+import { resolveChatAppearance } from '@pluralnova/shared';
 import { useAuth } from '../core/auth.js';
 import { useCollection } from '../core/data.js';
 import { useDateFormat } from '../core/i18n.js';
@@ -25,7 +25,27 @@ import { ChatComposer, type ComposerEditTarget, type ComposerReplyTarget } from 
 import { useStableRowActions } from '../chat/useStableRowActions.js';
 import { SendAsStrip } from './SendAsStrip.js';
 import { SystemChatInfoDialog } from './SystemChatInfoDialog.js';
+import { ChatMemberPanel } from './ChatMemberPanel.js';
 import { ChatIcon, readChatIcon } from './ChatIcon.js';
+
+/**
+ * Whether the viewport is at or above the desktop breakpoint the chat panes
+ * themselves already switch on (chat.css). Reactive, not a one-time read —
+ * the member panel's column-vs-dialog choice has to follow a live resize,
+ * not just how wide the window happened to be on mount.
+ */
+function useIsDesktop(): boolean {
+  const query = '(min-width: 900px)';
+  const [isDesktop, setIsDesktop] = useState(() => typeof matchMedia === 'function' && matchMedia(query).matches);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return undefined;
+    const mql = matchMedia(query);
+    const onChange = (): void => setIsDesktop(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+}
 
 /**
  * One open In-Sys Chat conversation: header, history, composer. The header
@@ -100,9 +120,11 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   const [replyTo, setReplyTo] = useState<SystemChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<SystemChatMessage | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [memberPanelOpen, setMemberPanelOpen] = useState(false);
   const [lightbox, setLightbox] = useState<ChatAttachmentLike | null>(null);
   const forwardDialog = useDialog<SystemChatMessage>();
   const deleteDialog = useDialog<SystemChatMessage>();
+  const isDesktop = useIsDesktop();
 
   const messagesByOldestFirst = conversation.messages;
   // Every row now always shows its full avatar/name/timestamp header (no
@@ -281,13 +303,9 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
   const chatIcon = thread ? readChatIcon(thread.settings) : null;
 
   const appearance = resolveChatAppearance(settings.chatAppearance, thread?.settings ?? null);
-  const appearanceStyle = {
-    ...(appearance.wallpaper ? { '--chat-wallpaper': appearance.wallpaper } : {}),
-    ...(appearance.bubbleMine
-      ? { '--chat-bubble-mine': appearance.bubbleMine, '--chat-bubble-mine-text': readableTextOn(appearance.bubbleMine) }
-      : {}),
-    ...(appearance.bubbleTheirs ? { '--chat-bubble-theirs': appearance.bubbleTheirs } : {}),
-  } as never;
+  // Bubble colors aren't read anywhere here — System Chat's feed has had no
+  // bubbles since the Discord-style rewrite — so only wallpaper carries over.
+  const appearanceStyle = (appearance.wallpaper ? { '--chat-wallpaper': appearance.wallpaper } : {}) as never;
 
   const forwardCandidates: ForwardCandidate[] = allThreads.map((candidate) => {
     const candidateGroupLike = candidate.kind === 'group' || candidate.kind === 'system';
@@ -301,7 +319,15 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
     };
   });
 
+  const memberCount = thread ? (thread.participants.length > 0 ? thread.participants.length : 1) : 0;
+  // A member-column sibling needs `.chat-pane--conversation` (the parent,
+  // styled in chat.css) laid out as a row instead of `.chat-conversation`
+  // itself growing a new wrapper — `.chat-conversation` is already its own
+  // independent column flex box, so it only needs `flex: 1` to share the row.
+  const showMemberColumn = isGroupLike && memberPanelOpen && isDesktop;
+
   return (
+    <>
     <div className="chat-conversation" style={appearanceStyle} data-spacing={appearance.spacing}>
       <header className="chat-conversation__header">
         <IconButton icon="chevronLeft" label="Back to conversations" variant="ghost" className="chat-conversation__back" onClick={onBack} />
@@ -335,6 +361,14 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
             </span>
           ) : null}
         </div>
+        {isGroupLike ? (
+          <IconButton
+            icon="members"
+            label={memberPanelOpen ? 'Hide members' : 'Show members'}
+            variant="ghost"
+            onClick={() => setMemberPanelOpen((open) => !open)}
+          />
+        ) : null}
         <IconButton icon="info" label="Conversation info" variant="ghost" onClick={() => setInfoOpen(true)} />
       </header>
 
@@ -433,5 +467,28 @@ export function SystemChatConversationView({ threadId, viewerMemberId, onBack }:
         {lightbox ? <img className="chat-lightbox__image" src={lightbox.url} alt={lightbox.title || 'Image'} /> : null}
       </Dialog>
     </div>
+
+    {showMemberColumn && thread ? (
+      <aside className="chat-member-column">
+        <div className="chat-member-column__header">
+          <span className="chat-member-column__title">{memberCount} {memberCount === 1 ? 'member' : 'members'}</span>
+          <IconButton icon="close" label="Hide members" variant="ghost" size="sm" onClick={() => setMemberPanelOpen(false)} />
+        </div>
+        <div className="chat-member-column__list">
+          <ChatMemberPanel thread={thread} />
+        </div>
+      </aside>
+    ) : null}
+
+    {!isDesktop && thread ? (
+      <Dialog
+        open={memberPanelOpen}
+        onClose={() => setMemberPanelOpen(false)}
+        title={`${memberCount} ${memberCount === 1 ? 'member' : 'members'}`}
+      >
+        <ChatMemberPanel thread={thread} />
+      </Dialog>
+    ) : null}
+    </>
   );
 }
